@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.retry.platform.server.mapper.SceneConfigMapper">
+
+    <resultMap id="BaseResultMap" type="com.retry.platform.server.entity.SceneConfig">
+        <id column="id" property="id" jdbcType="BIGINT"/>
+        <result column="scene_type" property="sceneType" jdbcType="INTEGER"/>
+        <result column="scene_name" property="sceneName" jdbcType="VARCHAR"/>
+        <result column="retry_intervals" property="retryIntervals" jdbcType="VARCHAR"/>
+        <result column="max_retry_count" property="maxRetryCount" jdbcType="INTEGER"/>
+        <result column="hook_class" property="hookClass" jdbcType="VARCHAR"/>
+        <result column="enabled" property="enabled" jdbcType="TINYINT"/>
+        <result column="create_time" property="createTime" jdbcType="TIMESTAMP"/>
+        <result column="update_time" property="updateTime" jdbcType="TIMESTAMP"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, scene_type, scene_name, retry_intervals, max_retry_count,
+        hook_class, enabled, create_time, update_time
+    </sql>
+
+    <insert id="insert" parameterType="com.retry.platform.server.entity.SceneConfig"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO scene_config (
+            scene_type, scene_name, retry_intervals, max_retry_count,
+            hook_class, enabled, create_time, update_time
+        ) VALUES (
+            #{sceneType}, #{sceneName}, #{retryIntervals}, #{maxRetryCount},
+            #{hookClass}, #{enabled}, #{createTime}, #{updateTime}
+        )
+    </insert>
+
+    <update id="updateById" parameterType="com.retry.platform.server.entity.SceneConfig">
+        UPDATE scene_config
+        SET scene_name = #{sceneName},
+            retry_intervals = #{retryIntervals},
+            max_retry_count = #{maxRetryCount},
+            hook_class = #{hookClass},
+            enabled = #{enabled},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM scene_config
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectBySceneType" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM scene_config
+        WHERE scene_type = #{sceneType}
+    </select>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM scene_config
+        ORDER BY scene_type ASC
+    </select>
+
+    <select id="selectAllEnabled" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM scene_config
+        WHERE enabled = 1
+        ORDER BY scene_type ASC
+    </select>
+
+    <delete id="deleteById">
+        DELETE FROM scene_config
+        WHERE id = #{id}
+    </delete>
+
+    <update id="updateEnabled">
+        UPDATE scene_config
+        SET enabled = #{enabled},
+            update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+</mapper>

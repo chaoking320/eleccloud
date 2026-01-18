@@ -1,0 +1,160 @@
+package com.retry.platform.client.api.impl;
+
+import com.retry.platform.client.api.RetryClient;
+import com.retry.platform.client.config.RetryClientProperties;
+import com.retry.platform.client.dto.Result;
+import com.retry.platform.client.dto.RetryTaskDTO;
+import com.retry.platform.client.dto.RetryTaskRequest;
+import com.retry.platform.client.util.JsonUtil;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.*;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestTemplate;
+
+/**
+ * 重试客户端实现类
+ */
+@Slf4j
+@Component
+public class RetryClientImpl implements RetryClient {
+    
+    @Autowired
+    private RetryClientProperties properties;
+    
+    @Autowired
+    private RestTemplate restTemplate;
+    
+    private static final String SUBMIT_PATH = "/api/retry/submit";
+    private static final String CANCEL_PATH = "/api/retry/cancel/";
+    private static final String QUERY_PATH = "/api/retry/query/";
+    
+    @Override
+    public String submit(RetryTaskRequest request) {
+        // 开发模式下仅记录日志
+        if (properties.isDevMode()) {
+            log.info("[DEV MODE] Retry task would be submitted: {}", JsonUtil.toJson(request));
+            return "dev-mode-task-id";
+        }
+        
+        // 参数校验
+        validateRequest(request);
+        
+        try {
+            String url = properties.getServerUrl() + SUBMIT_PATH;
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            
+            HttpEntity<RetryTaskRequest> entity = new HttpEntity<>(request, headers);
+            
+            ResponseEntity<Result<String>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    entity,
+                    new ParameterizedTypeReference<Result<String>>() {}
+            );
+            
+            Result<String> result = response.getBody();
+            if (result != null && result.getSuccess()) {
+                return result.getData();
+            } else {
+                String errorMsg = result != null ? result.getMessage() : "Unknown error";
+                throw new RuntimeException("Failed to submit retry task: " + errorMsg);
+            }
+        } catch (Exception e) {
+            log.error("Failed to submit retry task to server", e);
+            throw new RuntimeException("Failed to submit retry task", e);
+        }
+    }
+    
+    @Override
+    public boolean cancel(String taskId) {
+        // 开发模式下仅记录日志
+        if (properties.isDevMode()) {
+            log.info("[DEV MODE] Retry task would be cancelled: {}", taskId);
+            return true;
+        }
+        
+        if (taskId == null || taskId.isEmpty()) {
+            throw new IllegalArgumentException("TaskId cannot be null or empty");
+        }
+        
+        try {
+            String url = properties.getServerUrl() + CANCEL_PATH + taskId;
+            
+            ResponseEntity<Result<Boolean>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    null,
+                    new ParameterizedTypeReference<Result<Boolean>>() {}
+            );
+            
+            Result<Boolean> result = response.getBody();
+            return result != null && result.getSuccess() && Boolean.TRUE.equals(result.getData());
+        } catch (Exception e) {
+            log.error("Failed to cancel retry task: {}", taskId, e);
+            return false;
+        }
+    }
+    
+    @Override
+    public RetryTaskDTO queryTask(String taskId) {
+        // 开发模式下返回模拟数据
+        if (properties.isDevMode()) {
+            log.info("[DEV MODE] Query retry task: {}", taskId);
+            RetryTaskDTO dto = new RetryTaskDTO();
+            dto.setTaskId(taskId);
+            dto.setTaskStatus("DEV_MODE");
+            return dto;
+        }
+        
+        if (taskId == null || taskId.isEmpty()) {
+            throw new IllegalArgumentException("TaskId cannot be null or empty");
+        }
+        
+        try {
+            String url = properties.getServerUrl() + QUERY_PATH + taskId;
+            
+            ResponseEntity<Result<RetryTaskDTO>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    null,
+                    new ParameterizedTypeReference<Result<RetryTaskDTO>>() {}
+            );
+            
+            Result<RetryTaskDTO> result = response.getBody();
+            if (result != null && result.getSuccess()) {
+                return result.getData();
+            } else {
+                String errorMsg = result != null ? result.getMessage() : "Unknown error";
+                throw new RuntimeException("Failed to query retry task: " + errorMsg);
+            }
+        } catch (Exception e) {
+            log.error("Failed to query retry task: {}", taskId, e);
+            throw new RuntimeException("Failed to query retry task", e);
+        }
+    }
+    
+    /**
+     * 校验请求参数
+     */
+    private void validateRequest(RetryTaskRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("RetryTaskRequest cannot be null");
+        }
+        if (request.getSceneType() == null) {
+            throw new IllegalArgumentException("SceneType cannot be null");
+        }
+        if (request.getIdempotentKey() == null || request.getIdempotentKey().isEmpty()) {
+            throw new IllegalArgumentException("IdempotentKey cannot be null or empty");
+        }
+        if (request.getMethodClass() == null || request.getMethodClass().isEmpty()) {
+            throw new IllegalArgumentException("MethodClass cannot be null or empty");
+        }
+        if (request.getMethodName() == null || request.getMethodName().isEmpty()) {
+            throw new IllegalArgumentException("MethodName cannot be null or empty");
+        }
+    }
+}

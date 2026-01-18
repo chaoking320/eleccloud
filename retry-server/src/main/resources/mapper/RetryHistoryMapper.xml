@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.retry.platform.server.mapper.RetryHistoryMapper">
+
+    <resultMap id="BaseResultMap" type="com.retry.platform.server.entity.RetryHistory">
+        <id column="id" property="id" jdbcType="BIGINT"/>
+        <result column="task_id" property="taskId" jdbcType="VARCHAR"/>
+        <result column="retry_count" property="retryCount" jdbcType="INTEGER"/>
+        <result column="execute_time" property="executeTime" jdbcType="TIMESTAMP"/>
+        <result column="execute_result" property="executeResult" jdbcType="VARCHAR"/>
+        <result column="error_message" property="errorMessage" jdbcType="VARCHAR"/>
+        <result column="cost_time" property="costTime" jdbcType="INTEGER"/>
+        <result column="create_time" property="createTime" jdbcType="TIMESTAMP"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, task_id, retry_count, execute_time, execute_result, 
+        error_message, cost_time, create_time
+    </sql>
+
+    <insert id="insert" parameterType="com.retry.platform.server.entity.RetryHistory"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO retry_history (
+            task_id, retry_count, execute_time, execute_result,
+            error_message, cost_time, create_time
+        ) VALUES (
+            #{taskId}, #{retryCount}, #{executeTime}, #{executeResult},
+            #{errorMessage}, #{costTime}, #{createTime}
+        )
+    </insert>
+
+    <select id="selectByTaskId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM retry_history
+        WHERE task_id = #{taskId}
+        ORDER BY execute_time DESC
+    </select>
+
+    <select id="selectLatestByTaskId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM retry_history
+        WHERE task_id = #{taskId}
+        ORDER BY execute_time DESC
+        LIMIT 1
+    </select>
+
+    <delete id="deleteByTaskId">
+        DELETE FROM retry_history
+        WHERE task_id = #{taskId}
+    </delete>
+
+</mapper>

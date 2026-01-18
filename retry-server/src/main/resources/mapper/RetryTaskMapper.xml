@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.retry.platform.server.mapper.RetryTaskMapper">
+
+    <resultMap id="BaseResultMap" type="com.retry.platform.server.entity.RetryTask">
+        <id column="id" property="id" jdbcType="BIGINT"/>
+        <result column="task_id" property="taskId" jdbcType="VARCHAR"/>
+        <result column="scene_type" property="sceneType" jdbcType="INTEGER"/>
+        <result column="idempotent_key" property="idempotentKey" jdbcType="VARCHAR"/>
+        <result column="method_class" property="methodClass" jdbcType="VARCHAR"/>
+        <result column="method_name" property="methodName" jdbcType="VARCHAR"/>
+        <result column="method_params" property="methodParams" jdbcType="VARCHAR"/>
+        <result column="task_status" property="taskStatus" jdbcType="VARCHAR"/>
+        <result column="retry_count" property="retryCount" jdbcType="INTEGER"/>
+        <result column="max_retry_count" property="maxRetryCount" jdbcType="INTEGER"/>
+        <result column="next_retry_time" property="nextRetryTime" jdbcType="BIGINT"/>
+        <result column="create_time" property="createTime" jdbcType="TIMESTAMP"/>
+        <result column="update_time" property="updateTime" jdbcType="TIMESTAMP"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, task_id, scene_type, idempotent_key, method_class, method_name, 
+        method_params, task_status, retry_count, max_retry_count, next_retry_time,
+        create_time, update_time
+    </sql>
+
+    <insert id="insert" parameterType="com.retry.platform.server.entity.RetryTask" 
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO retry_task (
+            task_id, scene_type, idempotent_key, method_class, method_name,
+            method_params, task_status, retry_count, max_retry_count, next_retry_time,
+            create_time, update_time
+        ) VALUES (
+            #{taskId}, #{sceneType}, #{idempotentKey}, #{methodClass}, #{methodName},
+            #{methodParams}, #{taskStatus}, #{retryCount}, #{maxRetryCount}, #{nextRetryTime},
+            #{createTime}, #{updateTime}
+        )
+    </insert>
+
+    <select id="selectByTaskId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM retry_task
+        WHERE task_id = #{taskId}
+    </select>
+
+    <select id="selectBySceneAndIdempotentKey" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM retry_task
+        WHERE scene_type = #{sceneType}
+        AND idempotent_key = #{idempotentKey}
+    </select>
+
+    <update id="updateStatus">
+        UPDATE retry_task
+        SET task_status = #{taskStatus},
+            update_time = NOW()
+        WHERE task_id = #{taskId}
+    </update>
+
+    <update id="updateRetryInfo">
+        UPDATE retry_task
+        SET retry_count = #{retryCount},
+            next_retry_time = #{nextRetryTime},
+            update_time = NOW()
+        WHERE task_id = #{taskId}
+    </update>
+
+    <update id="updateStatusAndRetryInfo">
+        UPDATE retry_task
+        SET task_status = #{taskStatus},
+            retry_count = #{retryCount},
+            next_retry_time = #{nextRetryTime},
+            update_time = NOW()
+        WHERE task_id = #{taskId}
+    </update>
+
+    <select id="selectPendingTasks" resultType="java.lang.String">
+        SELECT task_id
+        FROM retry_task
+        WHERE task_status IN ('INIT', 'WAIT')
+        AND next_retry_time &lt;= #{currentTime}
+        ORDER BY next_retry_time ASC
+        LIMIT #{limit}
+    </select>
+
+    <delete id="deleteById">
+        DELETE FROM retry_task
+        WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteByTaskId">
+        DELETE FROM retry_task
+        WHERE task_id = #{taskId}
+    </delete>
+
+    <select id="countTasks" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM retry_task
+        <where>
+            <if test="sceneType != null">
+                AND scene_type = #{sceneType}
+            </if>
+            <if test="taskStatus != null and taskStatus != ''">
+                AND task_status = #{taskStatus}
+            </if>
+        </where>
+    </select>
+
+</mapper>

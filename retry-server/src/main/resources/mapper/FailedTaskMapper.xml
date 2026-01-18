@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.retry.platform.server.mapper.FailedTaskMapper">
+
+    <resultMap id="BaseResultMap" type="com.retry.platform.server.entity.FailedTask">
+        <id column="id" property="id" jdbcType="BIGINT"/>
+        <result column="task_id" property="taskId" jdbcType="VARCHAR"/>
+        <result column="scene_type" property="sceneType" jdbcType="INTEGER"/>
+        <result column="idempotent_key" property="idempotentKey" jdbcType="VARCHAR"/>
+        <result column="method_class" property="methodClass" jdbcType="VARCHAR"/>
+        <result column="method_name" property="methodName" jdbcType="VARCHAR"/>
+        <result column="method_params" property="methodParams" jdbcType="VARCHAR"/>
+        <result column="retry_count" property="retryCount" jdbcType="INTEGER"/>
+        <result column="fail_reason" property="failReason" jdbcType="VARCHAR"/>
+        <result column="create_time" property="createTime" jdbcType="TIMESTAMP"/>
+        <result column="fail_time" property="failTime" jdbcType="TIMESTAMP"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, task_id, scene_type, idempotent_key, method_class, method_name,
+        method_params, retry_count, fail_reason, create_time, fail_time
+    </sql>
+
+    <insert id="insert" parameterType="com.retry.platform.server.entity.FailedTask"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO failed_task (
+            task_id, scene_type, idempotent_key, method_class, method_name,
+            method_params, retry_count, fail_reason, create_time, fail_time
+        ) VALUES (
+            #{taskId}, #{sceneType}, #{idempotentKey}, #{methodClass}, #{methodName},
+            #{methodParams}, #{retryCount}, #{failReason}, #{createTime}, #{failTime}
+        )
+    </insert>
+
+    <select id="selectByTaskId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM failed_task
+        WHERE task_id = #{taskId}
+    </select>
+
+    <select id="selectByConditions" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM failed_task
+        <where>
+            <if test="sceneType != null">
+                AND scene_type = #{sceneType}
+            </if>
+            <if test="idempotentKey != null and idempotentKey != ''">
+                AND idempotent_key = #{idempotentKey}
+            </if>
+            <if test="startTime != null">
+                AND fail_time &gt;= #{startTime}
+            </if>
+            <if test="endTime != null">
+                AND fail_time &lt;= #{endTime}
+            </if>
+        </where>
+        ORDER BY fail_time DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countByConditions" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM failed_task
+        <where>
+            <if test="sceneType != null">
+                AND scene_type = #{sceneType}
+            </if>
+            <if test="idempotentKey != null and idempotentKey != ''">
+                AND idempotent_key = #{idempotentKey}
+            </if>
+            <if test="startTime != null">
+                AND fail_time &gt;= #{startTime}
+            </if>
+            <if test="endTime != null">
+                AND fail_time &lt;= #{endTime}
+            </if>
+        </where>
+    </select>
+
+    <delete id="deleteByTaskId">
+        DELETE FROM failed_task
+        WHERE task_id = #{taskId}
+    </delete>
+
+</mapper>

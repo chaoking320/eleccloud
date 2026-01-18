@@ -1,0 +1,16 @@
+{
+  "name": "retry-admin",
+  "version": "1.0.0",
+  "description": "Retry Platform Admin Console",
+  "main": "index.js",
+  "scripts": {
+    "dev": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "install-frontend": "cd frontend && npm install",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["retry", "admin", "vue"],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
