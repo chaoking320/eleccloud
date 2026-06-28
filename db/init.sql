@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS scene_config (
     retry_intervals VARCHAR(256) NOT NULL COMMENT '重试间隔(分钟),逗号分隔',
     max_retry_count INT NOT NULL COMMENT '最大重试次数',
     hook_class VARCHAR(256) COMMENT '钩子类名',
+    client_app_url VARCHAR(256) COMMENT '客户端应用URL',
     enabled TINYINT DEFAULT 1 COMMENT '是否启用: 0-禁用, 1-启用',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -70,8 +71,8 @@ CREATE TABLE IF NOT EXISTS failed_task (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='失败任务表';
 
 -- 插入示例场景配置
-INSERT INTO scene_config (scene_type, scene_name, retry_intervals, max_retry_count, hook_class, enabled) 
+INSERT INTO scene_config (scene_type, scene_name, retry_intervals, max_retry_count, hook_class, client_app_url, enabled) 
 VALUES 
-(1, '退款场景', '1,5,10,30', 4, 'com.retry.platform.example.RefundRetryHook', 1),
-(2, '结算场景', '2,10,30,60', 4, 'com.retry.platform.example.SettlementRetryHook', 1)
-ON DUPLICATE KEY UPDATE scene_name=VALUES(scene_name);
+(1, '退款场景', '1,5,10,30', 4, 'com.retry.platform.example.RefundRetryHook', 'http://localhost:8082', 1),
+(2, '结算场景', '2,10,30,60', 4, 'com.retry.platform.example.SettlementRetryHook', 'http://localhost:8082', 1)
+ON DUPLICATE KEY UPDATE scene_name=VALUES(scene_name), client_app_url=VALUES(client_app_url);

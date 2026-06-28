@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: retry-platform-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: retry_platform
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - retry-network
+
+  redis:
+    image: redis:6-alpine
+    container_name: retry-platform-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - retry-network
+
+  retry-server:
+    build: ./retry-server
+    container_name: retry-server-app
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/retry_platform?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=password
+      - SPRING_REDIS_HHOST=redis
+      - SPRING_REDIS_REDISSON_CONFIG=singleServerConfig:\n  address: "redis://redis:6379"\n  database: 2
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - retry-network
+
+  retry-admin:
+    build: ./retry-admin
+    container_name: retry-admin-app
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/retry_platform?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=password
+    depends_on:
+      - mysql
+    networks:
+      - retry-network
+
+  retry-example:
+    build: ./retry-example
+    container_name: retry-example-app
+    ports:
+      - "8082:8082"
+    environment:
+      - RETRY_CLIENT_SERVER_URL=http://retry-server:8080
+    depends_on:
+      - retry-server
+    networks:
+      - retry-network
+
+volumes:
+  mysql-data:
+  redis-data:
+
+networks:
+  retry-network:
+    driver: bridge

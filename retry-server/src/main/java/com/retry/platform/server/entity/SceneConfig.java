@@ -42,6 +42,7 @@ public class SceneConfig {
      * 钩子类名
      */
     private String hookClass;
+    private String clientAppUrl;
     
     /**
      * 是否启用: 0-禁用, 1-启用

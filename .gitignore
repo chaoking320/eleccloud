@@ -33,3 +33,7 @@ Thumbs.db
 # Application
 application-local.yml
 application-dev.yml
+
+# AI Agent workspace
+.kiro/
+.workbuddy/

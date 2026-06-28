@@ -98,4 +98,20 @@ public interface RetryTaskMapper {
      */
     long countTasks(@Param("sceneType") Integer sceneType, 
                    @Param("taskStatus") String taskStatus);
+
+    /**
+     * 查询重试任务列表（支持条件查询与分页）
+     */
+    List<RetryTask> selectByConditions(@Param("sceneType") Integer sceneType,
+                                       @Param("idempotentKey") String idempotentKey,
+                                       @Param("taskStatus") String taskStatus,
+                                       @Param("offset") Integer offset,
+                                       @Param("limit") Integer limit);
+    
+    /**
+     * 统计重试任务数量（支持条件查询）
+     */
+    long countByConditions(@Param("sceneType") Integer sceneType,
+                          @Param("idempotentKey") String idempotentKey,
+                          @Param("taskStatus") String taskStatus);
 }

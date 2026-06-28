@@ -1,4 +1,4 @@
-package com.retry.platform.server.hook;
+package com.retry.platform.client.hook;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

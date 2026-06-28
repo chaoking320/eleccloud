@@ -3,6 +3,7 @@ package com.retry.platform.client.config;
 import com.retry.platform.client.api.RetryClient;
 import com.retry.platform.client.api.impl.RetryClientImpl;
 import com.retry.platform.client.aspect.RetryableTaskAspect;
+import com.retry.platform.client.callback.RetryCallbackController;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -57,5 +58,15 @@ public class RetryClientAutoConfiguration {
     public RetryableTaskAspect retryableTaskAspect() {
         log.info("RetryableTaskAspect bean registered");
         return new RetryableTaskAspect();
+    }
+
+    /**
+     * 注册回调控制器 Bean
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public RetryCallbackController retryCallbackController() {
+        log.info("RetryCallbackController bean registered");
+        return new RetryCallbackController();
     }
 }

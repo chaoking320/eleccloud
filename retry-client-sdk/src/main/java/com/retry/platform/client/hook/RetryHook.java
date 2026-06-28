@@ -1,4 +1,4 @@
-package com.retry.platform.server.hook;
+package com.retry.platform.client.hook;
 
 /**
  * 重试钩子接口

@@ -14,6 +14,11 @@
     <artifactId>retry-admin</artifactId>
     <packaging>jar</packaging>
 
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    </properties>
+
     <name>Retry Admin</name>
     <description>管理后台，提供可视化配置和监控</description>
 
@@ -23,6 +28,12 @@
             <groupId>com.retry.platform</groupId>
             <artifactId>retry-server</artifactId>
             <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.agentscope</groupId>
+            <artifactId>agentscope</artifactId>
+            <version>1.0.9</version>
         </dependency>
 
         <!-- Spring Boot Starter Web -->
@@ -75,6 +86,9 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <jvmArguments>-Dfile.encoding=UTF-8 -Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8</jvmArguments>
+                </configuration>
                 <executions>
                     <execution>
                         <goals>

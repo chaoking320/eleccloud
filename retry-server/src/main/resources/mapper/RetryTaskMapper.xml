@@ -107,4 +107,38 @@
         </where>
     </select>
 
+    <select id="selectByConditions" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM retry_task
+        <where>
+            <if test="sceneType != null">
+                AND scene_type = #{sceneType}
+            </if>
+            <if test="idempotentKey != null and idempotentKey != ''">
+                AND idempotent_key LIKE CONCAT('%', #{idempotentKey}, '%')
+            </if>
+            <if test="taskStatus != null and taskStatus != ''">
+                AND task_status = #{taskStatus}
+            </if>
+        </where>
+        ORDER BY create_time DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countByConditions" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM retry_task
+        <where>
+            <if test="sceneType != null">
+                AND scene_type = #{sceneType}
+            </if>
+            <if test="idempotentKey != null and idempotentKey != ''">
+                AND idempotent_key LIKE CONCAT('%', #{idempotentKey}, '%')
+            </if>
+            <if test="taskStatus != null and taskStatus != ''">
+                AND task_status = #{taskStatus}
+            </if>
+        </where>
+    </select>
+
 </mapper>

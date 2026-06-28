@@ -85,6 +85,16 @@ public class SceneConfigController {
                 return Result.error("场景配置不存在");
             }
 
+            // 如果仅仅是更新启用状态 (比如前端 Switch 切换，参数中 retryIntervals 为 null)
+            if (sceneConfig.getRetryIntervals() == null && sceneConfig.getEnabled() != null) {
+                boolean success = sceneConfigService.updateSceneEnabled(id, sceneConfig.isEnabled());
+                if (success) {
+                    return Result.success();
+                } else {
+                    return Result.error("修改启用状态失败");
+                }
+            }
+
             // 验证重试间隔配置
             if (!sceneConfigService.validateRetryIntervals(sceneConfig.getRetryIntervals())) {
                 return Result.error("重试间隔配置格式错误，应为逗号分隔的数字");

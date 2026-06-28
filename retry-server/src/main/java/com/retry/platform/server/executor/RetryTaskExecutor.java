@@ -3,22 +3,25 @@ package com.retry.platform.server.executor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.retry.platform.server.entity.RetryTask;
 import com.retry.platform.server.entity.SceneConfig;
-import com.retry.platform.server.hook.QueryResult;
-import com.retry.platform.server.hook.RetryContext;
-import com.retry.platform.server.hook.RetryHook;
+import com.retry.platform.client.hook.QueryResult;
+import com.retry.platform.client.hook.RetryContext;
+import com.retry.platform.client.hook.RetryHook;
+import com.retry.platform.client.dto.Result;
 import com.retry.platform.server.mapper.RetryTaskMapper;
 import com.retry.platform.server.service.*;
-import com.retry.platform.server.util.ReflectionInvoker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
  * 重试任务执行器
- * 负责执行重试任务的核心逻辑
+ * 负责执行重试任务的核心逻辑 (基于远程 HTTP 回调架构)
  */
 @Slf4j
 @Component
@@ -44,11 +47,29 @@ public class RetryTaskExecutor {
     
     @Autowired
     private DelayQueueService delayQueueService;
-    
-    @Autowired
-    private ReflectionInvoker reflectionInvoker;
+
+    @Autowired(required = false)
+    private com.retry.platform.server.metrics.RetryMetrics retryMetrics;
     
     private static final ObjectMapper objectMapper = new ObjectMapper();
+    
+    private static final RestTemplate restTemplate;
+    static {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(5000); // 5s 连接超时
+        factory.setReadTimeout(10000);   // 10s 读取超时
+        restTemplate = new RestTemplate(factory);
+    }
+    
+    /**
+     * 获取业务客户端地址
+     */
+    private String getClientAppUrl(SceneConfig sceneConfig) {
+        if (sceneConfig == null || sceneConfig.getClientAppUrl() == null || sceneConfig.getClientAppUrl().trim().isEmpty()) {
+            return "http://localhost:8082"; // 默认本地开发端口
+        }
+        return sceneConfig.getClientAppUrl();
+    }
     
     /**
      * 执行重试任务
@@ -59,6 +80,7 @@ public class RetryTaskExecutor {
         long startTime = System.currentTimeMillis();
         String executeResult = "FAILURE";
         String errorMessage = null;
+        SceneConfig sceneConfig = null;
         
         try {
             // 1. 加载任务详情
@@ -72,7 +94,7 @@ public class RetryTaskExecutor {
                     taskId, task.getSceneType(), task.getRetryCount());
             
             // 2. 获取场景配置
-            SceneConfig sceneConfig = sceneConfigService.getSceneConfigByType(task.getSceneType());
+            sceneConfig = sceneConfigService.getSceneConfigByType(task.getSceneType());
             if (sceneConfig == null) {
                 errorMessage = "Scene config not found: " + task.getSceneType();
                 log.error(errorMessage);
@@ -80,21 +102,18 @@ public class RetryTaskExecutor {
                 return;
             }
             
-            // 3. 获取钩子实现
-            RetryHook hook = getHook(sceneConfig.getHookClass());
-            
-            // 4. 构建上下文
+            // 3. 构建上下文
             RetryContext context = buildContext(task);
             
-            // 5. 检查状态并执行相应逻辑
-            String status = checkStatusSafely(hook, context);
+            // 4. 检查状态并执行相应逻辑 (通过远程客户端 SDK 触发)
+            String status = checkStatusSafely(sceneConfig, context);
             
             switch (status) {
                 case "SUCCESS":
                     executeResult = handleSuccess(task);
                     break;
                 case "WAIT":
-                    executeResult = handleWait(task, hook, context, sceneConfig);
+                    executeResult = handleWait(task, context, sceneConfig);
                     break;
                 case "INIT":
                 default:
@@ -111,18 +130,27 @@ public class RetryTaskExecutor {
             try {
                 RetryTask task = retryTaskMapper.selectByTaskId(taskId);
                 if (task != null) {
-                    handleExecutionFailure(task, sceneConfigService.getSceneConfigByType(task.getSceneType()), errorMessage);
+                    handleExecutionFailure(task, sceneConfig, errorMessage);
                 }
             } catch (Exception ex) {
                 log.error("Failed to handle execution failure: taskId={}", taskId, ex);
             }
         } finally {
             // 记录执行历史
-            int costTime = (int) (System.currentTimeMillis() - startTime);
+            long cost = System.currentTimeMillis() - startTime;
+            int costTime = (int) cost;
             try {
                 RetryTask task = retryTaskMapper.selectByTaskId(taskId);
                 if (task != null) {
                     retryTaskService.recordHistory(taskId, task.getRetryCount(), executeResult, errorMessage, costTime);
+                    try {
+                        if (retryMetrics != null) {
+                            retryMetrics.recordExecutionTime(task.getSceneType(), cost);
+                            retryMetrics.recordTaskExecuted(task.getSceneType(), executeResult);
+                        }
+                    } catch (Exception me) {
+                        log.warn("Failed to record execution metrics in executor", me);
+                    }
                 }
             } catch (Exception e) {
                 log.error("Failed to record history: taskId={}", taskId, e);
@@ -148,40 +176,64 @@ public class RetryTaskExecutor {
     /**
      * 处理WAIT状态
      */
-    private String handleWait(RetryTask task, RetryHook hook, RetryContext context, SceneConfig sceneConfig) {
+    private String handleWait(RetryTask task, RetryContext context, SceneConfig sceneConfig) {
         log.info("Task in WAIT status, querying remote service: taskId={}", task.getTaskId());
         
         try {
-            // 调用doQuery查询远程服务
-            QueryResult queryResult = hook.doQuery(context);
+            String clientUrl = getClientAppUrl(sceneConfig);
             
-            if (queryResult != null && queryResult.isSuccess()) {
-                log.info("Query succeeded, executing callback: taskId={}", task.getTaskId());
+            // 1. 调用远程 doQuery
+            String queryUrl = clientUrl + "/api/retry/callback/query?hookClass=" + sceneConfig.getHookClass();
+            log.info("Calling remote query: url={}", queryUrl);
+            
+            Result<?> result = restTemplate.postForObject(queryUrl, context, Result.class);
+            if (result != null && result.getSuccess() && result.getData() != null) {
+                QueryResult queryResult = objectMapper.convertValue(result.getData(), QueryResult.class);
                 
-                // 调用doCallback执行回调
-                hook.doCallback(context, queryResult);
-                
-                // 更新任务状态为SUCCESS
-                retryTaskService.updateTaskStatus(task.getTaskId(), "SUCCESS");
-                
-                // 从延时队列中移除
-                delayQueueService.removeTask(task.getTaskId());
-                
-                return "SUCCESS";
+                if (queryResult.isSuccess()) {
+                    log.info("Query succeeded, executing remote callback: taskId={}", task.getTaskId());
+                    
+                    // 2. 调用远程 doCallback
+                    String callbackUrl = clientUrl + "/api/retry/callback/do-callback";
+                    log.info("Calling remote do-callback: url={}", callbackUrl);
+                    
+                    // 构造回调请求
+                    Map<String, Object> callbackReq = new HashMap<>();
+                    callbackReq.put("context", context);
+                    callbackReq.put("queryResult", queryResult);
+                    callbackReq.put("hookClass", sceneConfig.getHookClass());
+                    
+                    Result<?> callbackResult = restTemplate.postForObject(callbackUrl, callbackReq, Result.class);
+                    if (callbackResult != null && callbackResult.getSuccess()) {
+                        log.info("Remote callback executed successfully: taskId={}", task.getTaskId());
+                        
+                        // 更新任务状态为SUCCESS
+                        retryTaskService.updateTaskStatus(task.getTaskId(), "SUCCESS");
+                        
+                        // 从延时队列中移除
+                        delayQueueService.removeTask(task.getTaskId());
+                        
+                        return "SUCCESS";
+                    } else {
+                        String msg = callbackResult != null ? callbackResult.getMessage() : "No response";
+                        log.error("Remote callback failed: taskId={}, message={}", task.getTaskId(), msg);
+                        scheduleNextRetry(task, sceneConfig);
+                        return "RETRY_SCHEDULED";
+                    }
+                } else {
+                    log.info("Query returned not successful, scheduling next retry: taskId={}", task.getTaskId());
+                    scheduleNextRetry(task, sceneConfig);
+                    return "RETRY_SCHEDULED";
+                }
             } else {
-                log.info("Query failed, scheduling next retry: taskId={}", task.getTaskId());
-                
-                // 查询失败，安排下次重试
+                String msg = result != null ? result.getMessage() : "No response";
+                log.error("Remote query failed: taskId={}, message={}", task.getTaskId(), msg);
                 scheduleNextRetry(task, sceneConfig);
-                
                 return "RETRY_SCHEDULED";
             }
         } catch (Exception e) {
-            log.error("Error during WAIT handling: taskId={}", task.getTaskId(), e);
-            
-            // 异常情况，安排下次重试
+            log.error("Error during remote WAIT handling: taskId={}", task.getTaskId(), e);
             scheduleNextRetry(task, sceneConfig);
-            
             return "RETRY_SCHEDULED";
         }
     }
@@ -190,33 +242,33 @@ public class RetryTaskExecutor {
      * 处理INIT状态
      */
     private String handleInit(RetryTask task, RetryContext context, SceneConfig sceneConfig) {
-        log.info("Task in INIT status, invoking original method: taskId={}", task.getTaskId());
+        log.info("Task in INIT status, invoking remote method: taskId={}", task.getTaskId());
         
         try {
-            // 通过反射调用原始方法
-            Object result = reflectionInvoker.invoke(
-                    task.getMethodClass(),
-                    task.getMethodName(),
-                    task.getMethodParams(),
-                    task.getIdempotentKey()
-            );
+            String clientUrl = getClientAppUrl(sceneConfig);
+            String executeUrl = clientUrl + "/api/retry/callback/execute-method";
+            log.info("Calling remote execute-method: url={}", executeUrl);
             
-            log.info("Method invoked successfully: taskId={}, result={}", task.getTaskId(), result);
-            
-            // 方法调用成功，更新状态为WAIT
-            retryTaskService.updateTaskStatus(task.getTaskId(), "WAIT");
-            
-            // 安排下次重试（用于后续状态检查）
-            scheduleNextRetry(task, sceneConfig);
-            
-            return "METHOD_INVOKED";
-            
+            Result<?> result = restTemplate.postForObject(executeUrl, context, Result.class);
+            if (result != null && result.getSuccess()) {
+                log.info("Remote method executed successfully: taskId={}, result={}", task.getTaskId(), result.getData());
+                
+                // 方法调用成功，更新状态为WAIT
+                retryTaskService.updateTaskStatus(task.getTaskId(), "WAIT");
+                
+                // 安排下次重试（用于后续状态检查和查询）
+                scheduleNextRetry(task, sceneConfig);
+                
+                return "METHOD_INVOKED";
+            } else {
+                String msg = result != null ? result.getMessage() : "No response";
+                log.error("Remote method invocation failed: taskId={}, message={}", task.getTaskId(), msg);
+                scheduleNextRetry(task, sceneConfig);
+                return "RETRY_SCHEDULED";
+            }
         } catch (Exception e) {
-            log.error("Method invocation failed: taskId={}", task.getTaskId(), e);
-            
-            // 方法调用失败，安排下次重试
+            log.error("Remote method invocation exception: taskId={}", task.getTaskId(), e);
             scheduleNextRetry(task, sceneConfig);
-            
             return "RETRY_SCHEDULED";
         }
     }
@@ -291,25 +343,6 @@ public class RetryTaskExecutor {
     }
     
     /**
-     * 获取钩子实现
-     */
-    private RetryHook getHook(String hookClass) {
-        if (hookClass == null || hookClass.trim().isEmpty()) {
-            log.debug("No hook class configured, using default hook");
-            return new DefaultRetryHook();
-        }
-        
-        try {
-            // 尝试从Spring容器中获取Bean
-            Class<?> clazz = Class.forName(hookClass);
-            return (RetryHook) applicationContext.getBean(clazz);
-        } catch (Exception e) {
-            log.warn("Failed to load hook class: {}, using default hook", hookClass, e);
-            return new DefaultRetryHook();
-        }
-    }
-    
-    /**
      * 构建重试上下文
      */
     @SuppressWarnings("unchecked")
@@ -338,42 +371,29 @@ public class RetryTaskExecutor {
     }
     
     /**
-     * 安全地检查状态（捕获异常）
+     * 安全地检查状态（捕获异常，通过远程客户端）
      */
-    private String checkStatusSafely(RetryHook hook, RetryContext context) {
+    private String checkStatusSafely(SceneConfig sceneConfig, RetryContext context) {
+        if (sceneConfig.getHookClass() == null || sceneConfig.getHookClass().trim().isEmpty()) {
+            return "INIT";
+        }
         try {
-            if (hook == null) {
+            String clientUrl = getClientAppUrl(sceneConfig);
+            String url = clientUrl + "/api/retry/callback/check-status?hookClass=" + sceneConfig.getHookClass();
+            log.info("Calling remote check-status: url={}", url);
+            
+            Result<?> result = restTemplate.postForObject(url, context, Result.class);
+            if (result != null && result.getSuccess()) {
+                String status = (String) result.getData();
+                return status != null ? status : "INIT";
+            } else {
+                String msg = result != null ? result.getMessage() : "No response";
+                log.error("Remote check-status failed: {}", msg);
                 return "INIT";
             }
-            String status = hook.checkStatus(context);
-            return status != null ? status : "INIT";
         } catch (Exception e) {
-            log.error("Error checking status: taskId={}", context.getTaskId(), e);
+            log.error("Error checking status: taskId={}, error={}", context.getTaskId(), e.getMessage());
             return "INIT";
-        }
-    }
-    
-    /**
-     * 默认钩子实现
-     * 当没有配置钩子类时使用
-     */
-    private static class DefaultRetryHook implements RetryHook {
-        
-        @Override
-        public String checkStatus(RetryContext context) {
-            // 默认返回INIT，表示需要重新执行
-            return "INIT";
-        }
-        
-        @Override
-        public QueryResult doQuery(RetryContext context) {
-            // 默认返回失败
-            return QueryResult.failure("No hook implementation");
-        }
-        
-        @Override
-        public void doCallback(RetryContext context, QueryResult result) {
-            // 默认不执行任何操作
         }
     }
 }

@@ -1,0 +1,84 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: retry-server
+  
+  datasource:
+    url: jdbc:mysql://150.158.43.55:3306/retry_platform?useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&rewriteBatchedStatements=true&useSSL=false&serverTimezone=GMT%2B8
+    username: root
+    password: Chaoking320wc_
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  redis:
+    hhost: 150.158.43.55
+    port: 6379
+    database: 1
+    password: Chaoking320wc_
+    timeout: 3000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+        max-wait: 100
+    redisson:
+      config: |
+        singleServerConfig:
+          # 注意：这里是 "address"，不是 "host" 和 "port" 分开
+          address: "redis://150.158.43.55:6379"
+          password: "Chaoking320wc_"
+          database: 2
+          connectionPoolSize: 64  # 注意命名：connectionPoolSize 不是 connection-pool-size
+          connectionMinimumIdleSize: 10  # 注意命名
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.retry.platform.server.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+
+# Redisson配置
+#redisson:
+#  single-server-config:
+#    hhost: 150.158.43.55
+#    port: 6379
+##    address: redis://150.158.43.55:6379
+#    password: Chaoking320wc_
+#    database: 2
+#    connection-pool-size: 64
+#    connection-minimum-idle-size: 10
+
+# 重试平台配置
+retry:
+  scheduler:
+    enabled: true
+    scan-interval: 10000  # 扫描间隔(ms)
+    batch-size: 100       # 每次处理任务数
+    fallback-scan-interval: 60000  # 数据库兜底扫描间隔(ms)，默认1分钟
+  executor:
+    core-pool-size: 10
+    max-pool-size: 50
+    queue-capacity: 1000
+    thread-name-prefix: retry-executor-
+
+# Actuator配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# 日志配置
+logging:
+  level:
+    com.retry.platform: INFO
+    org.springframework: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"

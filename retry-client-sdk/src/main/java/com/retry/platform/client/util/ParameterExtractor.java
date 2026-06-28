@@ -27,12 +27,13 @@ public class ParameterExtractor {
             throw new IllegalArgumentException("Method has no parameters to extract idempotent key");
         }
         
-        Method method = signature.getMethod();
-        Parameter[] parameters = method.getParameters();
+        String[] parameterNames = signature.getParameterNames();
+        if (parameterNames == null || parameterNames.length == 0) {
+            throw new IllegalStateException("Failed to resolve parameter names. Ensure Spring AOP is working.");
+        }
         
-        for (int i = 0; i < parameters.length; i++) {
-            Parameter parameter = parameters[i];
-            String paramName = parameter.getName();
+        for (int i = 0; i < parameterNames.length; i++) {
+            String paramName = parameterNames[i];
             
             // 匹配参数名
             if (idempotentKeyName.equals(paramName)) {
@@ -90,12 +91,13 @@ public class ParameterExtractor {
             return paramMap;
         }
         
-        Method method = signature.getMethod();
-        Parameter[] parameters = method.getParameters();
+        String[] parameterNames = signature.getParameterNames();
+        if (parameterNames == null || parameterNames.length == 0) {
+            return paramMap;
+        }
         
-        for (int i = 0; i < parameters.length; i++) {
-            String paramName = parameters[i].getName();
-            paramMap.put(paramName, args[i]);
+        for (int i = 0; i < parameterNames.length; i++) {
+            paramMap.put(parameterNames[i], args[i]);
         }
         
         return paramMap;

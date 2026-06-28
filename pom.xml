@@ -17,6 +17,7 @@
         <module>retry-server</module>
         <module>retry-client-sdk</module>
         <module>retry-admin</module>
+        <module>retry-example</module>
     </modules>
 
     <properties>

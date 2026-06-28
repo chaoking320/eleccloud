@@ -40,6 +40,9 @@ public class RetryTaskServiceImpl implements RetryTaskService {
     @Autowired
     private DelayQueueService delayQueueService;
     
+    @Autowired(required = false)
+    private com.retry.platform.server.metrics.RetryMetrics retryMetrics;
+    
     @Override
     @Transactional(rollbackFor = Exception.class)
     public String createTask(RetryTaskRequest request) {
@@ -95,6 +98,13 @@ public class RetryTaskServiceImpl implements RetryTaskService {
             retryTaskMapper.insert(retryTask);
             log.info("Created retry task: taskId={}, sceneType={}, idempotentKey={}", 
                     taskId, request.getSceneType(), request.getIdempotentKey());
+            try {
+                if (retryMetrics != null) {
+                    retryMetrics.recordTaskSubmitted(request.getSceneType());
+                }
+            } catch (Exception me) {
+                log.warn("Failed to record metrics for task submission", me);
+            }
         } catch (DuplicateKeyException e) {
             // 并发情况下可能出现重复，返回已存在的任务ID
             log.warn("Duplicate task detected during insert: sceneType={}, idempotentKey={}", 
