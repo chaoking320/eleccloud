@@ -89,4 +89,36 @@ public class RetryTaskController {
             return Result.fail("Failed to cancel task: " + e.getMessage());
         }
     }
+
+    /**
+     * 标记任务执行成功（PRE_SUBMIT 预提交模式专用）
+     * 客户端业务方法执行成功后调用，将任务状态更新为 SUCCESS 以停止后续重试调度
+     *
+     * @param taskId 任务ID
+     * @return 是否成功
+     */
+    @PostMapping("/success/{taskId}")
+    public Result<Boolean> markSuccess(@PathVariable String taskId) {
+        try {
+            RetryTaskDTO task = retryTaskService.getTask(taskId);
+            if (task == null) {
+                return Result.fail("Task not found: " + taskId);
+            }
+            if ("SUCCESS".equals(task.getTaskStatus())) {
+                // 幂等处理：已经是SUCCESS状态，直接返回成功
+                log.info("Task already marked SUCCESS (idempotent): taskId={}", taskId);
+                return Result.success(true);
+            }
+            if ("FAILED".equals(task.getTaskStatus())) {
+                return Result.fail("Cannot mark a FAILED task as SUCCESS: " + taskId);
+            }
+            retryTaskService.updateTaskStatus(taskId, "SUCCESS");
+            log.info("Task marked as SUCCESS by client (PRE_SUBMIT mode): taskId={}", taskId);
+            return Result.success(true);
+        } catch (Exception e) {
+            log.error("Failed to mark task success: taskId={}", taskId, e);
+            return Result.fail("Failed to mark task success: " + e.getMessage());
+        }
+    }
 }
+

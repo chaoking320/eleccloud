@@ -59,13 +59,28 @@ public class SceneConfigController {
                 return Result.error("场景类型 " + sceneConfig.getSceneType() + " 已存在");
             }
 
-            // 验证重试间隔配置
-            if (!sceneConfigService.validateRetryIntervals(sceneConfig.getRetryIntervals())) {
-                return Result.error("重试间隔配置格式错误，应为逗号分隔的数字");
+            // 处理退避策略默认值
+            if (sceneConfig.getBackoffStrategy() == null || sceneConfig.getBackoffStrategy().trim().isEmpty()) {
+                sceneConfig.setBackoffStrategy("CUSTOM");
             }
 
-            // 设置最大重试次数
-            sceneConfig.setMaxRetryCount(parseRetryIntervals(sceneConfig.getRetryIntervals()).length);
+            // 根据不同策略校验参数
+            if ("CUSTOM".equalsIgnoreCase(sceneConfig.getBackoffStrategy())) {
+                // 验证重试间隔配置
+                if (!sceneConfigService.validateRetryIntervals(sceneConfig.getRetryIntervals())) {
+                    return Result.error("自定义策略下，重试间隔配置格式错误，应为逗号分隔的数字");
+                }
+                // 设置最大重试次数为间隔数
+                sceneConfig.setMaxRetryCount(parseRetryIntervals(sceneConfig.getRetryIntervals()).length);
+            } else {
+                // 验证 maxRetryCount 与 backoffBase
+                if (sceneConfig.getMaxRetryCount() == null || sceneConfig.getMaxRetryCount() <= 0) {
+                    return Result.error("非自定义策略下，最大重试次数必须大于0");
+                }
+                if (sceneConfig.getBackoffBase() == null || sceneConfig.getBackoffBase() <= 0) {
+                    sceneConfig.setBackoffBase(1); // 默认基数1分钟
+                }
+            }
 
             Long id = sceneConfigService.createSceneConfig(sceneConfig);
             return Result.success(id);
@@ -85,8 +100,8 @@ public class SceneConfigController {
                 return Result.error("场景配置不存在");
             }
 
-            // 如果仅仅是更新启用状态 (比如前端 Switch 切换，参数中 retryIntervals 为 null)
-            if (sceneConfig.getRetryIntervals() == null && sceneConfig.getEnabled() != null) {
+            // 如果仅仅是更新启用状态 (比如前端 Switch 切换，参数中 retryIntervals 为 null 且没传策略)
+            if (sceneConfig.getRetryIntervals() == null && sceneConfig.getBackoffStrategy() == null && sceneConfig.getEnabled() != null) {
                 boolean success = sceneConfigService.updateSceneEnabled(id, sceneConfig.isEnabled());
                 if (success) {
                     return Result.success();
@@ -95,14 +110,27 @@ public class SceneConfigController {
                 }
             }
 
-            // 验证重试间隔配置
-            if (!sceneConfigService.validateRetryIntervals(sceneConfig.getRetryIntervals())) {
-                return Result.error("重试间隔配置格式错误，应为逗号分隔的数字");
+            // 处理退避策略默认值
+            if (sceneConfig.getBackoffStrategy() == null || sceneConfig.getBackoffStrategy().trim().isEmpty()) {
+                sceneConfig.setBackoffStrategy("CUSTOM");
             }
 
-            // 设置ID和最大重试次数
             sceneConfig.setId(id);
-            sceneConfig.setMaxRetryCount(parseRetryIntervals(sceneConfig.getRetryIntervals()).length);
+
+            // 根据不同策略校验参数
+            if ("CUSTOM".equalsIgnoreCase(sceneConfig.getBackoffStrategy())) {
+                if (!sceneConfigService.validateRetryIntervals(sceneConfig.getRetryIntervals())) {
+                    return Result.error("自定义策略下，重试间隔配置格式错误，应为逗号分隔的数字");
+                }
+                sceneConfig.setMaxRetryCount(parseRetryIntervals(sceneConfig.getRetryIntervals()).length);
+            } else {
+                if (sceneConfig.getMaxRetryCount() == null || sceneConfig.getMaxRetryCount() <= 0) {
+                    return Result.error("非自定义策略下，最大重试次数必须大于0");
+                }
+                if (sceneConfig.getBackoffBase() == null || sceneConfig.getBackoffBase() <= 0) {
+                    sceneConfig.setBackoffBase(1);
+                }
+            }
 
             boolean success = sceneConfigService.updateSceneConfig(sceneConfig);
             if (success) {

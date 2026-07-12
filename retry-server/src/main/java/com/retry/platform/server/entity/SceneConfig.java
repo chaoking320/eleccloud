@@ -1,5 +1,6 @@
 package com.retry.platform.server.entity;
 
+import com.retry.platform.server.strategy.BackoffStrategy;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -12,56 +13,66 @@ import java.util.stream.Collectors;
  */
 @Data
 public class SceneConfig {
-    
-    /**
-     * 主键ID
-     */
+
+    /** 主键ID */
     private Long id;
-    
-    /**
-     * 场景类型
-     */
+
+    /** 场景类型 */
     private Integer sceneType;
-    
-    /**
-     * 场景名称
-     */
+
+    /** 场景名称 */
     private String sceneName;
-    
+
     /**
-     * 重试间隔(分钟),逗号分隔
+     * 自定义重试间隔列表(分钟),逗号分隔
+     * 仅在 backoffStrategy = CUSTOM 时生效
+     * 示例：1,5,10,30
      */
     private String retryIntervals;
-    
-    /**
-     * 最大重试次数
-     */
+
+    /** 最大重试次数 */
     private Integer maxRetryCount;
-    
+
     /**
-     * 钩子类名
+     * 退避策略
+     * CUSTOM(默认) / FIXED / LINEAR / EXPONENTIAL
+     * @see BackoffStrategy
      */
+    private String backoffStrategy;
+
+    /**
+     * 退避基数（分钟）
+     * FIXED/LINEAR/EXPONENTIAL 策略下的基础时间单位
+     * 默认值：1
+     */
+    private Integer backoffBase;
+
+    /**
+     * 最大重试总时长（秒）
+     * 0 表示不限制时长，只按次数控制
+     * 超过此时长后，即使重试次数未耗尽也终止重试
+     */
+    private Integer maxRetryDuration;
+
+    /** 钩子类全限定名（实现 RetryHook 接口的类） */
     private String hookClass;
+
+    /** 客户端应用回调 URL */
     private String clientAppUrl;
-    
-    /**
-     * 是否启用: 0-禁用, 1-启用
-     */
+
+    /** 是否启用: 0-禁用, 1-启用 */
     private Integer enabled;
-    
-    /**
-     * 创建时间
-     */
+
+    /** 创建时间 */
     private LocalDateTime createTime;
-    
-    /**
-     * 更新时间
-     */
+
+    /** 更新时间 */
     private LocalDateTime updateTime;
-    
+
     /**
-     * 解析重试间隔列表
-     * @return 重试间隔列表(分钟)
+     * 解析自定义重试间隔列表（仅 CUSTOM 策略使用）
+     *
+     * @return 重试间隔列表（分钟）
      */
     public List<Integer> getRetryIntervalList() {
         if (retryIntervals == null || retryIntervals.trim().isEmpty()) {
@@ -72,27 +83,41 @@ public class SceneConfig {
                 .map(Integer::parseInt)
                 .collect(Collectors.toList());
     }
-    
+
     /**
-     * 判断是否启用
-     * @return true-启用, false-禁用
+     * 获取解析后的退避策略枚举
+     *
+     * @return BackoffStrategy 枚举值，未配置则返回 CUSTOM
      */
+    public BackoffStrategy getBackoffStrategyEnum() {
+        return BackoffStrategy.fromName(this.backoffStrategy);
+    }
+
+    /**
+     * 获取退避基数，兜底默认 1 分钟
+     */
+    public int getBackoffBaseOrDefault() {
+        return (backoffBase != null && backoffBase > 0) ? backoffBase : 1;
+    }
+
+    /**
+     * 获取最大重试时长（秒），0 表示不限制
+     */
+    public int getMaxRetryDurationOrZero() {
+        return (maxRetryDuration != null && maxRetryDuration > 0) ? maxRetryDuration : 0;
+    }
+
+    /** 判断是否启用 */
     public boolean isEnabled() {
         return enabled != null && enabled == 1;
     }
-    
-    /**
-     * 设置启用状态
-     * @param enabled true-启用, false-禁用
-     */
+
+    /** 设置启用状态（boolean） */
     public void setEnabled(boolean enabled) {
         this.enabled = enabled ? 1 : 0;
     }
-    
-    /**
-     * 设置启用状态
-     * @param enabled 0-禁用, 1-启用
-     */
+
+    /** 设置启用状态（Integer） */
     public void setEnabled(Integer enabled) {
         this.enabled = enabled;
     }

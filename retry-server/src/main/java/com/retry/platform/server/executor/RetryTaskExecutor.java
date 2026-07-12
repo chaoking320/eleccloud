@@ -279,13 +279,12 @@ public class RetryTaskExecutor {
     private void scheduleNextRetry(RetryTask task, SceneConfig sceneConfig) {
         // 递增重试次数
         int newRetryCount = retryControlService.incrementRetryCount(task);
-        
-        // 检查是否应该继续重试
-        if (!retryControlService.shouldContinueRetry(task)) {
-            log.warn("Task reached max retry count, marking as FAILED: taskId={}, retryCount={}", 
+
+        // 检查是否应该继续重试（同时检查次数阈値和时间阈値）
+        if (!retryControlService.shouldContinueRetry(task, sceneConfig)) {
+            log.warn("Task reached retry limit, marking as FAILED: taskId={}, retryCount={}, reason=exceeded count or duration",
                     task.getTaskId(), newRetryCount);
-            
-            handleTaskFailure(task, "Exceeded max retry count: " + task.getMaxRetryCount());
+            handleTaskFailure(task, "Exceeded max retry count or max retry duration");
             return;
         }
         

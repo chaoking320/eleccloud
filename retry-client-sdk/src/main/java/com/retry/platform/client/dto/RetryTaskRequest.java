@@ -41,4 +41,9 @@ public class RetryTaskRequest implements Serializable {
      * 是否异步提交
      */
     private Boolean async;
+
+    /**
+     * 提交模式: POST_FAIL(默认) / PRE_SUBMIT(预提交)
+     */
+    private String submitMode;
 }

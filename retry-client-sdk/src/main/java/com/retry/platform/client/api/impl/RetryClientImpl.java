@@ -29,7 +29,40 @@ public class RetryClientImpl implements RetryClient {
     private static final String SUBMIT_PATH = "/api/retry/submit";
     private static final String CANCEL_PATH = "/api/retry/cancel/";
     private static final String QUERY_PATH = "/api/retry/query/";
-    
+    private static final String SUCCESS_PATH = "/api/retry/success/";
+
+    @Override
+    public boolean markSuccess(String taskId) {
+        if (properties.isDevMode()) {
+            log.info("[DEV MODE] Mark task success: {}", taskId);
+            return true;
+        }
+        if (taskId == null || taskId.isEmpty()) {
+            throw new IllegalArgumentException("TaskId cannot be null or empty");
+        }
+        try {
+            String url = properties.getServerUrl() + SUCCESS_PATH + taskId;
+            ResponseEntity<Result<Boolean>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    null,
+                    new ParameterizedTypeReference<Result<Boolean>>() {}
+            );
+            Result<Boolean> result = response.getBody();
+            if (result != null && result.getSuccess()) {
+                log.info("Marked task as SUCCESS: taskId={}", taskId);
+                return true;
+            } else {
+                String errorMsg = result != null ? result.getMessage() : "Unknown error";
+                log.error("Failed to mark task as success: taskId={}, error={}", taskId, errorMsg);
+                return false;
+            }
+        } catch (Exception e) {
+            log.error("Failed to mark task success: taskId={}", taskId, e);
+            return false;
+        }
+    }
+
     @Override
     public String submit(RetryTaskRequest request) {
         // 开发模式下仅记录日志

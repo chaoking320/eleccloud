@@ -10,46 +10,66 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 业务方自定义退款重试钩子实现
+ * 退款重试钩子 —— 场景1（注解模式 @RetryableTask）
+ *
+ * <p>实现三个核心方法：
+ * <ol>
+ *   <li>{@link #checkStatus} - 查询本地数据库，判断退款单当前状态</li>
+ *   <li>{@link #doQuery} - 主动向第三方支付平台（支付宝/微信）发起状态回查</li>
+ *   <li>{@link #doCallback} - 收到第三方成功结果后，更新本地数据库</li>
+ * </ol>
  */
 @Slf4j
-@Component("com.retry.platform.example.RefundRetryHook")
+@Component("com.retry.platform.example.hook.RefundRetryHook")
 public class RefundRetryHook implements RetryHook {
 
-    // 模拟本地数据库中的退款订单状态: orderId -> status (INIT, WAIT, SUCCESS)
+    /**
+     * 模拟本地数据库存储退款单状态
+     * key: orderId, value: INIT / WAIT / SUCCESS
+     */
     public static final Map<String, String> localDb = new ConcurrentHashMap<>();
 
+    /**
+     * Step 1: 检查本地状态
+     * 平台在执行重试前先调用此方法，若已成功则跳过本次重试
+     */
     @Override
     public String checkStatus(RetryContext context) {
         String orderId = (String) context.getParams().get("orderId");
-        String currentStatus = localDb.getOrDefault(orderId, "INIT");
-        log.info("[RefundRetryHook] Checking local status for orderId={}, status={}", orderId, currentStatus);
-        return currentStatus;
+        String status = localDb.getOrDefault(orderId, "INIT");
+        log.info("[RefundHook] checkStatus: orderId={}, localStatus={}", orderId, status);
+        return status;
     }
 
+    /**
+     * Step 2: 主动向第三方支付平台回查退款结果
+     * checkStatus 返回 WAIT 时触发，通过调用支付宝/微信查询接口确认最终状态
+     */
     @Override
     public QueryResult doQuery(RetryContext context) {
         String orderId = (String) context.getParams().get("orderId");
-        log.info("[RefundRetryHook] Querying remote payment center ( WeChat/Alipay ) for orderId={}, retryCount={}", 
+        log.info("[RefundHook] doQuery: calling payment API for orderId={}, retryCount={}",
                 orderId, context.getRetryCount());
 
-        // 模拟拉模式：在多次重试后，第三方接口终于返回退款成功
+        // 模拟：第三方在重试1次后返回成功（实际应调用支付宝/微信查询接口）
         if (context.getRetryCount() >= 1) {
-            log.info("[RefundRetryHook] Third-party payment center confirmed refund SUCCESS for orderId={}", orderId);
-            return QueryResult.success("Refund processed successfully via WeChat query API");
+            log.info("[RefundHook] doQuery: payment center confirmed SUCCESS for orderId={}", orderId);
+            return QueryResult.success("Refund confirmed by payment center");
         }
 
-        log.warn("[RefundRetryHook] Third-party payment center returns: refund still in progress for orderId={}", orderId);
-        return QueryResult.failure("Refund in progress");
+        log.warn("[RefundHook] doQuery: payment still processing for orderId={}", orderId);
+        return QueryResult.failure("Refund still in progress, will retry");
     }
 
+    /**
+     * Step 3: 执行成功后回调
+     * doQuery 返回成功后调用，更新本地数据库状态
+     */
     @Override
     public void doCallback(RetryContext context, QueryResult result) {
         String orderId = (String) context.getParams().get("orderId");
-        log.info("[RefundRetryHook] Executing success callback, updating local DB to SUCCESS: orderId={}, result={}", 
+        log.info("[RefundHook] doCallback: updating local DB to SUCCESS. orderId={}, result={}",
                 orderId, result.getData());
-        
-        // 更新本地库状态为 SUCCESS
         localDb.put(orderId, "SUCCESS");
     }
 }

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.retry.platform.server.mapper.SceneConfigMapper">
 
@@ -9,6 +9,9 @@
         <result column="scene_name" property="sceneName" jdbcType="VARCHAR"/>
         <result column="retry_intervals" property="retryIntervals" jdbcType="VARCHAR"/>
         <result column="max_retry_count" property="maxRetryCount" jdbcType="INTEGER"/>
+        <result column="backoff_strategy" property="backoffStrategy" jdbcType="VARCHAR"/>
+        <result column="backoff_base" property="backoffBase" jdbcType="INTEGER"/>
+        <result column="max_retry_duration" property="maxRetryDuration" jdbcType="INTEGER"/>
         <result column="hook_class" property="hookClass" jdbcType="VARCHAR"/>
         <result column="client_app_url" property="clientAppUrl" jdbcType="VARCHAR"/>
         <result column="enabled" property="enabled" jdbcType="TINYINT"/>
@@ -18,6 +21,7 @@
 
     <sql id="Base_Column_List">
         id, scene_type, scene_name, retry_intervals, max_retry_count,
+        backoff_strategy, backoff_base, max_retry_duration,
         hook_class, client_app_url, enabled, create_time, update_time
     </sql>
 
@@ -25,9 +29,11 @@
             useGeneratedKeys="true" keyProperty="id">
         INSERT INTO scene_config (
             scene_type, scene_name, retry_intervals, max_retry_count,
+            backoff_strategy, backoff_base, max_retry_duration,
             hook_class, client_app_url, enabled, create_time, update_time
         ) VALUES (
             #{sceneType}, #{sceneName}, #{retryIntervals}, #{maxRetryCount},
+            #{backoffStrategy}, #{backoffBase}, #{maxRetryDuration},
             #{hookClass}, #{clientAppUrl}, #{enabled}, #{createTime}, #{updateTime}
         )
     </insert>
@@ -37,6 +43,9 @@
         SET scene_name = #{sceneName},
             retry_intervals = #{retryIntervals},
             max_retry_count = #{maxRetryCount},
+            backoff_strategy = #{backoffStrategy},
+            backoff_base = #{backoffBase},
+            max_retry_duration = #{maxRetryDuration},
             hook_class = #{hookClass},
             client_app_url = #{clientAppUrl},
             enabled = #{enabled},

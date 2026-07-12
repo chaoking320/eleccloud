@@ -81,6 +81,7 @@ public class RetryTaskServiceImpl implements RetryTaskService {
         retryTask.setMethodName(request.getMethodName());
         retryTask.setMethodParams(request.getMethodParams());
         retryTask.setTaskStatus("INIT");
+        retryTask.setSubmitMode(request.getSubmitMode() != null ? request.getSubmitMode() : "POST_FAIL");
         retryTask.setRetryCount(0);
         retryTask.setMaxRetryCount(sceneConfig.getMaxRetryCount());
         

@@ -9,40 +9,48 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 模拟支付中心退款业务服务
+ * 退款服务 —— 接入方式：注解模式（@RetryableTask）
+ *
+ * <p>直接在方法上标注 {@code @RetryableTask}，AOP 自动拦截并在失败时提交重试任务。
+ * 这是最简单、侵入性最低的接入方式，适合大多数场景。
  */
 @Slf4j
 @Service
 public class RefundService {
 
-    // 记录订单的首次失败标记，用以模拟首次调用超时或不可用
+    /** 记录订单的首次失败标记，模拟真实的首次网络超时 */
     private final Map<String, Boolean> failedOnce = new ConcurrentHashMap<>();
 
     /**
      * 发起退款申请
-     * 使用 @RetryableTask 注解，当发生异常时会触发分布式重试平台
+     *
+     * <p>注解说明：
+     * <ul>
+     *   <li>{@code sceneType = 1}：对应场景1配置（CUSTOM策略，间隔 1/5/10/30 分钟）</li>
+     *   <li>{@code idempotentKey = "#orderId"}：用订单号作为幂等键，防止重复退款</li>
+     *   <li>{@code preSubmit = false}（默认）：失败后提交，适合明确抛异常的场景</li>
+     * </ul>
      */
     @RetryableTask(sceneType = 1, idempotentKey = "#orderId")
     public boolean refund(String orderId, Double amount, String reason) {
-        log.info("[RefundService] Executing refund method: orderId={}, amount={}, reason={}", 
-                orderId, amount, reason);
+        log.info("[RefundService] Executing refund: orderId={}, amount={}, reason={}", orderId, amount, reason);
 
-        // 1. 检查本地数据库订单状态
+        // 检查本地状态（幂等性保障）
         String currentStatus = RefundRetryHook.localDb.getOrDefault(orderId, "INIT");
         if ("SUCCESS".equals(currentStatus)) {
-            log.info("[RefundService] Refund order {} already succeeded. Ignoring.", orderId);
+            log.info("[RefundService] Refund order {} already succeeded (idempotent check). Skipping.", orderId);
             return true;
         }
 
-        // 2. 模拟首次网络超时/服务不可用
+        // 模拟首次网络超时 / 第三方服务不可用
         if (!failedOnce.containsKey(orderId)) {
             failedOnce.put(orderId, true);
-            log.warn("[RefundService] Network connection timeout to payment center for orderId={}. Throwing exception...", orderId);
-            throw new RuntimeException("Simulated network timeout connecting to Alipay/WeChat API");
+            log.warn("[RefundService] Network timeout to payment center for orderId={}. Simulating failure...", orderId);
+            throw new RuntimeException("Simulated network timeout: payment center unavailable");
         }
 
-        // 3. 第二次调用（由重试平台执行），成功将退款请求推送到支付中心，状态更新为 WAIT
-        log.info("[RefundService] Refund request successfully pushed to Alipay/WeChat! Waiting for status confirmation for orderId={}", orderId);
+        // 第二次调用（由重试平台驱动）：成功推送退款请求，进入 WAIT 状态等待支付方确认
+        log.info("[RefundService] Refund request pushed to payment center for orderId={}. Status -> WAIT", orderId);
         RefundRetryHook.localDb.put(orderId, "WAIT");
         return true;
     }
