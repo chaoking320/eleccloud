@@ -31,7 +31,7 @@ public class RefundService {
      *   <li>{@code preSubmit = false}（默认）：失败后提交，适合明确抛异常的场景</li>
      * </ul>
      */
-    @RetryableTask(sceneType = 1, idempotentKey = "#orderId")
+    @RetryableTask(sceneType = 1, idempotentKey = "#orderId", throwException = true)
     public boolean refund(String orderId, Double amount, String reason) {
         log.info("[RefundService] Executing refund: orderId={}, amount={}, reason={}", orderId, amount, reason);
 

@@ -85,9 +85,13 @@ public class RetryTaskServiceImpl implements RetryTaskService {
         retryTask.setRetryCount(0);
         retryTask.setMaxRetryCount(sceneConfig.getMaxRetryCount());
         
-        // 6. 计算下次重试时间（第一个重试间隔）
-        List<Integer> retryIntervals = sceneConfig.getRetryIntervalList();
-        long nextRetryTime = System.currentTimeMillis() + retryIntervals.get(0) * 60 * 1000L;
+        // 6. 计算下次重试时间（首轮重试，retryCount=0）
+        // 注意：LINEAR/EXPONENTIAL/FIXED 策略的 retry_intervals 在库中可能为 NULL，
+        // 不能硬取 retryIntervals.get(0)，必须按退避策略 + 基数计算（与 RetryControlServiceImpl 保持一致）
+        long nextRetryTime = sceneConfig.getBackoffStrategyEnum().calculateNextRetryTime(
+                0,
+                sceneConfig.getBackoffBaseOrDefault(),
+                sceneConfig.getRetryIntervalList());
         retryTask.setNextRetryTime(nextRetryTime);
         
         LocalDateTime now = LocalDateTime.now();
@@ -138,6 +142,13 @@ public class RetryTaskServiceImpl implements RetryTaskService {
         int rows = retryTaskMapper.updateStatus(taskId, taskStatus);
         if (rows > 0) {
             log.info("Updated task status: taskId={}, status={}", taskId, taskStatus);
+            if ("SUCCESS".equals(taskStatus) || "FAILED".equals(taskStatus)) {
+                try {
+                    delayQueueService.removeTask(taskId);
+                } catch (Exception e) {
+                    log.error("Failed to remove task from delay queue on status update: taskId={}", taskId, e);
+                }
+            }
         }
     }
     

@@ -31,12 +31,18 @@ public class ParameterExtractor {
         if (parameterNames == null || parameterNames.length == 0) {
             throw new IllegalStateException("Failed to resolve parameter names. Ensure Spring AOP is working.");
         }
-        
+
+        // 兼容 SpEL 风格前缀（如 "#orderId"），去掉前导 '#' 后按参数名匹配
+        String normalizedKey = idempotentKeyName;
+        if (normalizedKey != null && normalizedKey.startsWith("#")) {
+            normalizedKey = normalizedKey.substring(1);
+        }
+
         for (int i = 0; i < parameterNames.length; i++) {
             String paramName = parameterNames[i];
-            
+
             // 匹配参数名
-            if (idempotentKeyName.equals(paramName)) {
+            if (normalizedKey.equals(paramName)) {
                 Object value = args[i];
                 if (value == null) {
                     throw new IllegalArgumentException("Idempotent key value is null");
@@ -47,12 +53,12 @@ public class ParameterExtractor {
             // 如果参数是对象，尝试从对象字段中提取
             if (args[i] != null && !isPrimitiveOrWrapper(args[i].getClass())) {
                 try {
-                    Object value = extractFieldValue(args[i], idempotentKeyName);
+                    Object value = extractFieldValue(args[i], normalizedKey);
                     if (value != null) {
                         return value.toString();
                     }
                 } catch (Exception e) {
-                    log.debug("Failed to extract field {} from parameter {}", idempotentKeyName, paramName);
+                    log.debug("Failed to extract field {} from parameter {}", normalizedKey, paramName);
                 }
             }
         }

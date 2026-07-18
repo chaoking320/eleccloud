@@ -91,7 +91,7 @@ public class RetryableTaskAspect {
             if (retryableTask.throwException()) {
                 throw e;
             }
-            return null;
+            return getDefaultReturnValue((MethodSignature) pjp.getSignature());
         }
     }
 
@@ -120,7 +120,7 @@ public class RetryableTaskAspect {
             if (retryableTask.throwException()) {
                 throw e;
             }
-            return null;
+            return getDefaultReturnValue((MethodSignature) pjp.getSignature());
         }
     }
 
@@ -148,5 +148,26 @@ public class RetryableTaskAspect {
         request.setSubmitMode(submitMode);
 
         return request;
+    }
+
+    /**
+     * 当方法返回基本类型时，AOP 通知不能返回 null（否则 Spring 抛出
+     * "Null return value does not match primitive return type"）。
+     * 根据返回类型返回对应的零值；对象类型 / void 返回 null。
+     */
+    private Object getDefaultReturnValue(MethodSignature signature) {
+        Class<?> returnType = signature.getReturnType();
+        if (returnType == void.class) {
+            return null;
+        }
+        if (returnType == boolean.class) return false;
+        if (returnType == char.class) return '\0';
+        if (returnType == byte.class) return (byte) 0;
+        if (returnType == short.class) return (short) 0;
+        if (returnType == int.class) return 0;
+        if (returnType == long.class) return 0L;
+        if (returnType == float.class) return 0.0f;
+        if (returnType == double.class) return 0.0d;
+        return null;
     }
 }

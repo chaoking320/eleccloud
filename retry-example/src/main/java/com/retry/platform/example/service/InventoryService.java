@@ -34,7 +34,7 @@ public class InventoryService {
      *   <li>{@code preSubmit = true}：<b>执行前先注册任务</b>，即使崩溃也能重试</li>
      * </ul>
      */
-    @RetryableTask(sceneType = 3, idempotentKey = "#skuId", preSubmit = true)
+    @RetryableTask(sceneType = 3, idempotentKey = "#skuId", preSubmit = true, throwException = true)
     public void syncInventory(String skuId, Integer delta) {
         log.info("[InventoryService] Syncing inventory to warehouse: skuId={}, delta={}", skuId, delta);
 

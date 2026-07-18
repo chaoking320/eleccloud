@@ -46,6 +46,19 @@
         <dependency>
             <groupId>org.redisson</groupId>
             <artifactId>redisson-spring-boot-starter</artifactId>
+            <exclusions>
+                <!-- 排除 SB 3.1 变体，本项目是 Spring Boot 2.7 -->
+                <exclusion>
+                    <groupId>org.redisson</groupId>
+                    <artifactId>redisson-spring-data-31</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <!-- 显式引入与 Spring Boot 2.7 匹配的 redisson spring-data 变体 -->
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson-spring-data-27</artifactId>
+            <version>${redisson.version}</version>
         </dependency>
 
         <!-- Spring Boot Starter Actuator -->
@@ -92,6 +105,10 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <!-- 可执行 fat jar 带 exec 后缀；主 artifact 保持 thin jar，供 retry-admin 作为库依赖引用 -->
+                    <classifier>exec</classifier>
+                </configuration>
                 <executions>
                     <execution>
                         <goals>

@@ -37,7 +37,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/demo")
 @CrossOrigin
-public class DemoController {
+public class RefundController {
 
     @Autowired
     private RefundService refundService;

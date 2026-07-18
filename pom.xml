@@ -107,6 +107,10 @@
                     <configuration>
                         <source>${java.version}</source>
                         <target>${java.version}</target>
+                        <!-- 保留方法参数名，供 AOP/SpEL 解析 @RetryableTask(idempotentKey=...) 使用 -->
+                        <compilerArgs>
+                            <arg>-parameters</arg>
+                        </compilerArgs>
                     </configuration>
                 </plugin>
             </plugins>

@@ -89,6 +89,13 @@ public class RetryTaskExecutor {
                 log.warn("Task not found: taskId={}", taskId);
                 return;
             }
+
+            // 防御性校验：如果数据库状态已经是终态，则直接从延时队列中移除并退出，避免重复触发回调
+            if ("SUCCESS".equals(task.getTaskStatus()) || "FAILED".equals(task.getTaskStatus())) {
+                log.info("Task is already in terminal status: taskId={}, status={}", taskId, task.getTaskStatus());
+                delayQueueService.removeTask(taskId);
+                return;
+            }
             
             log.info("Executing retry task: taskId={}, sceneType={}, retryCount={}", 
                     taskId, task.getSceneType(), task.getRetryCount());
@@ -252,13 +259,22 @@ public class RetryTaskExecutor {
             Result<?> result = restTemplate.postForObject(executeUrl, context, Result.class);
             if (result != null && result.getSuccess()) {
                 log.info("Remote method executed successfully: taskId={}, result={}", task.getTaskId(), result.getData());
-                
+
+                // 防止与客户端 markSuccess（PRE_SUBMIT 模式）并发竞态：
+                // execute-method 执行期间客户端可能已将任务标记为 SUCCESS 并从延时队列移除，
+                // 若此处再无条件降级为 WAIT 并重新入队，会导致 SUCCESS 被覆盖回 INIT。
+                RetryTask latest = retryTaskMapper.selectByTaskId(task.getTaskId());
+                if (latest != null && "SUCCESS".equals(latest.getTaskStatus())) {
+                    log.info("Task already marked SUCCESS by client, skip status downgrade: taskId={}", task.getTaskId());
+                    return "SUCCESS";
+                }
+
                 // 方法调用成功，更新状态为WAIT
                 retryTaskService.updateTaskStatus(task.getTaskId(), "WAIT");
-                
+
                 // 安排下次重试（用于后续状态检查和查询）
                 scheduleNextRetry(task, sceneConfig);
-                
+
                 return "METHOD_INVOKED";
             } else {
                 String msg = result != null ? result.getMessage() : "No response";

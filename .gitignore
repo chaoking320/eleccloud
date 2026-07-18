@@ -37,3 +37,7 @@ application-dev.yml
 # AI Agent workspace
 .kiro/
 .workbuddy/
+
+# Reference / temp files
+.gemini_patent_text.txt
+*.pdf

@@ -111,14 +111,4 @@ public class SceneConfig {
     public boolean isEnabled() {
         return enabled != null && enabled == 1;
     }
-
-    /** 设置启用状态（boolean） */
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled ? 1 : 0;
-    }
-
-    /** 设置启用状态（Integer） */
-    public void setEnabled(Integer enabled) {
-        this.enabled = enabled;
-    }
 }
