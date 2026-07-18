@@ -63,15 +63,15 @@ public class RefundRetryHook implements RetryHook {
     public String checkStatus(RetryContext context) {
         // 查询本地数据库，判断任务当前状态
         // 返回 "INIT"（未完成）/ "WAIT"（等待第三方确认）/ "SUCCESS"（已完成）
-        String orderId = (String) context.getParams().get("orderId");
-        return yourDao.getOrderStatus(orderId);
+        String transId = (String) context.getParams().get("transId");
+        return yourDao.getRefundStatus(transId);
     }
 
     @Override
     public QueryResult doQuery(RetryContext context) {
         // checkStatus 返回 WAIT 时调用，主动查询第三方
-        String orderId = (String) context.getParams().get("orderId");
-        ThirdPartyResult result = paymentApi.queryRefund(orderId);
+        String transId = (String) context.getParams().get("transId");
+        ThirdPartyResult result = paymentApi.queryRefund(transId);
         return result.isSuccess()
             ? QueryResult.success(result.getData())
             : QueryResult.failure(result.getMessage());
@@ -80,8 +80,8 @@ public class RefundRetryHook implements RetryHook {
     @Override
     public void doCallback(RetryContext context, QueryResult result) {
         // doQuery 确认成功后调用，更新本地状态
-        String orderId = (String) context.getParams().get("orderId");
-        yourDao.updateOrderStatus(orderId, "SUCCESS");
+        String transId = (String) context.getParams().get("transId");
+        yourDao.updateRefundStatus(transId, "SUCCESS");
     }
 }
 ```
@@ -100,17 +100,19 @@ public class RefundRetryHook implements RetryHook {
 @Service
 public class RefundService {
 
-    @RetryableTask(sceneType = 1, idempotentKey = "#orderId")
-    public boolean refund(String orderId, Double amount) {
+    @RetryableTask(sceneType = 1, idempotentKey = "#transId")
+    public boolean refund(String transId, String orderId, Double amount) {
         // 直接写业务逻辑
         // 抛出任何异常 → AOP 自动提交重试任务 → MQ 延时投递 → 本地状态机执行
-        return paymentApi.refund(orderId, amount);
+        return paymentApi.refund(transId, amount);
     }
 }
 ```
 
 **注意事项**：
-- `idempotentKey` 在同一 `sceneType` 下必须全局唯一（如订单号）
+- > [!IMPORTANT]
+  > **先决条件**：业务方接口的下游处理系统必须支持基于 `transId`（交易唯一流水号）的幂等校验，以避免因网络超时重发请求导致的资损或重复业务操作。
+- `idempotentKey` 在同一 `sceneType` 下必须全局唯一（统一使用交易流水号 `transId`，避免使用 `orderId` 导致同一订单不能进行多次不同金额的退款/结算）。
 - 方法参数需支持 JSON 序列化（重试时用于重建方法入参）
 - 业务方法应实现幂等（因为会被重复调用）
 

@@ -30,7 +30,7 @@ public class InventoryRetryHook implements RetryHook {
 
     /**
      * 模拟本地数据库存储库存扣减状态
-     * key: skuId, value: INIT / SUCCESS
+     * key: transId, value: INIT / SUCCESS
      */
     public static final Map<String, String> localDb = new ConcurrentHashMap<>();
 
@@ -40,9 +40,9 @@ public class InventoryRetryHook implements RetryHook {
      */
     @Override
     public String checkStatus(RetryContext context) {
-        String skuId = (String) context.getParams().get("skuId");
-        String status = localDb.getOrDefault(skuId, "INIT");
-        log.info("[InventoryHook] checkStatus: skuId={}, localStatus={}", skuId, status);
+        String transId = (String) context.getParams().get("transId");
+        String status = localDb.getOrDefault(transId, "INIT");
+        log.info("[InventoryHook] checkStatus: transId={}, localStatus={}", transId, status);
         // 若本地已记录 SUCCESS，平台将直接标记任务成功，跳过重试
         return status;
     }
@@ -52,15 +52,16 @@ public class InventoryRetryHook implements RetryHook {
      */
     @Override
     public QueryResult doQuery(RetryContext context) {
+        String transId = (String) context.getParams().get("transId");
         String skuId = (String) context.getParams().get("skuId");
         Integer delta = (Integer) context.getParams().get("delta");
-        log.info("[InventoryHook] doQuery: confirming warehouse deduction for skuId={}, delta={}, retryCount={}",
-                skuId, delta, context.getRetryCount());
+        log.info("[InventoryHook] doQuery: confirming warehouse deduction for transId={}, skuId={}, delta={}, retryCount={}",
+                transId, skuId, delta, context.getRetryCount());
 
         // 模拟仓库系统同步确认（实际应调用仓库API查询）
         if (context.getRetryCount() >= 0) {
-            log.info("[InventoryHook] doQuery: warehouse confirmed deduction for skuId={}", skuId);
-            return QueryResult.success("Inventory deducted by warehouse: skuId=" + skuId + ", delta=" + delta);
+            log.info("[InventoryHook] doQuery: warehouse confirmed deduction for transId={}", transId);
+            return QueryResult.success("Inventory deducted by warehouse: transId=" + transId + ", skuId=" + skuId + ", delta=" + delta);
         }
         return QueryResult.failure("Warehouse confirmation pending");
     }
@@ -70,8 +71,8 @@ public class InventoryRetryHook implements RetryHook {
      */
     @Override
     public void doCallback(RetryContext context, QueryResult result) {
-        String skuId = (String) context.getParams().get("skuId");
-        log.info("[InventoryHook] doCallback: inventory sync SUCCESS. skuId={}", skuId);
-        localDb.put(skuId, "SUCCESS");
+        String transId = (String) context.getParams().get("transId");
+        log.info("[InventoryHook] doCallback: inventory sync SUCCESS. transId={}", transId);
+        localDb.put(transId, "SUCCESS");
     }
 }

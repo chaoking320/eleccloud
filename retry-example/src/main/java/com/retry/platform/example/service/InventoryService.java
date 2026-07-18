@@ -30,30 +30,30 @@ public class InventoryService {
      * <p>注解说明：
      * <ul>
      *   <li>{@code sceneType = 3}：对应场景3配置（EXPONENTIAL策略，间隔 1/2/4/8/16 分钟）</li>
-     *   <li>{@code idempotentKey = "#skuId"}：以 SKU 编号作为幂等键</li>
+     *   <li>{@code idempotentKey = "#transId"}：以唯一的交易流水号作为幂等键</li>
      *   <li>{@code preSubmit = true}：<b>执行前先注册任务</b>，即使崩溃也能重试</li>
      * </ul>
      */
-    @RetryableTask(sceneType = 3, idempotentKey = "#skuId", preSubmit = true, throwException = true)
-    public void syncInventory(String skuId, Integer delta) {
-        log.info("[InventoryService] Syncing inventory to warehouse: skuId={}, delta={}", skuId, delta);
+    @RetryableTask(sceneType = 3, idempotentKey = "#transId", preSubmit = true, throwException = true)
+    public void syncInventory(String transId, String skuId, Integer delta) {
+        log.info("[InventoryService] Syncing inventory to warehouse: transId={}, skuId={}, delta={}", transId, skuId, delta);
 
         // 幂等性检查：若仓库已确认，直接返回
-        String status = InventoryRetryHook.localDb.getOrDefault(skuId, "INIT");
+        String status = InventoryRetryHook.localDb.getOrDefault(transId, "INIT");
         if ("SUCCESS".equals(status)) {
-            log.info("[InventoryService] Inventory for skuId={} already synced (idempotent). Skipping.", skuId);
+            log.info("[InventoryService] Inventory for transId={} already synced (idempotent). Skipping.", transId);
             return;
         }
 
         // 模拟首次连接仓库系统超时
-        if (!failedOnce.containsKey(skuId)) {
-            failedOnce.put(skuId, true);
-            log.warn("[InventoryService] Warehouse connection timeout for skuId={}. Simulating failure...", skuId);
+        if (!failedOnce.containsKey(transId)) {
+            failedOnce.put(transId, true);
+            log.warn("[InventoryService] Warehouse connection timeout for transId={}. Simulating failure...", transId);
             throw new RuntimeException("Warehouse system connection timeout");
         }
 
         // 第二次调用成功：记录扣减结果到本地
-        log.info("[InventoryService] Warehouse confirmed inventory deduction: skuId={}, delta={}", skuId, delta);
-        InventoryRetryHook.localDb.put(skuId, "SUCCESS");
+        log.info("[InventoryService] Warehouse confirmed inventory deduction: transId={}, skuId={}, delta={}", transId, skuId, delta);
+        InventoryRetryHook.localDb.put(transId, "SUCCESS");
     }
 }

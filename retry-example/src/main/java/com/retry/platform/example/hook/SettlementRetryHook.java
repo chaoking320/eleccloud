@@ -29,38 +29,38 @@ public class SettlementRetryHook implements RetryHook {
 
     /**
      * 模拟本地数据库存储结算单状态
-     * key: settlementId, value: INIT / WAIT / SUCCESS / REJECTED
+     * key: transId, value: INIT / WAIT / SUCCESS / REJECTED
      */
     public static final Map<String, String> localDb = new ConcurrentHashMap<>();
 
     @Override
     public String checkStatus(RetryContext context) {
-        String settlementId = (String) context.getParams().get("settlementId");
-        String status = localDb.getOrDefault(settlementId, "INIT");
-        log.info("[SettlementHook] checkStatus: settlementId={}, localStatus={}", settlementId, status);
+        String transId = (String) context.getParams().get("transId");
+        String status = localDb.getOrDefault(transId, "INIT");
+        log.info("[SettlementHook] checkStatus: transId={}, localStatus={}", transId, status);
         return status;
     }
 
     @Override
     public QueryResult doQuery(RetryContext context) {
-        String settlementId = (String) context.getParams().get("settlementId");
-        log.info("[SettlementHook] doQuery: polling OTA approval system for settlementId={}, retryCount={}",
-                settlementId, context.getRetryCount());
+        String transId = (String) context.getParams().get("transId");
+        log.info("[SettlementHook] doQuery: polling OTA approval system for transId={}, retryCount={}",
+                transId, context.getRetryCount());
 
         // 模拟：OTA 系统审批需要 2 次轮询才完成
         if (context.getRetryCount() >= 2) {
-            log.info("[SettlementHook] doQuery: OTA approved settlement for settlementId={}", settlementId);
+            log.info("[SettlementHook] doQuery: OTA approved settlement for transId={}", transId);
             return QueryResult.success("OTA settlement approved, amount transferred");
         }
 
-        log.warn("[SettlementHook] doQuery: settlement under review for settlementId={}", settlementId);
+        log.warn("[SettlementHook] doQuery: settlement under review for transId={}", transId);
         return QueryResult.failure("Settlement pending approval");
     }
 
     @Override
     public void doCallback(RetryContext context, QueryResult result) {
-        String settlementId = (String) context.getParams().get("settlementId");
-        log.info("[SettlementHook] doCallback: settlement SUCCESS. settlementId={}", settlementId);
-        localDb.put(settlementId, "SUCCESS");
+        String transId = (String) context.getParams().get("transId");
+        log.info("[SettlementHook] doCallback: settlement SUCCESS. transId={}", transId);
+        localDb.put(transId, "SUCCESS");
     }
 }

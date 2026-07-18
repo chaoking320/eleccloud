@@ -25,7 +25,7 @@ public class RefundRetryHook implements RetryHook {
 
     /**
      * 模拟本地数据库存储退款单状态
-     * key: orderId, value: INIT / WAIT / SUCCESS
+     * key: transId, value: INIT / WAIT / SUCCESS
      */
     public static final Map<String, String> localDb = new ConcurrentHashMap<>();
 
@@ -35,9 +35,9 @@ public class RefundRetryHook implements RetryHook {
      */
     @Override
     public String checkStatus(RetryContext context) {
-        String orderId = (String) context.getParams().get("orderId");
-        String status = localDb.getOrDefault(orderId, "INIT");
-        log.info("[RefundHook] checkStatus: orderId={}, localStatus={}", orderId, status);
+        String transId = (String) context.getParams().get("transId");
+        String status = localDb.getOrDefault(transId, "INIT");
+        log.info("[RefundHook] checkStatus: transId={}, localStatus={}", transId, status);
         return status;
     }
 
@@ -47,17 +47,17 @@ public class RefundRetryHook implements RetryHook {
      */
     @Override
     public QueryResult doQuery(RetryContext context) {
-        String orderId = (String) context.getParams().get("orderId");
-        log.info("[RefundHook] doQuery: calling payment API for orderId={}, retryCount={}",
-                orderId, context.getRetryCount());
+        String transId = (String) context.getParams().get("transId");
+        log.info("[RefundHook] doQuery: calling payment API for transId={}, retryCount={}",
+                transId, context.getRetryCount());
 
         // 模拟：第三方在重试1次后返回成功（实际应调用支付宝/微信查询接口）
         if (context.getRetryCount() >= 1) {
-            log.info("[RefundHook] doQuery: payment center confirmed SUCCESS for orderId={}", orderId);
+            log.info("[RefundHook] doQuery: payment center confirmed SUCCESS for transId={}", transId);
             return QueryResult.success("Refund confirmed by payment center");
         }
 
-        log.warn("[RefundHook] doQuery: payment still processing for orderId={}", orderId);
+        log.warn("[RefundHook] doQuery: payment still processing for transId={}", transId);
         return QueryResult.failure("Refund still in progress, will retry");
     }
 
@@ -67,9 +67,9 @@ public class RefundRetryHook implements RetryHook {
      */
     @Override
     public void doCallback(RetryContext context, QueryResult result) {
-        String orderId = (String) context.getParams().get("orderId");
-        log.info("[RefundHook] doCallback: updating local DB to SUCCESS. orderId={}, result={}",
-                orderId, result.getData());
-        localDb.put(orderId, "SUCCESS");
+        String transId = (String) context.getParams().get("transId");
+        log.info("[RefundHook] doCallback: updating local DB to SUCCESS. transId={}, result={}",
+                transId, result.getData());
+        localDb.put(transId, "SUCCESS");
     }
 }

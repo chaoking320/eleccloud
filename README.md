@@ -147,9 +147,10 @@ retry:
 public class RefundService {
 
     // 加一个注解，方法失败后自动进入重试平台，直到成功
-    @RetryableTask(sceneType = 1, idempotentKey = "#orderId")
-    public boolean refund(String orderId, Double amount) {
-        return paymentApi.refund(orderId, amount); // 失败会自动重试
+    // 前提条件：下游业务系统必须支持基于交易流水号 transId 的幂等校验
+    @RetryableTask(sceneType = 1, idempotentKey = "#transId")
+    public boolean refund(String transId, String orderId, Double amount) {
+        return paymentApi.refund(transId, amount); // 失败会自动重试
     }
 }
 ```

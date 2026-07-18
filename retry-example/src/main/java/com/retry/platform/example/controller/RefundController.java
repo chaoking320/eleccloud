@@ -70,22 +70,24 @@ public class RefundController {
             @RequestParam(defaultValue = "100.0") Double amount,
             @RequestParam(defaultValue = "七天无理由退货") String reason) {
 
-        String orderId = "REFUND_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-        Map<String, Object> resp = buildBaseResponse("MODE1_ANNOTATION", orderId);
+        String orderId = "ORD_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        String transId = "RFD_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        Map<String, Object> resp = buildBaseResponse("MODE1_ANNOTATION", transId);
         resp.put("description", "注解模式：@RetryableTask 自动拦截，失败后提交重试任务");
         resp.put("scene", "电商退款");
         resp.put("backoffStrategy", "CUSTOM（1/5/10/30分钟）");
+        resp.put("orderId", orderId);
         resp.put("amount", amount);
 
         try {
-            refundService.refund(orderId, amount, reason);
+            refundService.refund(transId, orderId, amount, reason);
             resp.put("firstCallResult", "SUCCESS_IMMEDIATELY（幂等：已完成）");
         } catch (Exception e) {
             resp.put("firstCallResult", "FAILED_AS_EXPECTED（模拟超时，已自动提交重试任务）");
             resp.put("failReason", e.getMessage());
         }
 
-        resp.put("currentLocalStatus", RefundRetryHook.localDb.getOrDefault(orderId, "INIT"));
+        resp.put("currentLocalStatus", RefundRetryHook.localDb.getOrDefault(transId, "INIT"));
         resp.put("nextStep", "等待 retry-server 定时调度（约1分钟），观察 Admin 后台任务状态变化");
         return resp;
     }
@@ -112,21 +114,21 @@ public class RefundController {
             @RequestParam(defaultValue = "5000.0") Double amount,
             @RequestParam(defaultValue = "HT_MARRIOTT") String hotelCode) {
 
-        String settlementId = "STL_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-        Map<String, Object> resp = buildBaseResponse("MODE2_API", settlementId);
+        String transId = "STL_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        Map<String, Object> resp = buildBaseResponse("MODE2_API", transId);
         resp.put("description", "API模式：手动调用 RetryClient.submit()，精细控制何时提交重试");
         resp.put("scene", "酒店结算");
         resp.put("backoffStrategy", "LINEAR（base=2，间隔递增 2/4/6/8/10分钟）");
         resp.put("amount", amount);
 
-        String result = settlementService.settle(settlementId, amount, hotelCode);
+        String result = settlementService.settle(transId, amount, hotelCode);
         if (result != null) {
             resp.put("firstCallResult", "SUCCESS_IMMEDIATELY");
         } else {
             resp.put("firstCallResult", "FAILED_AS_EXPECTED（超时，已手动提交重试任务到平台）");
         }
 
-        resp.put("currentLocalStatus", SettlementRetryHook.localDb.getOrDefault(settlementId, "INIT"));
+        resp.put("currentLocalStatus", SettlementRetryHook.localDb.getOrDefault(transId, "INIT"));
         resp.put("nextStep", "等待 retry-server 定时调度（约2分钟），观察 Admin 后台任务状态变化");
         return resp;
     }
@@ -157,21 +159,23 @@ public class RefundController {
             @RequestParam(defaultValue = "SKU_12345") String skuId,
             @RequestParam(defaultValue = "10") Integer delta) {
 
-        Map<String, Object> resp = buildBaseResponse("MODE3_PRE_SUBMIT", skuId);
+        String transId = "INV_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        Map<String, Object> resp = buildBaseResponse("MODE3_PRE_SUBMIT", transId);
         resp.put("description", "预提交模式：方法执行前先注册任务，成功后标记SUCCESS，崩溃也能重试");
         resp.put("scene", "库存同步");
         resp.put("backoffStrategy", "EXPONENTIAL（base=1，间隔指数 1/2/4/8/16分钟）");
+        resp.put("skuId", skuId);
         resp.put("delta", delta);
 
         try {
-            inventoryService.syncInventory(skuId, delta);
+            inventoryService.syncInventory(transId, skuId, delta);
             resp.put("firstCallResult", "SUCCESS_IMMEDIATELY（方法直接成功，已标记SUCCESS）");
         } catch (Exception e) {
             resp.put("firstCallResult", "FAILED_AS_EXPECTED（方法失败，预注册的任务保持INIT等待重试）");
             resp.put("failReason", e.getMessage());
         }
 
-        resp.put("currentLocalStatus", InventoryRetryHook.localDb.getOrDefault(skuId, "INIT"));
+        resp.put("currentLocalStatus", InventoryRetryHook.localDb.getOrDefault(transId, "INIT"));
         resp.put("nextStep", "等待 retry-server 定时调度（约1分钟），EXPONENTIAL策略间隔：1/2/4/8/16分钟");
         return resp;
     }

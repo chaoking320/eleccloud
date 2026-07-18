@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class RefundService {
 
-    /** 记录订单的首次失败标记，模拟真实的首次网络超时 */
+    /** 记录退款单的首次失败标记，模拟真实的首次网络超时 */
     private final Map<String, Boolean> failedOnce = new ConcurrentHashMap<>();
 
     /**
@@ -27,31 +27,31 @@ public class RefundService {
      * <p>注解说明：
      * <ul>
      *   <li>{@code sceneType = 1}：对应场景1配置（CUSTOM策略，间隔 1/5/10/30 分钟）</li>
-     *   <li>{@code idempotentKey = "#orderId"}：用订单号作为幂等键，防止重复退款</li>
+     *   <li>{@code idempotentKey = "#transId"}：用统一的交易流水号作为幂等键</li>
      *   <li>{@code preSubmit = false}（默认）：失败后提交，适合明确抛异常的场景</li>
      * </ul>
      */
-    @RetryableTask(sceneType = 1, idempotentKey = "#orderId", throwException = true)
-    public boolean refund(String orderId, Double amount, String reason) {
-        log.info("[RefundService] Executing refund: orderId={}, amount={}, reason={}", orderId, amount, reason);
+    @RetryableTask(sceneType = 1, idempotentKey = "#transId", throwException = true)
+    public boolean refund(String transId, String orderId, Double amount, String reason) {
+        log.info("[RefundService] Executing refund: transId={}, orderId={}, amount={}, reason={}", transId, orderId, amount, reason);
 
         // 检查本地状态（幂等性保障）
-        String currentStatus = RefundRetryHook.localDb.getOrDefault(orderId, "INIT");
+        String currentStatus = RefundRetryHook.localDb.getOrDefault(transId, "INIT");
         if ("SUCCESS".equals(currentStatus)) {
-            log.info("[RefundService] Refund order {} already succeeded (idempotent check). Skipping.", orderId);
+            log.info("[RefundService] Refund {} already succeeded (idempotent check). Skipping.", transId);
             return true;
         }
 
         // 模拟首次网络超时 / 第三方服务不可用
-        if (!failedOnce.containsKey(orderId)) {
-            failedOnce.put(orderId, true);
-            log.warn("[RefundService] Network timeout to payment center for orderId={}. Simulating failure...", orderId);
+        if (!failedOnce.containsKey(transId)) {
+            failedOnce.put(transId, true);
+            log.warn("[RefundService] Network timeout to payment center for transId={}. Simulating failure...", transId);
             throw new RuntimeException("Simulated network timeout: payment center unavailable");
         }
 
         // 第二次调用（由重试平台驱动）：成功推送退款请求，进入 WAIT 状态等待支付方确认
-        log.info("[RefundService] Refund request pushed to payment center for orderId={}. Status -> WAIT", orderId);
-        RefundRetryHook.localDb.put(orderId, "WAIT");
+        log.info("[RefundService] Refund request pushed to payment center for transId={}. Status -> WAIT", transId);
+        RefundRetryHook.localDb.put(transId, "WAIT");
         return true;
     }
 }

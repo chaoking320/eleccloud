@@ -42,45 +42,45 @@ public class SettlementService {
      *   <li>调用 {@code retryClient.submit(request)} 提交到平台</li>
      * </ol>
      */
-    public String settle(String settlementId, Double amount, String hotelCode) {
-        log.info("[SettlementService] Initiating settlement: settlementId={}, amount={}, hotel={}",
-                settlementId, amount, hotelCode);
+    public String settle(String transId, Double amount, String hotelCode) {
+        log.info("[SettlementService] Initiating settlement: transId={}, amount={}, hotel={}",
+                transId, amount, hotelCode);
 
         // 检查幂等性
-        String status = SettlementRetryHook.localDb.getOrDefault(settlementId, "INIT");
+        String status = SettlementRetryHook.localDb.getOrDefault(transId, "INIT");
         if ("SUCCESS".equals(status)) {
-            log.info("[SettlementService] Settlement {} already completed (idempotent). Skipping.", settlementId);
-            return settlementId;
+            log.info("[SettlementService] Settlement {} already completed (idempotent). Skipping.", transId);
+            return transId;
         }
 
         try {
             // 模拟首次调用超时
-            if (!failedOnce.containsKey(settlementId)) {
-                failedOnce.put(settlementId, true);
-                log.warn("[SettlementService] OTA gateway timeout for settlementId={}", settlementId);
+            if (!failedOnce.containsKey(transId)) {
+                failedOnce.put(transId, true);
+                log.warn("[SettlementService] OTA gateway timeout for transId={}", transId);
                 throw new RuntimeException("OTA gateway connection timeout");
             }
 
             // 成功：发送结算请求，进入 OTA 审批流程（异步审批，状态变为 WAIT）
-            log.info("[SettlementService] Settlement request sent to OTA for settlementId={}, status -> WAIT", settlementId);
-            SettlementRetryHook.localDb.put(settlementId, "WAIT");
-            return settlementId;
+            log.info("[SettlementService] Settlement request sent to OTA for transId={}, status -> WAIT", transId);
+            SettlementRetryHook.localDb.put(transId, "WAIT");
+            return transId;
 
         } catch (RuntimeException e) {
             log.error("[SettlementService] Settlement failed for {}: {}. Submitting to retry platform...",
-                    settlementId, e.getMessage());
+                    transId, e.getMessage());
 
             // ===== API 模式核心：手动构建并提交重试任务 =====
             RetryTaskRequest request = new RetryTaskRequest();
             request.setSceneType(2);                                               // 场景2：酒店结算
-            request.setIdempotentKey(settlementId);                                // 幂等键：结算单号
+            request.setIdempotentKey(transId);                                     // 幂等键：统一交易流水号
             request.setMethodClass(this.getClass().getName());                     // 类名（平台回调时用）
             request.setMethodName("settle");                                       // 方法名
             request.setSubmitMode("POST_FAIL");                                    // 失败后提交
 
             // 将方法参数序列化为 JSON，平台回调时传回（需确保参数可序列化）
             Map<String, Object> params = new HashMap<>();
-            params.put("settlementId", settlementId);
+            params.put("transId", transId);
             params.put("amount", amount);
             params.put("hotelCode", hotelCode);
             request.setMethodParams(new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(params).toString());
