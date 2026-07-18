@@ -18,7 +18,7 @@ import java.util.Set;
  */
 @Slf4j
 @Component
-@ConditionalOnProperty(prefix = "retry.scheduler", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "retry.scheduler", name = "enabled", havingValue = "false", matchIfMissing = false)
 public class DatabaseFallbackScheduler {
     
     private static final String DELAY_QUEUE_KEY = "retry:delay:queue";

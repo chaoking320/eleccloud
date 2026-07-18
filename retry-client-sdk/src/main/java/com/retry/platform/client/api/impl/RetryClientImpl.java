@@ -28,7 +28,7 @@ public class RetryClientImpl implements RetryClient {
     
     private static final String SUBMIT_PATH = "/api/retry/submit";
     private static final String CANCEL_PATH = "/api/retry/cancel/";
-    private static final String QUERY_PATH = "/api/retry/query/";
+    private static final String QUERY_PATH = "/api/retry/task/";
     private static final String SUCCESS_PATH = "/api/retry/success/";
 
     @Override
@@ -43,10 +43,10 @@ public class RetryClientImpl implements RetryClient {
         try {
             String url = properties.getServerUrl() + SUCCESS_PATH + taskId;
             ResponseEntity<Result<Boolean>> response = restTemplate.exchange(
-                    url,
-                    HttpMethod.POST,
-                    null,
-                    new ParameterizedTypeReference<Result<Boolean>>() {}
+                     url,
+                     HttpMethod.POST,
+                     null,
+                     new ParameterizedTypeReference<Result<Boolean>>() {}
             );
             Result<Boolean> result = response.getBody();
             if (result != null && result.getSuccess()) {
@@ -60,6 +60,61 @@ public class RetryClientImpl implements RetryClient {
         } catch (Exception e) {
             log.error("Failed to mark task success: taskId={}", taskId, e);
             return false;
+        }
+    }
+
+    @Override
+    public boolean markExecuting(String taskId) {
+        try {
+            String url = properties.getServerUrl() + "/api/retry/executing/" + taskId;
+            ResponseEntity<Result<Boolean>> response = restTemplate.exchange(
+                    url, HttpMethod.POST, null, new ParameterizedTypeReference<Result<Boolean>>() {}
+            );
+            Result<Boolean> result = response.getBody();
+            return result != null && result.getSuccess() && Boolean.TRUE.equals(result.getData());
+        } catch (Exception e) {
+            log.error("Failed to mark task executing: taskId={}", taskId, e);
+            return false;
+        }
+    }
+
+    @Override
+    public void updateStatus(String taskId, String status) {
+        try {
+            String url = properties.getServerUrl() + "/api/retry/status?taskId=" + taskId + "&status=" + status;
+            restTemplate.postForObject(url, null, Result.class);
+        } catch (Exception e) {
+            log.error("Failed to update status remotely: taskId={}", taskId, e);
+        }
+    }
+
+    @Override
+    public void updateRetryCountAndStatus(String taskId, int retryCount, String status) {
+        try {
+            String url = properties.getServerUrl() + "/api/retry/retry-info?taskId=" + taskId + "&retryCount=" + retryCount + "&status=" + status;
+            restTemplate.postForObject(url, null, Result.class);
+        } catch (Exception e) {
+            log.error("Failed to update retry info remotely: taskId={}", taskId, e);
+        }
+    }
+
+    @Override
+    public void rollbackToPending(String taskId, String errorMsg) {
+        try {
+            String url = properties.getServerUrl() + "/api/retry/rollback?taskId=" + taskId + "&errorMsg=" + errorMsg;
+            restTemplate.postForObject(url, null, Result.class);
+        } catch (Exception e) {
+            log.error("Failed to rollback task remotely: taskId={}", taskId, e);
+        }
+    }
+
+    @Override
+    public void markFailed(String taskId, String reason) {
+        try {
+            String url = properties.getServerUrl() + "/api/retry/failed?taskId=" + taskId + "&reason=" + reason;
+            restTemplate.postForObject(url, null, Result.class);
+        } catch (Exception e) {
+            log.error("Failed to mark task failed remotely: taskId={}", taskId, e);
         }
     }
 

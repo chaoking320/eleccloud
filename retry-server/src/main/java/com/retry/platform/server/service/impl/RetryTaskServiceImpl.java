@@ -134,6 +134,16 @@ public class RetryTaskServiceImpl implements RetryTaskService {
         
         RetryTaskDTO dto = new RetryTaskDTO();
         BeanUtils.copyProperties(retryTask, dto);
+        
+        // 补齐场景策略信息，使客户端 SDK 本地重试可以免去单独查配置的开销
+        SceneConfig sceneConfig = sceneConfigService.getSceneConfigByType(retryTask.getSceneType());
+        if (sceneConfig != null) {
+            dto.setHookClass(sceneConfig.getHookClass());
+            dto.setBackoffStrategy(sceneConfig.getBackoffStrategy());
+            dto.setBackoffBase(sceneConfig.getBackoffBase());
+            dto.setRetryIntervals(sceneConfig.getRetryIntervals());
+        }
+        
         return dto;
     }
     

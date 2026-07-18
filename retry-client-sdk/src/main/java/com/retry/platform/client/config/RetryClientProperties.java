@@ -34,4 +34,19 @@ public class RetryClientProperties {
      * HTTP读取超时时间（毫秒）
      */
     private int readTimeout = 10000;
+
+    /**
+     * 消息队列类型：REDIS / RABBITMQ
+     */
+    private String mqType = "REDIS";
+
+    /**
+     * 本地并发消费最大线程数
+     */
+    private int consumerConcurrency = 5;
+
+    /**
+     * 业务线专用延迟消息队列主题名称 (多业务隔离配置)
+     */
+    private String queueName = "retry.delayed.queue";
 }

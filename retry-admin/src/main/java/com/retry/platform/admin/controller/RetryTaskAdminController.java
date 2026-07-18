@@ -2,7 +2,6 @@ package com.retry.platform.admin.controller;
 
 import com.retry.platform.server.entity.RetryHistory;
 import com.retry.platform.server.entity.RetryTask;
-import com.retry.platform.server.executor.RetryTaskExecutor;
 import com.retry.platform.server.mapper.FailedTaskMapper;
 import com.retry.platform.server.mapper.RetryTaskMapper;
 import com.retry.platform.server.service.RetryTaskService;
@@ -31,9 +30,6 @@ public class RetryTaskAdminController {
 
     @Autowired
     private RetryTaskService retryTaskService;
-
-    @Autowired
-    private RetryTaskExecutor retryTaskExecutor;
 
     /**
      * 分页条件查询当前重试任务列表
@@ -117,6 +113,9 @@ public class RetryTaskAdminController {
         }
     }
 
+    @Autowired
+    private org.springframework.web.client.RestTemplate restTemplate;
+
     /**
      * 手动触发执行任务
      */
@@ -125,17 +124,13 @@ public class RetryTaskAdminController {
         try {
             log.info("Triggering manual retry for taskId={}", taskId);
             
-            // 判断任务是否在 failed_task 表中，如果在，需要先恢复到 retry_task
-            // （我们可以在 FailedTaskController 中处理更全面的恢复逻辑，这里对于活跃/失败任务通用支持）
             RetryTask activeTask = retryTaskMapper.selectByTaskId(taskId);
             if (activeTask == null) {
-                // 尝试从失败表中恢复
                 com.retry.platform.server.entity.FailedTask failedTask = failedTaskMapper.selectByTaskId(taskId);
                 if (failedTask == null) {
                     return Result.error("找不到该任务，无法手动触发");
                 }
                 
-                // 将失败任务恢复到 retry_task
                 activeTask = new RetryTask();
                 activeTask.setTaskId(failedTask.getTaskId());
                 activeTask.setSceneType(failedTask.getSceneType());
@@ -143,9 +138,9 @@ public class RetryTaskAdminController {
                 activeTask.setMethodClass(failedTask.getMethodClass());
                 activeTask.setMethodName(failedTask.getMethodName());
                 activeTask.setMethodParams(failedTask.getMethodParams());
-                activeTask.setTaskStatus("INIT"); // 重新标记为 INIT
+                activeTask.setTaskStatus("INIT"); 
                 activeTask.setRetryCount(0);
-                activeTask.setMaxRetryCount(failedTask.getRetryCount() + 1); // 额外给一次重试次数
+                activeTask.setMaxRetryCount(failedTask.getRetryCount() + 1); 
                 activeTask.setNextRetryTime(System.currentTimeMillis());
                 
                 retryTaskMapper.insert(activeTask);
@@ -153,8 +148,9 @@ public class RetryTaskAdminController {
                 log.info("Successfully restored failed task to active retry queue: taskId={}", taskId);
             }
             
-            // 异步或同步触发执行器执行
-            retryTaskExecutor.execute(taskId);
+            // 向 retry-server 投递 /trigger 触发请求，间接向 MQ 发送 delay=0 消息
+            String triggerUrl = "http://localhost:8080/api/retry/trigger/" + taskId;
+            restTemplate.postForObject(triggerUrl, null, com.retry.platform.client.dto.Result.class);
             
             return Result.success();
         } catch (Exception e) {

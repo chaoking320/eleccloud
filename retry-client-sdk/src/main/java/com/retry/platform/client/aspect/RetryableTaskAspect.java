@@ -56,11 +56,17 @@ public class RetryableTaskAspect {
             taskId = retryClient.submit(request);
             log.info("[PRE_SUBMIT] Pre-registered retry task before method execution. taskId={}, sceneType={}, idempotentKey={}",
                     taskId, retryableTask.sceneType(), request.getIdempotentKey());
+            
+            // 预提交模式也需要防进程瞬间崩溃，先往本地 MQ 丢一条延时消息
+            // 延时可以设定得长一些（例如 5 分钟），即使真的崩溃了也可以在此时间后触发本地 doQuery 重试
+            if (taskId != null) {
+                // 读取首次重试延时（从 1 分钟开始，或者是 30 秒）
+                long initialDelayMs = 60 * 1000L; 
+                retryMessageProducer.sendDelayMessage(taskId, initialDelayMs, retryableTask.sceneType());
+            }
         } catch (Exception e) {
-            // 注册任务失败时，视配置决定是否阻断业务执行
             log.error("[PRE_SUBMIT] Failed to pre-register retry task. sceneType={}, idempotentKey={}, error={}",
                     retryableTask.sceneType(), request.getIdempotentKey(), e.getMessage());
-            // 注册失败不阻断业务，继续执行（可根据业务需要改为抛出异常）
         }
 
         // Step 2: 执行原方法
@@ -77,14 +83,12 @@ public class RetryableTaskAspect {
                         log.warn("[PRE_SUBMIT] Method succeeded but failed to mark task SUCCESS. taskId={}", taskId);
                     }
                 } catch (Exception e) {
-                    // 标记失败不影响业务结果，平台会在下次调度时通过 checkStatus 发现已成功
                     log.error("[PRE_SUBMIT] Exception marking task SUCCESS. taskId={}, error={}", taskId, e.getMessage());
                 }
             }
             return result;
 
         } catch (Throwable e) {
-            // 方法执行失败：任务保持 INIT 状态，平台将在定时调度时触发重试
             log.warn("[PRE_SUBMIT] Method execution failed. taskId={} will remain INIT for platform retry. Error: {}",
                     taskId, e.getMessage());
 
@@ -96,6 +100,9 @@ public class RetryableTaskAspect {
     }
 
     // ==================== POST_FAIL 模式 ====================
+
+    @Autowired
+    private com.retry.platform.client.mq.RetryMessageProducer retryMessageProducer;
 
     /**
      * 失败后提交模式：执行方法 → 失败后提交重试任务
@@ -113,6 +120,12 @@ public class RetryableTaskAspect {
                 String taskId = retryClient.submit(request);
                 log.info("[POST_FAIL] Retry task submitted. taskId={}, sceneType={}, idempotentKey={}",
                         taskId, retryableTask.sceneType(), request.getIdempotentKey());
+                
+                if (taskId != null) {
+                    // 方法失败后，立刻开始第一轮投递，延时由场景策略决定（这里默认先延时 10 秒或者是 1 分钟开始）
+                    long initialDelayMs = 5000L; // 失败后 5 秒立即本地重试
+                    retryMessageProducer.sendDelayMessage(taskId, initialDelayMs, retryableTask.sceneType());
+                }
             } catch (Exception ex) {
                 log.error("[POST_FAIL] Failed to submit retry task", ex);
             }

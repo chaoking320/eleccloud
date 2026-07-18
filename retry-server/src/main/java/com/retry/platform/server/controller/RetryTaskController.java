@@ -97,6 +97,13 @@ public class RetryTaskController {
      * @param taskId 任务ID
      * @return 是否成功
      */
+    /**
+     * 标记任务执行成功（PRE_SUBMIT 预提交模式专用）
+     * 客户端业务方法执行成功后调用，将任务状态更新为 SUCCESS 以停止后续重试调度
+     *
+     * @param taskId 任务ID
+     * @return 是否成功
+     */
     @PostMapping("/success/{taskId}")
     public Result<Boolean> markSuccess(@PathVariable String taskId) {
         try {
@@ -118,6 +125,118 @@ public class RetryTaskController {
         } catch (Exception e) {
             log.error("Failed to mark task success: taskId={}", taskId, e);
             return Result.fail("Failed to mark task success: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 尝试将任务标记为 EXECUTING 状态 (原子 CAS 锁定)
+     */
+    @PostMapping("/executing/{taskId}")
+    public Result<Boolean> markExecuting(@PathVariable String taskId) {
+        try {
+            RetryTaskDTO task = retryTaskService.getTask(taskId);
+            if (task == null) {
+                return Result.fail("Task not found: " + taskId);
+            }
+            // 只有 INIT 状态的任务可以抢占执行
+            if (!"INIT".equals(task.getTaskStatus())) {
+                return Result.success(false);
+            }
+            retryTaskService.updateTaskStatus(taskId, "EXECUTING");
+            log.info("Task status updated to EXECUTING (locked): taskId={}", taskId);
+            return Result.success(true);
+        } catch (Exception e) {
+            log.error("Failed to lock task: {}", taskId, e);
+            return Result.fail(e.getMessage());
+        }
+    }
+
+    /**
+     * 更新状态接口
+     */
+    @PostMapping("/status")
+    public Result<Void> updateStatus(@RequestParam String taskId, @RequestParam String status) {
+        try {
+            retryTaskService.updateTaskStatus(taskId, status);
+            return Result.success(null);
+        } catch (Exception e) {
+            return Result.fail(e.getMessage());
+        }
+    }
+
+    /**
+     * 更新重试信息接口
+     */
+    @PostMapping("/retry-info")
+    public Result<Void> updateRetryInfo(@RequestParam String taskId, @RequestParam int retryCount, @RequestParam String status) {
+        try {
+            retryTaskService.updateTaskStatusAndRetryInfo(taskId, status, retryCount, System.currentTimeMillis());
+            return Result.success(null);
+        } catch (Exception e) {
+            return Result.fail(e.getMessage());
+        }
+    }
+
+    /**
+     * 执行异常时，将状态回退到 INIT 并记录历史
+     */
+    @PostMapping("/rollback")
+    public Result<Void> rollbackToPending(@RequestParam String taskId, @RequestParam String errorMsg) {
+        try {
+            RetryTaskDTO task = retryTaskService.getTask(taskId);
+            if (task != null) {
+                retryTaskService.updateTaskStatus(taskId, "INIT");
+                retryTaskService.recordHistory(taskId, task.getRetryCount(), "FAILURE", errorMsg, 0);
+            }
+            return Result.success(null);
+        } catch (Exception e) {
+            return Result.fail(e.getMessage());
+        }
+    }
+
+    /**
+     * 标记最终失败
+     */
+    @PostMapping("/failed")
+    public Result<Void> markFailed(@RequestParam String taskId, @RequestParam String reason) {
+        try {
+            retryTaskService.updateTaskStatus(taskId, "FAILED");
+            retryTaskService.recordHistory(taskId, 0, "FAILED", reason, 0);
+            return Result.success(null);
+        } catch (Exception e) {
+            return Result.fail(e.getMessage());
+        }
+    }
+
+    @Autowired(required = false)
+    private com.retry.platform.client.mq.RetryMessageProducer retryMessageProducer;
+
+    /**
+     * 人工在 Admin 后台手动触发重试任务
+     * 发送 delay=0 的即时延时消息到 MQ
+     */
+    @PostMapping("/trigger/{taskId}")
+    public Result<Boolean> triggerTask(@PathVariable String taskId) {
+        try {
+            RetryTaskDTO task = retryTaskService.getTask(taskId);
+            if (task == null) {
+                return Result.fail("Task not found");
+            }
+            
+            // 重置为 INIT 状态，使其能够被抢占
+            retryTaskService.updateTaskStatus(taskId, "INIT");
+            
+            if (retryMessageProducer != null) {
+                // 向 MQ 发送即时投递消息，直接唤醒 SDK Consumer
+                retryMessageProducer.sendDelayMessage(taskId, 0L, task.getSceneType());
+                log.info("Manually triggered task by sending delay=0 message to MQ. taskId={}", taskId);
+                return Result.success(true);
+            } else {
+                return Result.fail("RetryMessageProducer not configured on server side");
+            }
+        } catch (Exception e) {
+            log.error("Failed to trigger task manually. taskId={}", taskId, e);
+            return Result.fail(e.getMessage());
         }
     }
 }

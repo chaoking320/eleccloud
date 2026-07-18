@@ -43,4 +43,45 @@ public interface RetryClient {
      * @return 是否成功
      */
     boolean markSuccess(String taskId);
+
+    /**
+     * 尝试将状态修改为 EXECUTING (用于 CAS 抢占互斥)
+     *
+     * @param taskId 任务ID
+     * @return 是否成功抢占
+     */
+    boolean markExecuting(String taskId);
+
+    /**
+     * 更新任务状态
+     *
+     * @param taskId 任务ID
+     * @param status 状态
+     */
+    void updateStatus(String taskId, String status);
+
+    /**
+     * 更新重试次数及任务状态
+     *
+     * @param taskId 任务ID
+     * @param retryCount 重试次数
+     * @param status 状态
+     */
+    void updateRetryCountAndStatus(String taskId, int retryCount, String status);
+
+    /**
+     * 发生异常时回滚状态到 INIT/WAIT (待重试)
+     *
+     * @param taskId 任务ID
+     * @param errorMsg 错误信息
+     */
+    void rollbackToPending(String taskId, String errorMsg);
+
+    /**
+     * 标记任务为彻底失败
+     *
+     * @param taskId 任务ID
+     * @param reason 失败原因
+     */
+    void markFailed(String taskId, String reason);
 }

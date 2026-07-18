@@ -64,6 +64,26 @@ public class RetryTaskDTO implements Serializable {
     private Long nextRetryTime;
     
     /**
+     * 钩子全路径类名
+     */
+    private String hookClass;
+
+    /**
+     * 退避策略
+     */
+    private String backoffStrategy;
+
+    /**
+     * 退避基数
+     */
+    private Integer backoffBase;
+
+    /**
+     * 重试间隔列表(逗号分隔，CUSTOM模式使用)
+     */
+    private String retryIntervals;
+
+    /**
      * 创建时间
      */
     private LocalDateTime createTime;
