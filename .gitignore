@@ -41,3 +41,6 @@ application-dev.yml
 # Reference / temp files
 .gemini_patent_text.txt
 *.pdf
+design.md
+PROJECT_SETUP.md
+debug.log
