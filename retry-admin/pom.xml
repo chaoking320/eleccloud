@@ -8,7 +8,7 @@
     <parent>
         <groupId>com.retry.platform</groupId>
         <artifactId>distributed-retry-platform</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>1.0.0</version>
     </parent>
 
     <artifactId>retry-admin</artifactId>

@@ -284,3 +284,59 @@ retry-client-sdk  ←──── retry-example
 
 retry-admin  ←──────── 独立后台，通过 HTTP 对接 retry-server
 ```
+
+---
+
+## 9. 架构示意图 (Mermaid)
+
+> 以下图为 GitHub 原生渲染的 Mermaid 图，便于快速理解「去中心化 MQ-SDK 驱动」拓扑与预提交模式时序。
+
+### 9.1 整体拓扑
+
+```mermaid
+flowchart LR
+    subgraph Business["业务系统 (retry-client-sdk)"]
+        direction TB
+        A["方法失败 / 显式提交"] --> B["RetryableTaskAspect / RetryClient"]
+        B --> C["RetryMessageProducer"]
+        D["LocalRetryExecutor"] --> E["RetryHook: checkStatus / doQuery / doCallback"]
+    end
+    C -->|"延时消息"| Q
+    Q -->|"到期消费"| D
+    D -->|"REST 读写"| S
+    subgraph MQ["MQ 延时引擎 (配置切换)"]
+        Q["Redis ZSET ⇄ RabbitMQ"]
+    end
+    subgraph SVR["retry-server (数据存储)"]
+        S["REST API + Prometheus"]
+    end
+    S --> DB[("MySQL: retry_task / failed_task / scene_config")]
+    S --> R[("Redis: ZSET / 分布式锁")]
+```
+
+### 9.2 预提交模式 (PRE_SUBMIT) 时序
+
+```mermaid
+sequenceDiagram
+    participant Biz as 业务方法
+    participant AOP as RetryableTaskAspect
+    participant Client as RetryClient
+    participant MQ as MQ 延时队列
+    participant Exec as LocalRetryExecutor
+    participant Srv as retry-server
+
+    AOP->>Client: submit(PRE_SUBMIT)
+    Client->>Srv: POST /submit (INIT)
+    AOP->>MQ: sendDelayMessage(初始延时)
+    Biz->>Biz: 执行原方法
+
+    alt 方法成功
+        AOP->>Client: markSuccess
+        Client->>Srv: POST /success
+    else 方法失败 / 进程崩溃
+        MQ->>Exec: 延时到期触发
+        Exec->>Srv: queryTask
+        Exec->>Exec: 反射调用本地方法 → WAIT → doQuery → doCallback
+        Exec->>Srv: markSuccess / markFailed
+    end
+```

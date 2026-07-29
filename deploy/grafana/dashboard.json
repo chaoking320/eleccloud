@@ -1,0 +1,89 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "Prometheus 数据源",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "id": 1,
+      "title": "活跃重试任务数",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "" } },
+      "targets": [
+        { "expr": "retry_active_tasks_count", "legendFormat": "活跃任务", "refId": "A" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "死信/失败任务数",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "" } },
+      "targets": [
+        { "expr": "retry_failed_tasks_count", "legendFormat": "失败任务", "refId": "A" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "任务提交速率 (按场景)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "targets": [
+        { "expr": "sum by (sceneType) (rate(retry_tasks_submitted_total[5m]))", "legendFormat": "场景 {{sceneType}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "任务执行结果 (按场景/结果)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "targets": [
+        { "expr": "sum by (sceneType, result) (rate(retry_tasks_executed_total[5m]))", "legendFormat": "{{sceneType}}/{{result}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "平均执行耗时 (秒)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 14 },
+      "targets": [
+        {
+          "expr": "sum(rate(retry_tasks_execution_duration_seconds_sum[5m])) / sum(rate(retry_tasks_execution_duration_seconds_count[5m]))",
+          "legendFormat": "平均耗时",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["eleccloud", "retry"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "ElecCloud 重试平台监控",
+  "uid": "eleccloud-retry",
+  "version": 1,
+  "weekStart": ""
+}

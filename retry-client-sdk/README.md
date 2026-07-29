@@ -17,7 +17,7 @@
 <dependency>
     <groupId>com.retry.platform</groupId>
     <artifactId>retry-client-sdk</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.0</version>
 </dependency>
 ```
 
