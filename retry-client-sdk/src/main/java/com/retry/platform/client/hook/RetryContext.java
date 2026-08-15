@@ -61,4 +61,10 @@ public class RetryContext {
      * 方法参数JSON字符串
      */
     private String methodParamsJson;
+
+    /**
+     * 方法参数类型列表（逗号分隔的全限定类名）
+     * 由 RetryTaskDTO.methodParamTypes 填入，用于 findMethod 按类型签名精确定位重载方法。
+     */
+    private String methodParamTypes;
 }

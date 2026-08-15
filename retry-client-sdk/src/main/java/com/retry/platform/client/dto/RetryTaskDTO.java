@@ -92,4 +92,10 @@ public class RetryTaskDTO implements Serializable {
      * 更新时间
      */
     private LocalDateTime updateTime;
+
+    /**
+     * 方法参数类型列表（逗号分隔的全限定类名）
+     * 与 RetryTaskRequest.methodParamTypes 一一对应，从 DB 中读取后传递给 LocalRetryExecutor。
+     */
+    private String methodParamTypes;
 }

@@ -126,3 +126,47 @@ ON DUPLICATE KEY UPDATE
     scene_name=VALUES(scene_name), retry_intervals=VALUES(retry_intervals),
     backoff_strategy=VALUES(backoff_strategy), backoff_base=VALUES(backoff_base),
     max_retry_duration=VALUES(max_retry_duration), client_app_url=VALUES(client_app_url);
+
+-- =====================================================
+-- Demo 快速演示场景（scene_type 10/11/12）
+-- 专为交互式 Demo 页面设计，重试间隔压缩到秒级
+-- 让用户点击触发后 5-15 秒内即可观察到完整重试过程
+-- =====================================================
+
+-- Demo场景10：退款快速演示（对应场景1的快速版）
+-- 重试间隔：0.1分钟 ≈ 6秒（CUSTOM策略，纯演示用）
+INSERT INTO scene_config (scene_type, scene_name, retry_intervals, max_retry_count,
+    backoff_strategy, backoff_base, max_retry_duration,
+    hook_class, client_app_url, enabled)
+VALUES (10, '[Demo] 退款场景(快速)', '0,0,0', 3,
+    'FIXED', 0, 60,
+    'com.retry.platform.example.hook.DemoRefundHook', 'http://retry-example:8082', 1)
+ON DUPLICATE KEY UPDATE
+    scene_name=VALUES(scene_name), retry_intervals=VALUES(retry_intervals),
+    backoff_strategy=VALUES(backoff_strategy), backoff_base=VALUES(backoff_base),
+    max_retry_duration=VALUES(max_retry_duration), client_app_url=VALUES(client_app_url);
+
+-- Demo场景11：结算快速演示（对应场景2的快速版）
+INSERT INTO scene_config (scene_type, scene_name, retry_intervals, max_retry_count,
+    backoff_strategy, backoff_base, max_retry_duration,
+    hook_class, client_app_url, enabled)
+VALUES (11, '[Demo] 结算场景(快速)', NULL, 3,
+    'FIXED', 0, 60,
+    'com.retry.platform.example.hook.SettlementRetryHook', 'http://retry-example:8082', 1)
+ON DUPLICATE KEY UPDATE
+    scene_name=VALUES(scene_name), retry_intervals=VALUES(retry_intervals),
+    backoff_strategy=VALUES(backoff_strategy), backoff_base=VALUES(backoff_base),
+    max_retry_duration=VALUES(max_retry_duration), client_app_url=VALUES(client_app_url);
+
+-- Demo场景12：库存快速演示（对应场景3的快速版）
+INSERT INTO scene_config (scene_type, scene_name, retry_intervals, max_retry_count,
+    backoff_strategy, backoff_base, max_retry_duration,
+    hook_class, client_app_url, enabled)
+VALUES (12, '[Demo] 库存场景(快速)', NULL, 3,
+    'FIXED', 0, 60,
+    'com.retry.platform.example.hook.InventoryRetryHook', 'http://retry-example:8082', 1)
+ON DUPLICATE KEY UPDATE
+    scene_name=VALUES(scene_name), retry_intervals=VALUES(retry_intervals),
+    backoff_strategy=VALUES(backoff_strategy), backoff_base=VALUES(backoff_base),
+    max_retry_duration=VALUES(max_retry_duration), client_app_url=VALUES(client_app_url);
+

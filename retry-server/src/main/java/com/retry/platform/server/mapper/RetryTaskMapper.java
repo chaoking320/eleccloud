@@ -42,6 +42,24 @@ public interface RetryTaskMapper {
      * @return 影响行数
      */
     int updateStatus(@Param("taskId") String taskId, @Param("taskStatus") String taskStatus);
+
+    /**
+     * 原子 CAS 操作：仅当状态为 INIT 时，将其更新为 EXECUTING
+     * 通过检查 affected rows 判断是否成功抢占，彻底避免 Check-Then-Act 竞态。
+     *
+     * @param taskId 任务ID
+     * @return 影响行数，1 表示抢占成功，0 表示已被其他节点抢占
+     */
+    int casUpdateToExecuting(@Param("taskId") String taskId);
+
+    /**
+     * 将超时卡死在 EXECUTING 状态的任务回滚为 INIT，供后续重试消费。
+     * <p>修复 Bug6：进程被 kill -9 / OOM Killer 强杀后，任务状态永久卡在 EXECUTING。
+     *
+     * @param timeoutMillis 超时鈰值（update_time 超过该时间前则视为卡死）
+     * @return 回滚的任务数
+     */
+    int recoverStuckExecutingTasks(@Param("timeoutMillis") long timeoutMillis);
     
     /**
      * 更新重试信息

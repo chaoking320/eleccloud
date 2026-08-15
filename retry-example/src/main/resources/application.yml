@@ -4,9 +4,20 @@ server:
 spring:
   application:
     name: retry-example-service
+  # 允许异步 SSE 推送
+  mvc:
+    async:
+      request-timeout: 600000
 
 # 分布式重试平台客户端配置
 retry:
   client:
-    server-url: http://localhost:8080
+    server-url: http://localhost:8080   # ElecCloud Server 地址
     enabled: true
+    mq-type: REDIS                      # 延时队列类型：REDIS 或 RABBITMQ
+    queue-name: demo.retry              # 业务线专属队列名
+    dev-mode: false                     # true 时仅打日志，不实际提交
+
+# Demo 应用自身地址（业务服务调用 MockAPI 时使用）
+app:
+  self-url: http://localhost:8082

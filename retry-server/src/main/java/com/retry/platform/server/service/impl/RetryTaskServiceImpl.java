@@ -161,6 +161,15 @@ public class RetryTaskServiceImpl implements RetryTaskService {
             }
         }
     }
+
+    @Override
+    public int casMarkExecuting(String taskId) {
+        // 单条原子 SQL：UPDATE retry_task SET task_status='EXECUTING' WHERE task_id=? AND task_status='INIT'
+        // 返回 affected rows：1=抢占成功，0=已被其他节点抢占或状态非 INIT
+        int affected = retryTaskMapper.casUpdateToExecuting(taskId);
+        log.debug("[CAS] markExecuting taskId={}, affectedRows={}", taskId, affected);
+        return affected;
+    }
     
     @Override
     public void updateTaskStatusAndRetryInfo(String taskId, String taskStatus, 

@@ -31,6 +31,16 @@ public interface RetryTaskService {
      * @param taskStatus 任务状态
      */
     void updateTaskStatus(String taskId, String taskStatus);
+
+    /**
+     * 原子 CAS 尝试将任务状态从 INIT 更新为 EXECUTING
+     * <p>使用单条 SQL WHERE task_status='INIT' 实现，返回影响行数：
+     * 1 → 抢占成功，0 → 已被其他节点抢占
+     *
+     * @param taskId 任务ID
+     * @return affected rows
+     */
+    int casMarkExecuting(String taskId);
     
     /**
      * 更新任务状态和重试信息

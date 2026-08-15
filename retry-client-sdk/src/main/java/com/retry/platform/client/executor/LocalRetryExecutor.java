@@ -137,12 +137,15 @@ public class LocalRetryExecutor {
             Object targetBean = applicationContext.getBean(clazz);
 
             Map<String, Object> paramsMap = parseParamsJson(context.getMethodParamsJson());
-            Method targetMethod = findMethod(clazz, context.getMethodName(), paramsMap);
+            // 传入 methodParamTypes 以支持按类型签名精确定位重载方法
+            Method targetMethod = findMethod(clazz, context.getMethodName(), paramsMap,
+                    context.getMethodParamTypes());
             if (targetMethod == null) {
                 throw new NoSuchMethodException("Method not found: " + context.getMethodName());
             }
 
-            Object[] args = prepareMethodArgs(targetMethod, paramsMap, context.getIdempotentKey());
+            // 仅按参数名从 Map 还原入参，不再用启发式内容填充
+            Object[] args = prepareMethodArgs(targetMethod, paramsMap);
             targetMethod.setAccessible(true);
             targetMethod.invoke(targetBean, args);
 
@@ -264,30 +267,89 @@ public class LocalRetryExecutor {
         return objectMapper.readValue(paramsJson, Map.class);
     }
 
-    private Method findMethod(Class<?> clazz, String methodName, Map<String, Object> paramsMap) {
-        Method[] methods = clazz.getDeclaredMethods();
-        for (Method method : methods) {
-            if (method.getName().equals(methodName)) {
-                if (method.getParameterCount() == paramsMap.size()) {
-                    return method;
+    /**
+     * 定位方法。
+     * <p>
+     * 修复：原实现仅按参数数量匹配，无法处理重载方法（同名不同参数类型）。
+     * 修复后：优先按参数类型签名精确匹配；仅当 methodParamTypes 缺失时才降级按参数数量匹配。
+     *
+     * @param clazz          目标类
+     * @param methodName     方法名
+     * @param paramsMap      参数名⇒参数值映射（用于降级匹配时按数量匹配）
+     * @param methodParamTypes 逻号分隔的全限定参数类型，可为 null
+     * @return 匹配的 Method，找不到返回 null
+     */
+    private Method findMethod(Class<?> clazz, String methodName,
+                              Map<String, Object> paramsMap, String methodParamTypes) {
+        // ① 优先：按参数类型签名精确匹配（解决重载歧义）
+        if (methodParamTypes != null && !methodParamTypes.trim().isEmpty()) {
+            try {
+                String[] typeNames = methodParamTypes.split(",");
+                Class<?>[] paramTypes = new Class<?>[typeNames.length];
+                for (int i = 0; i < typeNames.length; i++) {
+                    paramTypes[i] = resolveClass(typeNames[i].trim());
                 }
+                return clazz.getDeclaredMethod(methodName, paramTypes);
+            } catch (NoSuchMethodException e) {
+                log.warn("[findMethod] Precise match failed for {}#{} with types=[{}], falling back to count-match.",
+                        clazz.getName(), methodName, methodParamTypes);
+            } catch (ClassNotFoundException e) {
+                log.warn("[findMethod] Failed to resolve param type class: {}", e.getMessage());
             }
         }
-        return null;
+
+        // ② 降级：按参数数量匹配（兼容旧数据 / methodParamTypes 为空的情况）
+        Method matched = null;
+        int matchCount = 0;
+        for (Method method : clazz.getDeclaredMethods()) {
+            if (method.getName().equals(methodName)
+                    && method.getParameterCount() == paramsMap.size()) {
+                matched = method;
+                matchCount++;
+            }
+        }
+        if (matchCount > 1) {
+            log.warn("[findMethod] Ambiguous overload: found {} methods named '{}' with {} params in {}. "
+                    + "Consider re-submitting to persist methodParamTypes for precise matching.",
+                    matchCount, methodName, paramsMap.size(), clazz.getName());
+        }
+        return matched;
     }
 
-    private Object[] prepareMethodArgs(Method method, Map<String, Object> paramsMap, String idempotentKey) throws Exception {
+    /**
+     * 将基本类型名 / 全限定类名解析为 Class。
+     */
+    private Class<?> resolveClass(String typeName) throws ClassNotFoundException {
+        switch (typeName) {
+            case "boolean": return boolean.class;
+            case "byte":    return byte.class;
+            case "char":    return char.class;
+            case "short":   return short.class;
+            case "int":     return int.class;
+            case "long":    return long.class;
+            case "float":   return float.class;
+            case "double":  return double.class;
+            case "void":    return void.class;
+            default:        return Class.forName(typeName);
+        }
+    }
+
+    /**
+     * 按参数名从 Map 中还原方法入参。
+     * <p>
+     * 修复：移除了原来的‘参数名含 id/key 就用幂等键填充’的启发式规则——
+     * 该规则将任意含“id”/“key”字符串的参数（如 buildingId、apiKey）误填为幂等键。
+     * 修复后：仅按参数名从 paramsMap 中取对应属性，找不到则置 null。
+     */
+    private Object[] prepareMethodArgs(Method method, Map<String, Object> paramsMap) throws Exception {
         Parameter[] parameters = method.getParameters();
         Object[] args = new Object[parameters.length];
         for (int i = 0; i < parameters.length; i++) {
-            Parameter parameter = parameters[i];
-            String paramName = parameter.getName();
-            Class<?> paramType = parameter.getType();
+            String paramName = parameters[i].getName();
+            Class<?> paramType = parameters[i].getType();
             Object paramValue = paramsMap.get(paramName);
-            if (paramValue == null && idempotentKey != null) {
-                if (paramName.toLowerCase().contains("id") || paramName.toLowerCase().contains("key")) {
-                    paramValue = idempotentKey;
-                }
+            if (paramValue == null && log.isDebugEnabled()) {
+                log.debug("[prepareMethodArgs] No value found for param '{}' in paramsMap, will use null/zero.", paramName);
             }
             args[i] = convertType(paramValue, paramType);
         }
@@ -337,6 +399,7 @@ public class LocalRetryExecutor {
                 .methodClass(task.getMethodClass())
                 .methodName(task.getMethodName())
                 .methodParamsJson(task.getMethodParams())
+                .methodParamTypes(task.getMethodParamTypes())
                 .build();
     }
 }

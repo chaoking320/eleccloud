@@ -12,6 +12,7 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 /**
  * 重试客户端实现类
@@ -101,7 +102,12 @@ public class RetryClientImpl implements RetryClient {
     @Override
     public void rollbackToPending(String taskId, String errorMsg) {
         try {
-            String url = properties.getServerUrl() + "/api/retry/rollback?taskId=" + taskId + "&errorMsg=" + errorMsg;
+            // 修复 Bug5: 使用 UriComponentsBuilder 自动编码，防止 errorMsg 含 &/=/# 等特殊字符导致解析失败
+            String url = UriComponentsBuilder
+                    .fromHttpUrl(properties.getServerUrl() + "/api/retry/rollback")
+                    .queryParam("taskId", taskId)
+                    .queryParam("errorMsg", errorMsg)
+                    .toUriString();
             restTemplate.postForObject(url, null, Result.class);
         } catch (Exception e) {
             log.error("Failed to rollback task remotely: taskId={}", taskId, e);
@@ -111,7 +117,12 @@ public class RetryClientImpl implements RetryClient {
     @Override
     public void markFailed(String taskId, String reason) {
         try {
-            String url = properties.getServerUrl() + "/api/retry/failed?taskId=" + taskId + "&reason=" + reason;
+            // 修复 Bug5: 使用 UriComponentsBuilder 自动编码，防止 reason 含特殊字符导致解析失败
+            String url = UriComponentsBuilder
+                    .fromHttpUrl(properties.getServerUrl() + "/api/retry/failed")
+                    .queryParam("taskId", taskId)
+                    .queryParam("reason", reason)
+                    .toUriString();
             restTemplate.postForObject(url, null, Result.class);
         } catch (Exception e) {
             log.error("Failed to mark task failed remotely: taskId={}", taskId, e);

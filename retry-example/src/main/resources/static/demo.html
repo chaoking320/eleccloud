@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ElecCloud — 分布式重试平台 交互演示</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--surface:#161b22;--card:#1c2128;--border:#30363d;
+  --text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;
+  --yellow:#d29922;--red:#f85149;--purple:#bc8cff;--orange:#ffa657;
+}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:24px}
+
+/* ---- Header ---- */
+.header{text-align:center;margin-bottom:32px}
+.header h1{font-size:28px;font-weight:700;background:linear-gradient(135deg,#58a6ff,#bc8cff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px}
+.header p{color:var(--muted);font-size:14px;max-width:640px;margin:0 auto;line-height:1.6}
+.badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;margin:0 4px}
+.badge-blue{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid rgba(88,166,255,.3)}
+.badge-green{background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.3)}
+.badge-purple{background:rgba(188,140,255,.15);color:var(--purple);border:1px solid rgba(188,140,255,.3)}
+
+/* ---- Architecture diagram ---- */
+.arch{display:flex;align-items:center;justify-content:center;gap:12px;margin:24px 0 32px;flex-wrap:wrap}
+.arch-box{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-size:12px;text-align:center;min-width:110px}
+.arch-box .icon{font-size:20px;margin-bottom:4px}
+.arch-box .label{color:var(--muted);font-size:10px;margin-top:2px}
+.arch-arrow{color:var(--muted);font-size:18px;display:flex;flex-direction:column;align-items:center;gap:2px}
+.arch-arrow span{font-size:10px;color:var(--muted)}
+
+/* ---- Scene cards ---- */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-bottom:24px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;transition:border-color .2s,box-shadow .2s;position:relative;overflow:hidden}
+.card:hover{border-color:#484f58;box-shadow:0 4px 24px rgba(0,0,0,.4)}
+.card-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.card-icon{font-size:24px}
+.card-title{font-size:15px;font-weight:600}
+.card-subtitle{font-size:11px;color:var(--muted);margin-top:2px}
+.card-desc{font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:16px}
+.code-snippet{background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.7;margin-bottom:16px;overflow-x:auto}
+.kw{color:var(--purple)} .ann{color:var(--accent)} .str{color:var(--green)} .num{color:var(--orange)} .cm{color:var(--muted)}
+
+/* ---- Status flow ---- */
+.flow{display:flex;align-items:center;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.flow-step{display:flex;align-items:center;gap:4px;font-size:11px;padding:4px 10px;border-radius:20px;border:1px solid var(--border);color:var(--muted);transition:all .4s}
+.flow-step.active{color:#fff;border-color:transparent}
+.step-init.active{background:rgba(88,166,255,.3);border-color:var(--accent);color:var(--accent)}
+.step-pending.active{background:rgba(210,153,34,.3);border-color:var(--yellow);color:var(--yellow);animation:pulse 1.2s ease-in-out infinite}
+.step-retrying.active{background:rgba(250,160,50,.2);border-color:var(--orange);color:var(--orange);animation:pulse 1.2s ease-in-out infinite}
+.step-success.active{background:rgba(63,185,80,.2);border-color:var(--green);color:var(--green)}
+.flow-arrow{color:var(--muted);font-size:12px}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+/* ---- Trigger button ---- */
+.btn{width:100%;padding:10px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-primary{background:linear-gradient(135deg,#1f6feb,#388bfd);color:#fff}
+.btn-primary:hover{background:linear-gradient(135deg,#388bfd,#58a6ff);transform:translateY(-1px);box-shadow:0 4px 12px rgba(56,139,253,.4)}
+.btn-primary:active{transform:translateY(0)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-reset{background:rgba(248,81,73,.15);color:var(--red);border:1px solid rgba(248,81,73,.3);margin-top:8px}
+.btn-reset:hover{background:rgba(248,81,73,.25)}
+
+/* ---- Status badge on card ---- */
+.status-tag{position:absolute;top:14px;right:14px;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600}
+.tag-idle{background:rgba(139,148,158,.15);color:var(--muted);border:1px solid var(--border)}
+.tag-pending{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid rgba(210,153,34,.3);animation:pulse 1.2s ease-in-out infinite}
+.tag-success{background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.3)}
+.tag-failed{background:rgba(248,81,73,.15);color:var(--red);border:1px solid rgba(248,81,73,.3)}
+
+/* ---- Log panel ---- */
+.log-panel{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.log-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface)}
+.log-header h3{font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+.log-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:blink 1.5s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.log-body{font-family:'JetBrains Mono',monospace;font-size:12px;padding:12px 16px;height:260px;overflow-y:auto;line-height:1.8;scroll-behavior:smooth}
+.log-line{padding:1px 0}
+.log-line .time{color:var(--muted)}
+.btn-clear{font-size:11px;padding:4px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer}
+.btn-clear:hover{color:var(--text);border-color:#484f58}
+
+/* ---- Config panel ---- */
+.config{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px}
+.config h3{font-size:13px;font-weight:600;margin-bottom:12px;color:var(--muted)}
+.config-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.config-label{font-size:12px;color:var(--muted);white-space:nowrap}
+.config-input{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;width:60px;text-align:center}
+.config-input:focus{outline:none;border-color:var(--accent)}
+.btn-config{padding:6px 16px;border-radius:6px;border:1px solid var(--accent);background:rgba(88,166,255,.1);color:var(--accent);font-size:12px;cursor:pointer}
+.btn-config:hover{background:rgba(88,166,255,.2)}
+
+/* ---- Admin link ---- */
+.admin-bar{text-align:center;margin-top:16px;font-size:12px;color:var(--muted)}
+.admin-bar a{color:var(--accent);text-decoration:none}
+.admin-bar a:hover{text-decoration:underline}
+
+/* ---- Tips ---- */
+.tips{display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap}
+.tip{flex:1;min-width:200px;background:var(--card);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:8px;padding:10px 14px;font-size:12px;line-height:1.6}
+.tip strong{display:block;margin-bottom:4px;color:var(--text)}
+.tip span{color:var(--muted)}
+</style>
+</head>
+<body>
+
+<!-- ==================== Header ==================== -->
+<div class="header">
+  <h1>⚡ ElecCloud 交互演示</h1>
+  <p>真实演示分布式重试平台的完整工作链路：业务服务调用下游API → 失败 → SDK自动重试 → 最终成功</p>
+  <div style="margin-top:12px">
+    <span class="badge badge-blue">SDK 自驱动</span>
+    <span class="badge badge-green">5秒见效</span>
+    <span class="badge badge-purple">3种接入模式</span>
+  </div>
+</div>
+
+<!-- ==================== Architecture ==================== -->
+<div class="arch">
+  <div class="arch-box">
+    <div class="icon">🌐</div>
+    <div style="font-weight:600">业务服务</div>
+    <div class="label">port: 8082</div>
+  </div>
+  <div class="arch-arrow">
+    <span>HTTP调用</span>
+    <span style="font-size:20px">→</span>
+    <span>失败抛异常</span>
+  </div>
+  <div class="arch-box" style="border-color:var(--red);border-style:dashed">
+    <div class="icon">💥</div>
+    <div style="font-weight:600">外部API</div>
+    <div class="label">故意超时/报错</div>
+  </div>
+  <div class="arch-arrow">
+    <span>AOP/手动</span>
+    <span style="font-size:20px">→</span>
+    <span>提交任务</span>
+  </div>
+  <div class="arch-box" style="border-color:var(--accent)">
+    <div class="icon">⚡</div>
+    <div style="font-weight:600">ElecCloud</div>
+    <div class="label">port: 8080</div>
+  </div>
+  <div class="arch-arrow">
+    <span>调度重试</span>
+    <span style="font-size:20px">→</span>
+    <span>直到成功</span>
+  </div>
+  <div class="arch-box" style="border-color:var(--green)">
+    <div class="icon">✅</div>
+    <div style="font-weight:600">最终成功</div>
+    <div class="label">Admin可见</div>
+  </div>
+</div>
+
+<!-- ==================== Config ==================== -->
+<div class="config">
+  <h3>⚙️ 模拟配置 — 外部API失败次数（前 N 次调用返回错误，第 N+1 次自动恢复）</h3>
+  <div class="config-row">
+    <span class="config-label">失败次数：</span>
+    <input class="config-input" id="failTimesInput" type="number" value="2" min="1" max="9"/>
+    <button class="btn-config" onclick="setFailTimes()">应用</button>
+    <span id="configStatus" style="font-size:11px;color:var(--muted)"></span>
+    <span class="config-label" style="margin-left:16px">重置计数：</span>
+    <button class="btn-config" onclick="resetCounters()" style="border-color:var(--yellow);color:var(--yellow)">重置外部API计数器</button>
+  </div>
+</div>
+
+<!-- ==================== Tips ==================== -->
+<div class="tips">
+  <div class="tip">
+    <strong>📌 注解模式（最简）</strong>
+    <span>方法上加 @RetryableTask，异常时 AOP 自动提交重试任务，零侵入</span>
+  </div>
+  <div class="tip">
+    <strong>📌 API 模式（精细控制）</strong>
+    <span>catch 块中手动调用 retryClient.submit()，可按异常类型决定是否重试</span>
+  </div>
+  <div class="tip">
+    <strong>📌 预提交模式（最安全）</strong>
+    <span>方法执行前先注册任务，进程崩溃也不丢失，适合强一致性场景</span>
+  </div>
+</div>
+
+<!-- ==================== Scene Cards ==================== -->
+<div class="cards">
+
+  <!-- Card 1: 退款 -->
+  <div class="card" id="card-refund">
+    <span class="status-tag tag-idle" id="tag-refund">待触发</span>
+    <div class="card-header">
+      <span class="card-icon">💸</span>
+      <div>
+        <div class="card-title">场景1：电商退款</div>
+        <div class="card-subtitle">注解模式 · sceneType=10 · FIXED 5秒</div>
+      </div>
+    </div>
+    <div class="card-desc">
+      业务层调用模拟支付宝退款API，API 前 N 次返回"连接超时"。
+      <b>@RetryableTask</b> AOP 自动捕获异常并提交重试任务，
+      无需任何手动代码，最侵入性最低。
+    </div>
+    <div class="code-snippet">
+<span class="ann">@RetryableTask</span>(sceneType = <span class="num">10</span>, idempotentKey = <span class="str">"#transId"</span>)<br>
+<span class="kw">public void</span> refund(String transId, ...) {<br>
+&nbsp;&nbsp;<span class="cm">// 调用下游支付宝接口（可能超时）</span><br>
+&nbsp;&nbsp;restTemplate.postForObject(<span class="str">"/mock-api/payment/refund"</span>, ...);<br>
+&nbsp;&nbsp;<span class="cm">// 抛异常 → AOP 自动提交重试任务</span><br>
+}
+    </div>
+    <div class="flow" id="flow-refund">
+      <div class="flow-step step-init" id="s1-init">INIT</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step step-retrying" id="s1-retry">重试中</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step step-pending" id="s1-wait">WAIT</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step step-success" id="s1-success">✅ SUCCESS</div>
+    </div>
+    <button class="btn btn-primary" id="btn-refund" onclick="trigger('refund')">
+      ▶ 触发退款请求（模拟支付宝超时）
+    </button>
+  </div>
+
+  <!-- Card 2: 结算 -->
+  <div class="card" id="card-settlement">
+    <span class="status-tag tag-idle" id="tag-settlement">待触发</span>
+    <div class="card-header">
+      <span class="card-icon">🏨</span>
+      <div>
+        <div class="card-title">场景2：酒店结算</div>
+        <div class="card-subtitle">API 模式 · sceneType=11 · FIXED 5秒</div>
+      </div>
+    </div>
+    <div class="card-desc">
+      业务层调用模拟 OTA 平台结算接口，API 前 N 次返回"网关繁忙"。
+      在 <b>catch 块中手动</b>调用 retryClient.submit()，
+      适合需要按异常类型决定是否重试的场景。
+    </div>
+    <div class="code-snippet">
+<span class="kw">public boolean</span> settle(String transId, ...) {<br>
+&nbsp;&nbsp;<span class="kw">try</span> {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;restTemplate.postForObject(<span class="str">"/mock-api/hotel/settlement"</span>, ...);<br>
+&nbsp;&nbsp;} <span class="kw">catch</span> (Exception e) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 手动提交重试任务（仅超时时重试，业务拒绝不重试）</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;retryClient.submit(request);<br>
+&nbsp;&nbsp;}<br>
+}
+    </div>
+    <div class="flow" id="flow-settlement">
+      <div class="flow-step step-init" id="s2-init">INIT</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step step-retrying" id="s2-retry">重试中</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step step-pending" id="s2-wait">WAIT</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step step-success" id="s2-success">✅ SUCCESS</div>
+    </div>
+    <button class="btn btn-primary" id="btn-settlement" onclick="trigger('settlement')">
+      ▶ 触发结算请求（模拟OTA网关繁忙）
+    </button>
+  </div>
+
+  <!-- Card 3: 库存 -->
+  <div class="card" id="card-inventory">
+    <span class="status-tag tag-idle" id="tag-inventory">待触发</span>
+    <div class="card-header">
+      <span class="card-icon">📦</span>
+      <div>
+        <div class="card-title">场景3：库存同步</div>
+        <div class="card-subtitle">预提交模式 · sceneType=12 · FIXED 5秒</div>
+      </div>
+    </div>
+    <div class="card-desc">
+      业务层调用模拟 WMS 仓储同步接口。<b>preSubmit=true</b>：
+      方法执行前先注册任务，即使进程在执行中途被 kill -9 也不会丢失，
+      适合强一致性场景。
+    </div>
+    <div class="code-snippet">
+<span class="ann">@RetryableTask</span>(sceneType = <span class="num">12</span>, idempotentKey = <span class="str">"#transId"</span>,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;preSubmit = <span class="kw">true</span>)  <span class="cm">// 执行前先注册！</span><br>
+<span class="kw">public void</span> syncInventory(String transId, ...) {<br>
+&nbsp;&nbsp;restTemplate.postForObject(<span class="str">"/mock-api/warehouse/inventory/sync"</span>, ...);<br>
+&nbsp;&nbsp;<span class="cm">// 成功后 AOP 自动调用 markSuccess()</span><br>
+}
+    </div>
+    <div class="flow" id="flow-inventory">
+      <div class="flow-step step-init" id="s3-init">INIT</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step step-retrying" id="s3-retry">重试中</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step step-pending" id="s3-wait">WAIT</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step step-success" id="s3-success">✅ SUCCESS</div>
+    </div>
+    <button class="btn btn-primary" id="btn-inventory" onclick="trigger('inventory')">
+      ▶ 触发库存同步（模拟WMS维护中）
+    </button>
+  </div>
+
+</div>
+
+<!-- ==================== Log Panel ==================== -->
+<div class="log-panel">
+  <div class="log-header">
+    <h3><span class="log-dot"></span> 实时日志流（SSE 推送）</h3>
+    <button class="btn-clear" onclick="clearLog()">清空</button>
+  </div>
+  <div class="log-body" id="logBody">
+    <div class="log-line" style="color:var(--muted)">等待连接...</div>
+  </div>
+</div>
+
+<div class="admin-bar">
+  🔍 在 <a href="http://localhost:8081" target="_blank">Admin 管理后台</a> 查看完整重试任务列表和历史记录 &nbsp;|&nbsp;
+  📋 <a href="/mock-api/config" target="_blank">查看 Mock API 当前配置</a>
+</div>
+
+<script>
+const BASE = '';
+
+// ---- SSE 连接 ----
+let evtSource = null;
+
+function connectSSE() {
+  if (evtSource) evtSource.close();
+  evtSource = new EventSource(BASE + '/business/events');
+
+  evtSource.addEventListener('connect', e => appendLog(e.data, 'muted'));
+  evtSource.addEventListener('log', e => appendLog(e.data));
+
+  evtSource.onerror = () => {
+    appendLog('[SSE] 连接断开，3秒后重连...', 'red');
+    setTimeout(connectSSE, 3000);
+  };
+}
+
+function appendLog(msg, color) {
+  const body = document.getElementById('logBody');
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  line.style.color = color === 'muted' ? 'var(--muted)'
+                    : color === 'red'   ? 'var(--red)'
+                    : 'var(--text)';
+  // 给关键词上色
+  let html = msg
+    .replace(/✅[^<]*/g, m => `<span style="color:var(--green)">${m}</span>`)
+    .replace(/❌[^<]*/g, m => `<span style="color:var(--red)">${m}</span>`)
+    .replace(/🎯[^<]*/g, m => `<span style="color:var(--accent)">${m}</span>`)
+    .replace(/🔒[^<]*/g, m => `<span style="color:var(--purple)">${m}</span>`)
+    .replace(/⏳[^<]*/g, m => `<span style="color:var(--yellow)">${m}</span>`)
+    .replace(/📤[^<]*/g, m => `<span style="color:var(--orange)">${m}</span>`);
+  line.innerHTML = html;
+  body.appendChild(line);
+  body.scrollTop = body.scrollHeight;
+}
+
+function clearLog() {
+  document.getElementById('logBody').innerHTML = '';
+}
+
+// ---- 场景触发 ----
+const sceneMap = {
+  refund:     { prefix: 's1', url: '/business/trigger/refund' },
+  settlement: { prefix: 's2', url: '/business/trigger/settlement' },
+  inventory:  { prefix: 's3', url: '/business/trigger/inventory' },
+};
+
+async function trigger(scene) {
+  const { prefix, url } = sceneMap[scene];
+  const btn = document.getElementById('btn-' + scene);
+  btn.disabled = true;
+  btn.textContent = '⏳ 触发中...';
+
+  setTag(scene, 'pending', '执行中');
+  activateStep(prefix, 'init');
+
+  try {
+    const res = await fetch(BASE + url, { method: 'POST' });
+    const data = await res.json();
+
+    if (data.status === 'SUCCESS') {
+      setTag(scene, 'success', '已成功');
+      activateStep(prefix, 'success');
+    } else {
+      setTag(scene, 'pending', '等待重试');
+      activateStep(prefix, 'retry');
+      // 开始轮询本地 Hook 状态
+      pollStatus(scene, prefix, data.transId);
+    }
+  } catch (e) {
+    appendLog('[ERROR] 触发失败: ' + e.message, 'red');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '▶ 再次触发';
+  }
+}
+
+// ---- 状态轮询 ----
+function pollStatus(scene, prefix, transId) {
+  let count = 0;
+  const timer = setInterval(async () => {
+    count++;
+    if (count > 60) { clearInterval(timer); return; } // 最多等2分钟
+
+    try {
+      const res = await fetch(BASE + '/business/tasks');
+      const data = await res.json();
+      const tasks = data.tasks || {};
+      const task = tasks[transId];
+      if (!task) return;
+
+      const status = task.status;
+      if (status === 'SUCCESS' || status === 'FAILED') {
+        clearInterval(timer);
+        if (status === 'SUCCESS') {
+          setTag(scene, 'success', '✅ 成功');
+          activateStep(prefix, 'success');
+        } else {
+          setTag(scene, 'failed', '失败');
+        }
+      }
+    } catch(e) {}
+  }, 2000);
+}
+
+// ---- UI 辅助 ----
+function activateStep(prefix, step) {
+  const stepMap = { init: 'init', retry: 'retry', wait: 'wait', success: 'success' };
+  ['init','retry','wait','success'].forEach(s => {
+    const el = document.getElementById(prefix + '-' + s);
+    if (el) el.classList.remove('active');
+  });
+  const el = document.getElementById(prefix + '-' + step);
+  if (el) el.classList.add('active');
+}
+
+function setTag(scene, type, text) {
+  const tag = document.getElementById('tag-' + scene);
+  if (!tag) return;
+  tag.className = 'status-tag tag-' + type;
+  tag.textContent = text;
+}
+
+// ---- 配置 ----
+async function setFailTimes() {
+  const n = document.getElementById('failTimesInput').value;
+  const s = document.getElementById('configStatus');
+  try {
+    await fetch(BASE + '/mock-api/config?failTimes=' + n, { method: 'POST' });
+    s.textContent = '✅ 已设置：前 ' + n + ' 次调用会返回失败';
+    s.style.color = 'var(--green)';
+  } catch(e) {
+    s.textContent = '❌ 设置失败';
+    s.style.color = 'var(--red)';
+  }
+}
+
+async function resetCounters() {
+  try {
+    await fetch(BASE + '/mock-api/reset', { method: 'POST' });
+    appendLog('🔄 外部API调用计数已重置，所有场景可重新演示', 'muted');
+    ['refund','settlement','inventory'].forEach(s => {
+      setTag(s, 'idle', '待触发');
+      ['s1','s2','s3'].forEach(p => {
+        ['init','retry','wait','success'].forEach(step => {
+          const el = document.getElementById(p + '-' + step);
+          if (el) el.classList.remove('active');
+        });
+      });
+    });
+  } catch(e) {
+    appendLog('❌ 重置失败: ' + e.message, 'red');
+  }
+}
+
+// ---- 初始化 ----
+connectSSE();
+</script>
+</body>
+</html>

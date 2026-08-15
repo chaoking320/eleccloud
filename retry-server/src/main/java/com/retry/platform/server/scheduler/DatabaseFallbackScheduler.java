@@ -15,10 +15,13 @@ import java.util.Set;
 /**
  * 数据库兜底扫描调度器
  * 定期扫描数据库中应执行但未在Redis中的任务，确保Redis故障时任务不丢失
+ * <p>
+ * 修复：原来 havingValue="false" 导致该调度器在默认情况下永远不会启动。
+ * 现改为 havingValue="true"，并设 matchIfMissing=true 为默认开启。
  */
 @Slf4j
 @Component
-@ConditionalOnProperty(prefix = "retry.scheduler", name = "enabled", havingValue = "false", matchIfMissing = false)
+@ConditionalOnProperty(prefix = "retry.scheduler", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class DatabaseFallbackScheduler {
     
     private static final String DELAY_QUEUE_KEY = "retry:delay:queue";

@@ -130,23 +130,25 @@ public class RetryTaskController {
 
     /**
      * 尝试将任务标记为 EXECUTING 状态 (原子 CAS 锁定)
+     * <p>
+     * 原先实现：先查询状态，再 update（Check-Then-Act）—— 多节点并发下会出现同一任务被执行两次的竞态。
+     * 修復后：单条 SQL WHERE task_id=? AND task_status='INIT'，通过 affected rows 判断抢占结果。
      */
     @PostMapping("/executing/{taskId}")
     public Result<Boolean> markExecuting(@PathVariable String taskId) {
         try {
-            RetryTaskDTO task = retryTaskService.getTask(taskId);
-            if (task == null) {
-                return Result.fail("Task not found: " + taskId);
+            // 原子 CAS：UPDATE ... WHERE task_id=? AND task_status='INIT'
+            // 多节点并发时，数据库行锁保证只有一个节点 affected rows=1，其余返回 0
+            int affected = retryTaskService.casMarkExecuting(taskId);
+            boolean acquired = (affected > 0);
+            if (acquired) {
+                log.info("Task CAS locked to EXECUTING: taskId={}", taskId);
+            } else {
+                log.info("Task CAS lock failed (already executing or non-INIT): taskId={}", taskId);
             }
-            // 只有 INIT 状态的任务可以抢占执行
-            if (!"INIT".equals(task.getTaskStatus())) {
-                return Result.success(false);
-            }
-            retryTaskService.updateTaskStatus(taskId, "EXECUTING");
-            log.info("Task status updated to EXECUTING (locked): taskId={}", taskId);
-            return Result.success(true);
+            return Result.success(acquired);
         } catch (Exception e) {
-            log.error("Failed to lock task: {}", taskId, e);
+            log.error("Failed to CAS lock task: {}", taskId, e);
             return Result.fail(e.getMessage());
         }
     }

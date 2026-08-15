@@ -59,6 +59,32 @@
         WHERE task_id = #{taskId}
     </update>
 
+    <!--
+        原子 CAS 操作：仅当状态为 INIT 时才更新为 EXECUTING。
+        多节点并发消费同一个任务时，数据库行级加锁保证只有一个节点的 UPDATE affected rows=1，
+        其余节点 affected rows=0 而被拒之门外，彻底解决 Check-Then-Act 竞态。
+    -->
+    <update id="casUpdateToExecuting">
+        UPDATE retry_task
+        SET task_status = 'EXECUTING',
+            update_time  = NOW()
+        WHERE task_id    = #{taskId}
+          AND task_status = 'INIT'
+    </update>
+
+    <!--
+        修复 Bug6: EXECUTING 状态无超时保护。
+        进程被 kill -9 强杀后， update_time 不会更新，通过对比 update_time 与当前时间接受 timeoutMillis 鈰值判断是否卡死。
+        回滚为 INIT 使其可再次被 CAS 抢占执行。
+    -->
+    <update id="recoverStuckExecutingTasks">
+        UPDATE retry_task
+        SET task_status = 'INIT',
+            update_time  = NOW()
+        WHERE task_status = 'EXECUTING'
+          AND UNIX_TIMESTAMP(update_time) * 1000 &lt; #{timeoutMillis}
+    </update>
+
     <update id="updateRetryInfo">
         UPDATE retry_task
         SET retry_count = #{retryCount},

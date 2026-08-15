@@ -160,6 +160,17 @@ public class RetryableTaskAspect {
         request.setAsync(retryableTask.async());
         request.setSubmitMode(submitMode);
 
+        // 提取参数类型列表，供 LocalRetryExecutor 精确定位重载方法（修复: 原来仅按参数数量匹配导致重载歧义）
+        Class<?>[] paramTypes = signature.getParameterTypes();
+        if (paramTypes != null && paramTypes.length > 0) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < paramTypes.length; i++) {
+                if (i > 0) sb.append(',');
+                sb.append(paramTypes[i].getName());
+            }
+            request.setMethodParamTypes(sb.toString());
+        }
+
         return request;
     }
 
