@@ -6,16 +6,16 @@ spring:
     name: retry-server
   
   datasource:
-    url: jdbc:mysql://150.158.43.55:3306/retry_platform?useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&rewriteBatchedStatements=true&useSSL=false&serverTimezone=GMT%2B8
+    url: jdbc:mysql://127.0.0.1:3306/retry_platform?useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&rewriteBatchedStatements=true&useSSL=false&serverTimezone=GMT%2B8
     username: root
-    password: Chaoking320wc_
+    password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   redis:
-    hhost: 150.158.43.55
+    host: 127.0.0.1
     port: 6379
     database: 1
-    password: Chaoking320wc_
+    password: 123456
     timeout: 3000ms
     lettuce:
       pool:
@@ -27,8 +27,8 @@ spring:
       config: |
         singleServerConfig:
           # 注意：这里是 "address"，不是 "host" 和 "port" 分开
-          address: "redis://150.158.43.55:6379"
-          password: "Chaoking320wc_"
+          address: "redis://127.0.0.1:6379"
+          password: "123456"
           database: 2
           connectionPoolSize: 64  # 注意命名：connectionPoolSize 不是 connection-pool-size
           connectionMinimumIdleSize: 10  # 注意命名
@@ -46,7 +46,7 @@ mybatis:
 #    hhost: 150.158.43.55
 #    port: 6379
 ##    address: redis://150.158.43.55:6379
-#    password: Chaoking320wc_
+#    password: ****
 #    database: 2
 #    connection-pool-size: 64
 #    connection-minimum-idle-size: 10
@@ -66,6 +66,9 @@ retry:
 
 # Actuator配置
 management:
+  health:
+    rabbit:
+      enabled: false
   endpoints:
     web:
       exposure:

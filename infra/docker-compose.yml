@@ -1,0 +1,61 @@
+# 公共基础设施：MySQL + Redis（独立 Compose 项目，供所有项目共用）
+#
+# 启动：
+#   docker compose -p infra -f infra/docker-compose.yml up -d
+#
+# ⚠️ 首次使用前，务必把下面两处密码改成你自己的强密码（保持两处一致），
+#    并同步修改 eleccloud 的 retry-server-shared.yml / retry-admin-shared.yml，
+#    以及 docker-compose.shared.yml 里 retry-example 的 SPRING_REDIS_PASSWORD。
+#
+# 隔离方式：
+#   - MySQL：每个项目建一个 database（schema）区分
+#   - Redis：每个项目用一个 db 编号区分（0~15）
+#     本项目占用：db 0 = Demo 应用 SDK 延时队列；db 1 = server/admin 的 spring.redis；
+#                db 2 = server/admin 的 Redisson 分布式锁/延时队列
+version: "3.8"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: shared-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - shared-mysql-data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p123456"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - shared-network
+
+  redis:
+    image: redis:6-alpine
+    container_name: shared-redis
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "123456"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - shared-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "123456", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - shared-network
+
+volumes:
+  shared-mysql-data:
+  shared-redis-data:
+
+networks:
+  shared-network:
+    name: shared-network

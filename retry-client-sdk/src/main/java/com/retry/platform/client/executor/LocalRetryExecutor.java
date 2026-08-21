@@ -5,6 +5,7 @@ import com.retry.platform.client.dto.RetryTaskDTO;
 import com.retry.platform.client.hook.QueryResult;
 import com.retry.platform.client.hook.RetryContext;
 import com.retry.platform.client.hook.RetryHook;
+import com.retry.platform.client.mq.RetryMessagePayload;
 import com.retry.platform.client.mq.RetryMessageProducer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -37,73 +38,99 @@ public class LocalRetryExecutor {
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
-     * 核心调度消费处理入口
+     * 核心调度消费处理入口（瘦消息路径：需要先 HTTP 查询任务详情）
      *
      * @param taskId 待处理的任务ID
      */
     public void execute(String taskId) {
-        log.info("[LocalRetryExecutor] Processing retry task: taskId={}", taskId);
+        log.info("[LocalRetryExecutor] Processing slim message: taskId={}", taskId);
         try {
-            // 1. 从 server 获取任务最新状态（Server 此时只作为任务数据存储库）
+            // 1. 从 server 获取任务最新状态（瘦消息路径的唯一一次 HTTP 查询）
             RetryTaskDTO task = retryClient.queryTask(taskId);
             if (task == null) {
                 log.warn("[LocalRetryExecutor] Task not found or deleted on server. taskId={}", taskId);
                 return;
             }
-
-            // 防御拦截：如果任务已经是成功或最终失败状态，直接 Ack 退出
+            // 防御拦截：终态直接退出
             if ("SUCCESS".equals(task.getTaskStatus()) || "FAILED".equals(task.getTaskStatus())) {
-                log.info("[LocalRetryExecutor] Task is already in terminal status: taskId={}, status={}", taskId, task.getTaskStatus());
+                log.info("[LocalRetryExecutor] Task already terminal: taskId={}, status={}", taskId, task.getTaskStatus());
                 return;
             }
-
-            // 2. 状态互斥锁：使用乐观锁 CAS 抢占任务执行权
-            // 这里使用 Server 提供的 markExecuting 接口或者本地数据库来实现抢占。
-            // 为了最简化，我们通过向 Server 查询和更新其 EXECUTING 状态来实现分布式互斥。
-            if (!markExecutingSafely(taskId)) {
-                log.info("[LocalRetryExecutor] Failed to lock task. taskId={} may be executing by other node.", taskId);
-                return;
-            }
-
-            // 3. 构建重试上下文
-            RetryContext context = buildContext(task);
-
-            // 4. 加载本地 hook 实现
-            String hookClassName = task.getHookClass();
-            RetryHook hook = null;
-            if (hookClassName != null && !hookClassName.trim().isEmpty()) {
-                hook = getHookBean(hookClassName);
-            }
-
-            if (hook == null) {
-                log.error("[LocalRetryExecutor] Hook class not found: taskId={}, hookClass={}", taskId, hookClassName);
-                markFailed(taskId, "Hook class not found: " + hookClassName);
-                return;
-            }
-
-            // 5. 核心状态机驱动
-            String status = hook.checkStatus(context);
-            log.info("[LocalRetryExecutor] checkStatus returned: taskId={}, status={}", taskId, status);
-
-            switch (status) {
-                case "SUCCESS":
-                    handleSuccess(taskId, context, hook);
-                    break;
-                case "WAIT":
-                    handleWait(taskId, context, hook, task);
-                    break;
-                case "INIT":
-                default:
-                    handleInit(taskId, context, hook, task);
-                    break;
-            }
-
+            // 转换为 payload 后走统一执行逻辑
+            executeInternal(buildPayloadFromDTO(task));
         } catch (Exception e) {
-            log.error("[LocalRetryExecutor] Exception executing task: taskId={}", taskId, e);
-            // 异常时退回待重试状态
+            log.error("[LocalRetryExecutor] Exception in slim message path: taskId={}", taskId, e);
             rollbackToPending(taskId, e.getMessage());
         }
     }
+
+    /**
+     * 胖消息执行入口（直接携带执行上下文，无需先 HTTP 查询任务详情）
+     * HTTP 调用减少：queryTask 调用被省掉，只剩 CAS + 状态更新 = 2~3 次。
+     *
+     * @param payload 完整的任务执行上下文（从 MQ 消息中反序列化而来）
+     */
+    public void executeWithPayload(RetryMessagePayload payload) {
+        log.info("[LocalRetryExecutor] Processing fat message: taskId={}, retryCount={}",
+                payload.getTaskId(), payload.getRetryCount());
+        try {
+            executeInternal(payload);
+        } catch (Exception e) {
+            log.error("[LocalRetryExecutor] Exception in fat message path: taskId={}", payload.getTaskId(), e);
+            rollbackToPending(payload.getTaskId(), e.getMessage());
+        }
+    }
+
+    /**
+     * 统一执行逻辑（胖消息和瘦消息共用）
+     */
+    private void executeInternal(RetryMessagePayload payload) {
+        String taskId = payload.getTaskId();
+
+        // CAS 抢占：此次 HTTP 调用无法省略，需要数据库行锁保证多节点互斥
+        if (!markExecutingSafely(taskId)) {
+            log.info("[LocalRetryExecutor] Failed to CAS lock task: taskId={}", taskId);
+            return;
+        }
+
+        // 构建重试上下文
+        RetryContext context = buildContextFromPayload(payload);
+
+        // 加载 Hook
+        String hookClassName = payload.getHookClass();
+        RetryHook hook = null;
+        if (hookClassName != null && !hookClassName.trim().isEmpty()) {
+            try {
+                hook = getHookBean(hookClassName);
+            } catch (Exception e) {
+                log.error("[LocalRetryExecutor] Failed to load hook: {}", hookClassName, e);
+            }
+        }
+
+        if (hook == null) {
+            log.error("[LocalRetryExecutor] Hook not found: taskId={}, hookClass={}", taskId, hookClassName);
+            markFailed(taskId, "Hook class not found or not a Spring Bean: " + hookClassName);
+            return;
+        }
+
+        // 核心状态机驱动
+        String status = hook.checkStatus(context);
+        log.info("[LocalRetryExecutor] checkStatus: taskId={}, status={}", taskId, status);
+
+        switch (status) {
+            case "SUCCESS":
+                handleSuccess(taskId, context, hook);
+                break;
+            case "WAIT":
+                handleWait(taskId, context, hook, payload);
+                break;
+            case "INIT":
+            default:
+                handleInit(taskId, context, hook, payload);
+                break;
+        }
+    }
+
 
     private void handleSuccess(String taskId, RetryContext context, RetryHook hook) {
         log.info("[LocalRetryExecutor] Task already SUCCESS. taskId={}", taskId);
@@ -111,26 +138,36 @@ public class LocalRetryExecutor {
         retryClient.markSuccess(taskId);
     }
 
-    private void handleWait(String taskId, RetryContext context, RetryHook hook, RetryTaskDTO task) {
+    private void handleWait(String taskId, RetryContext context, RetryHook hook, RetryMessagePayload payload) {
         log.info("[LocalRetryExecutor] Task in WAIT state. Triggering doQuery. taskId={}", taskId);
+        long startTime = System.currentTimeMillis();
         try {
             QueryResult queryResult = hook.doQuery(context);
+            long costMs = System.currentTimeMillis() - startTime;
             if (queryResult.isSuccess()) {
                 log.info("[LocalRetryExecutor] Query confirmed SUCCESS. Triggering doCallback. taskId={}", taskId);
                 hook.doCallback(context, queryResult);
                 retryClient.markSuccess(taskId);
+                // ★ M1 修复：记录 WAIT 查询成功历史
+                safeRecordHistory(taskId, context.getRetryCount(), "SUCCESS", null, costMs);
             } else {
                 log.info("[LocalRetryExecutor] Query returned failure/pending. Rescheduling. taskId={}", taskId);
-                scheduleNext(task);
+                // ★ M1 修复：记录 WAIT 查询未完成历史
+                safeRecordHistory(taskId, context.getRetryCount(), "PENDING", "doQuery returned not-success", costMs);
+                scheduleNext(payload);
             }
         } catch (Exception e) {
+            long costMs = System.currentTimeMillis() - startTime;
             log.error("[LocalRetryExecutor] Query failed. Rescheduling. taskId={}", taskId, e);
-            scheduleNext(task);
+            // ★ M1 修复：记录 WAIT 查询异常历史
+            safeRecordHistory(taskId, context.getRetryCount(), "FAILED", e.getMessage(), costMs);
+            scheduleNext(payload);
         }
     }
 
-    private void handleInit(String taskId, RetryContext context, RetryHook hook, RetryTaskDTO task) {
+    private void handleInit(String taskId, RetryContext context, RetryHook hook, RetryMessagePayload payload) {
         log.info("[LocalRetryExecutor] Task in INIT state. Invoking local method. taskId={}", taskId);
+        long startTime = System.currentTimeMillis();
         try {
             // 反射从本地 Spring 容器获取对应的 Service 实例执行方法
             Class<?> clazz = Class.forName(context.getMethodClass());
@@ -149,65 +186,74 @@ public class LocalRetryExecutor {
             targetMethod.setAccessible(true);
             targetMethod.invoke(targetBean, args);
 
-            log.info("[LocalRetryExecutor] Local method execution completed. Downgrading to WAIT for querying. taskId={}", taskId);
-            // 本地方法执行完（此时并没有出错），我们将状态标记为 WAIT 状态进行轮询状态检查
+            long costMs = System.currentTimeMillis() - startTime;
+            log.info("[LocalRetryExecutor] Local method execution completed → WAIT. taskId={}", taskId);
+            // ★ M1 修复：记录方法执行成功历史（进入 WAIT 等待状态确认）
+            safeRecordHistory(taskId, context.getRetryCount(), "SUCCESS", null, costMs);
+            // 执行完毕，切换为 WAIT 状态等待 Hook 确认
             updateTaskStatus(taskId, "WAIT");
-            scheduleNext(task);
+            scheduleNext(payload);
 
         } catch (Exception e) {
+            long costMs = System.currentTimeMillis() - startTime;
             log.warn("[LocalRetryExecutor] Local method invocation failed: taskId={}, error={}", taskId, e.getMessage());
-            scheduleNext(task);
+            // ★ M1 修复：记录方法执行失败历史
+            safeRecordHistory(taskId, context.getRetryCount(), "FAILED",
+                    e.getCause() != null ? e.getCause().getMessage() : e.getMessage(), costMs);
+            scheduleNext(payload);
         }
     }
 
-    private void scheduleNext(RetryTaskDTO task) {
-        String taskId = task.getTaskId();
-        int newRetryCount = task.getRetryCount() + 1;
+    private void scheduleNext(RetryMessagePayload payload) {
+        String taskId = payload.getTaskId();
+        int newRetryCount = (payload.getRetryCount() != null ? payload.getRetryCount() : 0) + 1;
 
         // 次数上限检查
-        if (newRetryCount > task.getMaxRetryCount()) {
-            log.warn("[LocalRetryExecutor] Exceeded max retry count limit. Marking task FAILED. taskId={}", taskId);
+        if (payload.getMaxRetryCount() != null && newRetryCount > payload.getMaxRetryCount()) {
+            log.warn("[LocalRetryExecutor] Exceeded max retry count. Marking FAILED. taskId={}", taskId);
             markFailed(taskId, "Exceeded max retry count limit");
             return;
         }
 
-        // 计算下次延迟时间并投递 MQ
-        long delayMs = calculateDelayMs(task, newRetryCount);
-        
-        // 更新 Server 上的重试信息 (增加重试次数并重新标记为 INIT 供下次重试抢占)
+        // 计算下次延迟时间
+        long delayMs = calculateDelayMsFromPayload(payload, newRetryCount);
+
+        // 更新 Server 上的重试信息（增加重试次数并重新标记为 INIT）
         updateRetryCountAndStatus(taskId, newRetryCount, "INIT");
 
-        // 投递延时消息
-        retryMessageProducer.sendDelayMessage(taskId, delayMs, task.getSceneType());
+        // 投递胖消息（更新 retryCount 后重新投递）
+        RetryMessagePayload nextPayload = clonePayloadWithNewCount(payload, newRetryCount);
+        retryMessageProducer.sendDelayMessageWithPayload(nextPayload, delayMs);
+        log.info("[LocalRetryExecutor] Scheduled next retry: taskId={}, retryCount={}, delayMs={}", taskId, newRetryCount, delayMs);
     }
 
-    private long calculateDelayMs(RetryTaskDTO task, int retryCount) {
-        // 自定义或回退支持
-        String strategy = task.getBackoffStrategy() != null ? task.getBackoffStrategy() : "CUSTOM";
-        int baseMins = task.getBackoffBase() != null ? task.getBackoffBase() : 1;
-        
-        if ("FIXED".equalsIgnoreCase(strategy)) {
-            return baseMins * 60L * 1000L;
-        } else if ("LINEAR".equalsIgnoreCase(strategy)) {
-            return (long) retryCount * baseMins * 60L * 1000L;
-        } else if ("EXPONENTIAL".equalsIgnoreCase(strategy)) {
-            int exp = Math.min(retryCount - 1, 30);
-            return baseMins * (1L << exp) * 60L * 1000L;
-        } else {
-            // CUSTOM 自定义列表间隔解析，默认 1 分钟
-            String intervals = task.getRetryIntervals();
-            if (intervals == null || intervals.trim().isEmpty()) {
-                return 60L * 1000L;
-            }
-            String[] split = intervals.split(",");
-            int idx = Math.min(retryCount - 1, split.length - 1);
-            try {
-                return Integer.parseInt(split[idx].trim()) * 60L * 1000L;
-            } catch (Exception e) {
-                return 60L * 1000L;
-            }
+    private RetryMessagePayload clonePayloadWithNewCount(RetryMessagePayload payload, int newRetryCount) {
+        return RetryMessagePayload.builder()
+                .taskId(payload.getTaskId())
+                .sceneType(payload.getSceneType())
+                .idempotentKey(payload.getIdempotentKey())
+                .methodClass(payload.getMethodClass())
+                .methodName(payload.getMethodName())
+                .methodParams(payload.getMethodParams())
+                .methodParamTypes(payload.getMethodParamTypes())
+                .hookClass(payload.getHookClass())
+                .backoffStrategy(payload.getBackoffStrategy())
+                .backoffBase(payload.getBackoffBase())
+                .retryIntervals(payload.getRetryIntervals())
+                .retryCount(newRetryCount)
+                .maxRetryCount(payload.getMaxRetryCount())
+                .build();
+    }
+
+    /** 历史记录失败不影响主流程 */
+    private void safeRecordHistory(String taskId, int retryCount, String result, String errorMsg, long costMs) {
+        try {
+            retryClient.recordHistory(taskId, retryCount, result, errorMsg, costMs);
+        } catch (Exception e) {
+            log.warn("[LocalRetryExecutor] Failed to record history: taskId={}, error={}", taskId, e.getMessage());
         }
     }
+
 
     // ==================== REST & DB API 联动封装 ====================
 
@@ -380,26 +426,72 @@ public class LocalRetryExecutor {
         return objectMapper.readValue(json, targetType);
     }
 
-    private RetryContext buildContext(RetryTaskDTO task) {
-        Map<String, Object> paramsMap = null;
-        try {
-            if (task.getMethodParams() != null && !task.getMethodParams().trim().isEmpty()) {
-                paramsMap = objectMapper.readValue(task.getMethodParams(), Map.class);
-            }
-        } catch (Exception e) {
-            log.error("Failed to parse method params: taskId={}", task.getTaskId(), e);
-        }
-        return RetryContext.builder()
+    private RetryMessagePayload buildPayloadFromDTO(RetryTaskDTO task) {
+        return RetryMessagePayload.builder()
                 .taskId(task.getTaskId())
                 .sceneType(task.getSceneType())
                 .idempotentKey(task.getIdempotentKey())
-                .params(paramsMap)
-                .retryCount(task.getRetryCount())
-                .maxRetryCount(task.getMaxRetryCount())
                 .methodClass(task.getMethodClass())
                 .methodName(task.getMethodName())
-                .methodParamsJson(task.getMethodParams())
+                .methodParams(task.getMethodParams())
                 .methodParamTypes(task.getMethodParamTypes())
+                .hookClass(task.getHookClass())
+                .backoffStrategy(task.getBackoffStrategy())
+                .backoffBase(task.getBackoffBase())
+                .retryIntervals(task.getRetryIntervals())
+                .retryCount(task.getRetryCount())
+                .maxRetryCount(task.getMaxRetryCount())
+                .build();
+    }
+
+    private long calculateDelayMsFromPayload(RetryMessagePayload payload, int retryCount) {
+        // 自定义或回退支持
+        String strategy = payload.getBackoffStrategy() != null ? payload.getBackoffStrategy() : "CUSTOM";
+        int baseMins = payload.getBackoffBase() != null ? payload.getBackoffBase() : 1;
+        
+        if ("FIXED".equalsIgnoreCase(strategy)) {
+            return baseMins * 60L * 1000L;
+        } else if ("LINEAR".equalsIgnoreCase(strategy)) {
+            return (long) retryCount * baseMins * 60L * 1000L;
+        } else if ("EXPONENTIAL".equalsIgnoreCase(strategy)) {
+            int exp = Math.min(retryCount - 1, 30);
+            return baseMins * (1L << exp) * 60L * 1000L;
+        } else {
+            // CUSTOM 自定义列表间隔解析，默认 1 分钟
+            String intervals = payload.getRetryIntervals();
+            if (intervals == null || intervals.trim().isEmpty()) {
+                return 60L * 1000L;
+            }
+            String[] split = intervals.split(",");
+            int idx = Math.min(retryCount - 1, split.length - 1);
+            try {
+                return Integer.parseInt(split[idx].trim()) * 60L * 1000L;
+            } catch (Exception e) {
+                return 60L * 1000L;
+            }
+        }
+    }
+
+    private RetryContext buildContextFromPayload(RetryMessagePayload payload) {
+        Map<String, Object> paramsMap = null;
+        try {
+            if (payload.getMethodParams() != null && !payload.getMethodParams().trim().isEmpty()) {
+                paramsMap = objectMapper.readValue(payload.getMethodParams(), Map.class);
+            }
+        } catch (Exception e) {
+            log.error("Failed to parse method params: taskId={}", payload.getTaskId(), e);
+        }
+        return RetryContext.builder()
+                .taskId(payload.getTaskId())
+                .sceneType(payload.getSceneType())
+                .idempotentKey(payload.getIdempotentKey())
+                .params(paramsMap)
+                .retryCount(payload.getRetryCount() != null ? payload.getRetryCount() : 0)
+                .maxRetryCount(payload.getMaxRetryCount() != null ? payload.getMaxRetryCount() : 3)
+                .methodClass(payload.getMethodClass())
+                .methodName(payload.getMethodName())
+                .methodParamsJson(payload.getMethodParams())
+                .methodParamTypes(payload.getMethodParamTypes())
                 .build();
     }
 }

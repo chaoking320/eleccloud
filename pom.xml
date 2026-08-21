@@ -31,7 +31,7 @@
         <mysql-connector.version>8.0.33</mysql-connector.version>
         <redisson.version>3.23.5</redisson.version>
         <fastjson.version>2.0.43</fastjson.version>
-        <lombok.version>1.18.30</lombok.version>
+        <lombok.version>1.18.34</lombok.version>
         <micrometer.version>1.9.17</micrometer.version>
         <skywalking.version>8.16.0</skywalking.version>
     </properties>

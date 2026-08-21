@@ -241,5 +241,30 @@ public class RetryTaskController {
             return Result.fail(e.getMessage());
         }
     }
-}
 
+    /**
+     * SDK 端记录每次重试执行历史（供 Admin 后台展示执行明细）
+     *
+     * @param taskId        任务ID
+     * @param retryCount    本次是第几次重试
+     * @param executeResult 执行结果：SUCCESS / FAILED
+     * @param errorMessage  错误信息（可为空）
+     * @param costTimeMs    执行耗时（毫秒）
+     */
+    @PostMapping("/history")
+    public Result<Void> recordHistory(
+            @RequestParam String taskId,
+            @RequestParam int retryCount,
+            @RequestParam String executeResult,
+            @RequestParam(required = false, defaultValue = "") String errorMessage,
+            @RequestParam(defaultValue = "0") long costTimeMs) {
+        try {
+            retryTaskService.recordHistory(taskId, retryCount, executeResult,
+                    errorMessage.isEmpty() ? null : errorMessage, (int) Math.min(costTimeMs, Integer.MAX_VALUE));
+            return Result.success(null);
+        } catch (Exception e) {
+            log.error("Failed to record history: taskId={}", taskId, e);
+            return Result.fail(e.getMessage());
+        }
+    }
+}

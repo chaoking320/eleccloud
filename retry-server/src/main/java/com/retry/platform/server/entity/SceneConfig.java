@@ -63,6 +63,11 @@ public class SceneConfig {
     /** 是否启用: 0-禁用, 1-启用 */
     private Integer enabled;
 
+    @com.fasterxml.jackson.annotation.JsonGetter("enabled")
+    public Boolean getEnabledAsBoolean() {
+        return isEnabled();
+    }
+
     /** 创建时间 */
     private LocalDateTime createTime;
 
@@ -110,5 +115,23 @@ public class SceneConfig {
     /** 判断是否启用 */
     public boolean isEnabled() {
         return enabled != null && enabled == 1;
+    }
+
+    /** 处理前端传来的 boolean 或 integer 类型的 enabled */
+    @com.fasterxml.jackson.annotation.JsonSetter("enabled")
+    public void setEnabledFromJson(Object value) {
+        if (value instanceof Boolean) {
+            this.enabled = ((Boolean) value) ? 1 : 0;
+        } else if (value instanceof Number) {
+            this.enabled = ((Number) value).intValue();
+        } else if (value instanceof String) {
+            if ("true".equalsIgnoreCase((String) value)) {
+                this.enabled = 1;
+            } else if ("false".equalsIgnoreCase((String) value)) {
+                this.enabled = 0;
+            } else {
+                this.enabled = Integer.parseInt((String) value);
+            }
+        }
     }
 }

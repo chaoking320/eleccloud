@@ -84,4 +84,15 @@ public interface RetryClient {
      * @param reason 失败原因
      */
     void markFailed(String taskId, String reason);
+
+    /**
+     * 记录一次重试执行历史
+     *
+     * @param taskId        任务ID
+     * @param retryCount    本次是第几次重试
+     * @param executeResult 执行结果：SUCCESS / FAILED
+     * @param errorMessage  失败时的错误信息，成功时传 null
+     * @param costTimeMs    本次执行耗时（毫秒）
+     */
+    void recordHistory(String taskId, int retryCount, String executeResult, String errorMessage, long costTimeMs);
 }

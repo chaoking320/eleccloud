@@ -1,0 +1,59 @@
+# eleccloud 应用（接入公共 MySQL/Redis 的版本）
+# 前置：先启动公共基础设施  docker compose -p infra -f infra/docker-compose.yml up -d
+# 启动：docker compose -p retry-platform -f docker-compose.shared.yml up -d --build
+#
+# 本文件不再包含 mysql/redis 服务，应用容器直接 join 公共的 shared-network，
+# 通过服务名 mysql / redis 连接（见 retry-server-shared.yml / retry-admin-shared.yml）。
+version: "3.8"
+
+services:
+  retry-server:
+    build:
+      context: ./retry-server
+      dockerfile: Dockerfile
+    container_name: retry-platform-server
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./retry-server-shared.yml:/app/config/retry-server-shared.yml:ro
+    command: ["--spring.config.additional-location=file:/app/config/retry-server-shared.yml", "--server.port=8080"]
+    restart: unless-stopped
+    networks:
+      - shared-network
+
+  retry-admin:
+    build:
+      context: ./retry-admin
+      dockerfile: Dockerfile
+    container_name: retry-platform-admin
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./retry-admin-shared.yml:/app/config/retry-admin-shared.yml:ro
+    command: ["--spring.config.additional-location=file:/app/config/retry-admin-shared.yml", "--server.port=8081"]
+    restart: unless-stopped
+    networks:
+      - shared-network
+
+  retry-example:
+    build:
+      context: ./retry-example
+      dockerfile: Dockerfile
+    container_name: retry-platform-example
+    ports:
+      - "8082:8082"
+    depends_on:
+      - retry-server
+    environment:
+      - RETRY_CLIENT_SERVER_URL=http://retry-server:8080
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
+      - SPRING_REDIS_PASSWORD=ChangeMe2026
+    restart: unless-stopped
+    networks:
+      - shared-network
+
+networks:
+  shared-network:
+    external: true
+    name: shared-network

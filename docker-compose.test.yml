@@ -1,0 +1,95 @@
+# 测试环境用 Compose（离线镜像版，无 build 段）
+# 用途：本地打包好镜像并 docker save 导出后，拷贝到测试环境，直接 docker load + up -d 启动，
+#       无需源码、无需 Maven/Node 编译，省去部署动作。
+#
+# 前置：测试环境已执行 `docker load -i retry-images.tar` 导入了以下镜像：
+#   - eleccloud/retry-server:1.0.0
+#   - eleccloud/retry-admin:1.0.0
+#   - eleccloud/retry-example:1.0.0
+#   - mysql:8.0
+#   - redis:6-alpine
+#
+# 启动命令：
+#   docker compose -p retry-platform -f docker-compose.test.yml up -d
+version: "3.8"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: retry-platform-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: retry_platform
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - retry-platform-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-ppassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:6-alpine
+    container_name: retry-platform-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  retry-server:
+    image: eleccloud/retry-server:1.0.0
+    container_name: retry-platform-server
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./retry-server-docker.yml:/app/config/retry-server-docker.yml:ro
+    command: ["--spring.config.additional-location=file:/app/config/retry-server-docker.yml", "--server.port=8080"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  retry-admin:
+    image: eleccloud/retry-admin:1.0.0
+    container_name: retry-platform-admin
+    ports:
+      - "8081:8081"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./retry-admin-docker.yml:/app/config/retry-admin-docker.yml:ro
+    command: ["--spring.config.additional-location=file:/app/config/retry-admin-docker.yml", "--server.port=8081"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  retry-example:
+    image: eleccloud/retry-example:1.0.0
+    container_name: retry-platform-example
+    ports:
+      - "8082:8082"
+    depends_on:
+      - retry-server
+    environment:
+      - RETRY_CLIENT_SERVER_URL=http://retry-server:8080
+
+volumes:
+  retry-platform-mysql-data:

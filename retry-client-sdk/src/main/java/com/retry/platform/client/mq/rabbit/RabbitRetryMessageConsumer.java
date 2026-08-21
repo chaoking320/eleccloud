@@ -19,6 +19,8 @@ public class RabbitRetryMessageConsumer {
         this.localRetryExecutor = localRetryExecutor;
     }
 
+    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
+
     @RabbitListener(bindings = @QueueBinding(
             value = @Queue(value = "${retry.client.queue-name:retry.delayed.queue}", durable = "true"),
             exchange = @Exchange(
@@ -28,12 +30,27 @@ public class RabbitRetryMessageConsumer {
             ),
             key = "${retry.client.queue-name:retry.delayed.queue}"
     ))
-    public void onMessage(String taskId) {
-        log.info("[Rabbit MQ] Received delay task trigger message from queue: taskId={}", taskId);
+    public void onMessage(String messageBody) {
         try {
-            localRetryExecutor.execute(taskId);
+            if (messageBody.startsWith("{")) {
+                // 尝试按胖消息解析
+                com.retry.platform.client.mq.RetryMessagePayload payload = MAPPER.readValue(messageBody, com.retry.platform.client.mq.RetryMessagePayload.class);
+                if (payload.getTaskId() != null) {
+                    log.debug("[Rabbit MQ] Received fat message: taskId={}, retryCount={}", payload.getTaskId(), payload.getRetryCount());
+                    localRetryExecutor.executeWithPayload(payload);
+                    return;
+                }
+            }
         } catch (Exception e) {
-            log.error("[Rabbit MQ] Failed to process delayed task message: taskId={}", taskId, e);
+            log.warn("[Rabbit MQ] Failed to parse fat message, treating as slim. body={}", messageBody, e);
+        }
+
+        // 降级按瘦消息（taskId）处理
+        log.info("[Rabbit MQ] Received slim message: taskId={}", messageBody);
+        try {
+            localRetryExecutor.execute(messageBody);
+        } catch (Exception e) {
+            log.error("[Rabbit MQ] Failed to process delayed task message: taskId={}", messageBody, e);
         }
     }
 }

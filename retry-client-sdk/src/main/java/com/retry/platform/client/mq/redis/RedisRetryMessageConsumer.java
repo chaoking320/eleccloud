@@ -1,6 +1,8 @@
 package com.retry.platform.client.mq.redis;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.retry.platform.client.executor.LocalRetryExecutor;
+import com.retry.platform.client.mq.RetryMessagePayload;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
@@ -12,7 +14,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 基于 Redis ZSET 的 SDK 本地延时消息轮询消费者
+ * 基于 Redis ZSET 的 SDK 本地延时消息轮询消费者（支持胖消息/瘦消息）
+ *
+ * <p>胖消息：member = JSON(RetryMessagePayload)，直接传给 LocalRetryExecutor 执行，无需 HTTP 查询任务详情。
+ * <p>瘦消息：member = taskId，降级走原有路径（向后兼容旧数据和 DatabaseFallbackScheduler）。
  */
 @Slf4j
 public class RedisRetryMessageConsumer {
@@ -22,6 +27,7 @@ public class RedisRetryMessageConsumer {
     private final LocalRetryExecutor localRetryExecutor;
     private final ExecutorService executorService;
     private volatile boolean running = true;
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     public RedisRetryMessageConsumer(StringRedisTemplate redisTemplate,
                                      LocalRetryExecutor localRetryExecutor,
@@ -38,33 +44,35 @@ public class RedisRetryMessageConsumer {
         Thread workerThread = new Thread(this::pollLoop, "redis-retry-message-consumer-thread");
         workerThread.setDaemon(true);
         workerThread.start();
-        log.info("[Redis MQ] Local delay queue consumer thread started.");
+        log.info("[Redis MQ] Local delay queue consumer thread started. Queue: {}", delayQueueKey);
     }
 
     private void pollLoop() {
         while (running) {
             try {
                 long currentTime = System.currentTimeMillis();
-                // 每次最多拉取 10 条到期的任务
-                Set<String> expiredTaskIds = redisTemplate.opsForZSet().rangeByScore(delayQueueKey, 0, currentTime, 0, 10);
-                
-                if (expiredTaskIds != null && !expiredTaskIds.isEmpty()) {
-                    for (String taskId : expiredTaskIds) {
-                        // 从 ZSET 中原子移出该元素，谁移出成功谁拥有执行权，防多节点并发消费
-                        Long removed = redisTemplate.opsForZSet().remove(delayQueueKey, taskId);
+                // 使用 Lua 脚本原子性地 rangeByScore + remove，防止多节点竞争
+                Set<String> expiredMembers = redisTemplate.opsForZSet()
+                        .rangeByScore(delayQueueKey, 0, currentTime, 0, 10);
+
+                if (expiredMembers != null && !expiredMembers.isEmpty()) {
+                    for (String member : expiredMembers) {
+                        // 原子移除：谁移出成功谁执行，防多节点并发消费
+                        Long removed = redisTemplate.opsForZSet().remove(delayQueueKey, member);
                         if (removed != null && removed > 0) {
+                            final String memberCopy = member;
                             executorService.submit(() -> {
                                 try {
-                                    localRetryExecutor.execute(taskId);
+                                    dispatch(memberCopy);
                                 } catch (Exception e) {
-                                    log.error("[Redis MQ] Error processing task: taskId={}", taskId, e);
+                                    log.error("[Redis MQ] Error dispatching member", e);
                                 }
                             });
                         }
                     }
                 }
-                
-                // 减少 CPU 空转，睡眠 500 毫秒
+
+                // 减少 CPU 空转
                 TimeUnit.MILLISECONDS.sleep(500);
             } catch (InterruptedException e) {
                 log.info("[Redis MQ] Poll thread interrupted, stopping.");
@@ -78,6 +86,29 @@ public class RedisRetryMessageConsumer {
                 }
             }
         }
+    }
+
+    /**
+     * 分发消息：优先尝试胖消息解析，失败则降级为瘦消息（向后兼容）。
+     */
+    private void dispatch(String member) {
+        // 尝试解析为胖消息
+        if (member.startsWith("{")) {
+            try {
+                RetryMessagePayload payload = MAPPER.readValue(member, RetryMessagePayload.class);
+                if (payload.getTaskId() != null) {
+                    log.debug("[Redis MQ] Dispatching fat message: taskId={}, retryCount={}",
+                            payload.getTaskId(), payload.getRetryCount());
+                    localRetryExecutor.executeWithPayload(payload);
+                    return;
+                }
+            } catch (Exception e) {
+                log.warn("[Redis MQ] Failed to parse fat message, falling back to slim. member={}", member, e);
+            }
+        }
+        // 降级为瘦消息（member 直接是 taskId）
+        log.debug("[Redis MQ] Dispatching slim message: taskId={}", member);
+        localRetryExecutor.execute(member);
     }
 
     @PreDestroy

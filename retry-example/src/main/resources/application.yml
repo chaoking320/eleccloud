@@ -4,6 +4,11 @@ server:
 spring:
   application:
     name: retry-example-service
+  redis:
+    host: 127.0.0.1
+    port: 6379
+    password: 123456
+    database: 0
   # 允许异步 SSE 推送
   mvc:
     async:

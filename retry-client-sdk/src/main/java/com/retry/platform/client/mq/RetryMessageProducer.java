@@ -7,11 +7,19 @@ package com.retry.platform.client.mq;
 public interface RetryMessageProducer {
 
     /**
-     * 发送延时重试消息
+     * 发送延时重试消息（瘦消息，保留向后兼容）
      *
      * @param taskId    任务ID
      * @param delayMs   延迟毫秒数
      * @param sceneType 场景类型
      */
     void sendDelayMessage(String taskId, long delayMs, int sceneType);
+
+    /**
+     * 发送延时重试消息（胖消息，携带执行上下文，减少 N+1 HTTP 调用）
+     *
+     * @param payload 完整的任务执行上下文
+     * @param delayMs 延迟毫秒数
+     */
+    void sendDelayMessageWithPayload(RetryMessagePayload payload, long delayMs);
 }

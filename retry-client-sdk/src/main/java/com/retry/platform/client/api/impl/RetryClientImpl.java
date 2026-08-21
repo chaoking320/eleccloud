@@ -256,4 +256,27 @@ public class RetryClientImpl implements RetryClient {
             throw new IllegalArgumentException("MethodName cannot be null or empty");
         }
     }
+
+    @Override
+    public void recordHistory(String taskId, int retryCount, String executeResult, String errorMessage, long costTimeMs) {
+        if (properties.isDevMode()) {
+            log.info("[DEV MODE] Record history: taskId={}, retryCount={}, result={}", taskId, retryCount, executeResult);
+            return;
+        }
+        try {
+            String url = UriComponentsBuilder
+                    .fromHttpUrl(properties.getServerUrl() + "/api/retry/history")
+                    .queryParam("taskId", taskId)
+                    .queryParam("retryCount", retryCount)
+                    .queryParam("executeResult", executeResult)
+                    .queryParam("errorMessage", errorMessage != null ? errorMessage : "")
+                    .queryParam("costTimeMs", costTimeMs)
+                    .toUriString();
+            restTemplate.postForObject(url, null, Result.class);
+            log.debug("[recordHistory] taskId={}, retryCount={}, result={}, cost={}ms", taskId, retryCount, executeResult, costTimeMs);
+        } catch (Exception e) {
+            // 历史记录失败不影响主流程，只记录日志
+            log.warn("[recordHistory] Failed to record history for taskId={}: {}", taskId, e.getMessage());
+        }
+    }
 }

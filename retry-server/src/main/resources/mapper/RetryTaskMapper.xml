@@ -60,16 +60,18 @@
     </update>
 
     <!--
-        原子 CAS 操作：仅当状态为 INIT 时才更新为 EXECUTING。
-        多节点并发消费同一个任务时，数据库行级加锁保证只有一个节点的 UPDATE affected rows=1，
-        其余节点 affected rows=0 而被拒之门外，彻底解决 Check-Then-Act 竞态。
+        原子 CAS 操作：仅当状态为 INIT 或 WAIT 时才更新为 EXECUTING。
+        - INIT: 首次执行或超时重试入队后的正常抢占
+        - WAIT: 超时扫描将 EXECUTING 回退为 INIT 再到 WAIT 的任务，也需要能被抢占
+        多节点并发消费同一个任务时，数据库行级加锁保证只有一个节点 affected rows=1，
+        其余节点 affected rows=0，彻底解决 Check-Then-Act 竞态。
     -->
     <update id="casUpdateToExecuting">
         UPDATE retry_task
         SET task_status = 'EXECUTING',
             update_time  = NOW()
         WHERE task_id    = #{taskId}
-          AND task_status = 'INIT'
+          AND task_status IN ('INIT', 'WAIT')
     </update>
 
     <!--
