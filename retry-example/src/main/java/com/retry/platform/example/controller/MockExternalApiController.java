@@ -69,7 +69,7 @@ public class MockExternalApiController {
 
         log.info("[MockPaymentAPI] ✅ Refund accepted for transId={} (recovered after {} failures)",
                 transId, failTimes);
-        return Map.of(
+        return com.retry.platform.example.util.MapUtil.of(
             "code", "SUCCESS",
             "transId", transId,
             "message", "退款申请已受理，预计T+1到账",
@@ -85,7 +85,7 @@ public class MockExternalApiController {
         int callCount = callCounters.getOrDefault(transId, new AtomicInteger(0)).get();
         // 已调用过退款接口且超过失败次数，则认为已成功
         boolean success = callCount > failTimes;
-        return Map.of(
+        return com.retry.platform.example.util.MapUtil.of(
             "transId", transId,
             "status", success ? "SUCCESS" : "PROCESSING",
             "callCount", callCount
@@ -116,7 +116,7 @@ public class MockExternalApiController {
         }
 
         log.info("[MockOtaAPI] ✅ Settlement submitted for transId={}", transId);
-        return Map.of(
+        return com.retry.platform.example.util.MapUtil.of(
             "code", "ACCEPTED",
             "transId", transId,
             "message", "结算申请已提交，等待OTA平台审批",
@@ -131,7 +131,7 @@ public class MockExternalApiController {
     public Map<String, Object> querySettlementStatus(@RequestParam String transId) {
         int callCount = callCounters.getOrDefault(transId, new AtomicInteger(0)).get();
         boolean approved = callCount > failTimes + 1; // 多一次延迟，模拟审批需要时间
-        return Map.of(
+        return com.retry.platform.example.util.MapUtil.of(
             "transId", transId,
             "approvalStatus", approved ? "APPROVED" : "PENDING",
             "callCount", callCount
@@ -164,7 +164,7 @@ public class MockExternalApiController {
         }
 
         log.info("[MockWmsAPI] ✅ Inventory synced for transId={}, sku={}", transId, skuId);
-        return Map.of(
+        return com.retry.platform.example.util.MapUtil.of(
             "code", "SUCCESS",
             "transId", transId,
             "skuId", skuId,
@@ -183,7 +183,7 @@ public class MockExternalApiController {
      */
     @GetMapping("/config")
     public Map<String, Object> getConfig() {
-        return Map.of(
+        return com.retry.platform.example.util.MapUtil.of(
             "failTimes", failTimes,
             "description", "前 failTimes 次调用会模拟失败，之后自动恢复"
         );
@@ -193,7 +193,7 @@ public class MockExternalApiController {
     public Map<String, Object> setConfig(@RequestParam int failTimes) {
         this.failTimes = failTimes;
         log.info("[MockAPI] Config updated: failTimes={}", failTimes);
-        return Map.of("success", true, "failTimes", failTimes);
+        return com.retry.platform.example.util.MapUtil.of("success", true, "failTimes", failTimes);
     }
 
     /**
@@ -203,6 +203,6 @@ public class MockExternalApiController {
     public Map<String, Object> reset() {
         callCounters.clear();
         log.info("[MockAPI] All call counters reset");
-        return Map.of("success", true, "message", "所有外部API调用计数已清零，可重新演示");
+        return com.retry.platform.example.util.MapUtil.of("success", true, "message", "所有外部API调用计数已清零，可重新演示");
     }
 }

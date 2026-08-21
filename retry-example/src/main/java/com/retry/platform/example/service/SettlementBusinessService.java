@@ -63,7 +63,7 @@ public class SettlementBusinessService {
     public boolean settle(String transId, Double amount, String hotelCode) {
         log.info("[SettlementBusiness] 调用OTA结算接口: transId={}, amount={}, hotel={}", transId, amount, hotelCode);
 
-        Map<String, Object> requestBody = Map.of(
+        Map<String, Object> requestBody = com.retry.platform.example.util.MapUtil.of(
             "transId", transId,
             "amount", amount,
             "hotelCode", hotelCode,
@@ -95,7 +95,7 @@ public class SettlementBusinessService {
                 request.setMethodParamTypes("java.lang.String,java.lang.Double,java.lang.String");
 
                 // 序列化方法参数
-                Map<String, Object> params = Map.of(
+                Map<String, Object> params = com.retry.platform.example.util.MapUtil.of(
                     "transId", transId,
                     "amount", amount,
                     "hotelCode", hotelCode

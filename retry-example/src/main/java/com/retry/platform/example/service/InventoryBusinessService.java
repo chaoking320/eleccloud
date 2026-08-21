@@ -60,7 +60,7 @@ public class InventoryBusinessService {
     public void syncInventory(String transId, String skuId, Integer delta) {
         log.info("[InventoryBusiness] 调用WMS库存同步接口: transId={}, sku={}, delta={}", transId, skuId, delta);
 
-        Map<String, Object> requestBody = Map.of(
+        Map<String, Object> requestBody = com.retry.platform.example.util.MapUtil.of(
             "transId", transId,
             "skuId", skuId,
             "delta", delta,

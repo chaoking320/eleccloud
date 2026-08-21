@@ -176,7 +176,7 @@ public class DemoPageController {
     public Map<String, Object> getTasks() {
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("tasks", taskRegistry);
-        resp.put("localStatus", Map.of(
+        resp.put("localStatus", com.retry.platform.example.util.MapUtil.of(
             "refund",     RefundRetryHook.localDb,
             "settlement", SettlementRetryHook.localDb,
             "inventory",  InventoryRetryHook.localDb
@@ -199,7 +199,7 @@ public class DemoPageController {
             localStatus = InventoryRetryHook.localDb.get(transId);
         }
 
-        Map<String, Object> record = taskRegistry.getOrDefault(transId, Map.of());
+        Map<String, Object> record = taskRegistry.getOrDefault(transId, com.retry.platform.example.util.MapUtil.of());
         Map<String, Object> resp = new LinkedHashMap<>(record);
 
         if ("SUCCESS".equals(localStatus)) {

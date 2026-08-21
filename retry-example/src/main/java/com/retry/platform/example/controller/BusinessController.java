@@ -174,7 +174,7 @@ public class BusinessController {
 
     @GetMapping("/tasks")
     public Map<String, Object> getTasks() {
-        return Map.of("tasks", TASK_RECORDS);
+        return com.retry.platform.example.util.MapUtil.of("tasks", TASK_RECORDS);
     }
 
     // ================================================================

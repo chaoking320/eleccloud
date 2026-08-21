@@ -62,7 +62,7 @@ public class RefundBusinessService {
         log.info("[RefundBusiness] 调用支付宝退款接口: transId={}, orderId={}, amount={}", transId, orderId, amount);
 
         // 真实 HTTP 调用下游外部服务（这里调用同应用内的 MockAPI，实际场景中换成真实支付宝URL）
-        Map<String, Object> requestBody = Map.of(
+        Map<String, Object> requestBody = com.retry.platform.example.util.MapUtil.of(
             "transId", transId,
             "orderId", orderId,
             "amount", amount,
