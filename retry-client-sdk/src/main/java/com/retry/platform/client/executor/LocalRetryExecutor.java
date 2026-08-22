@@ -108,8 +108,10 @@ public class LocalRetryExecutor {
         }
 
         if (hook == null) {
-            log.error("[LocalRetryExecutor] Hook not found: taskId={}, hookClass={}", taskId, hookClassName);
-            markFailed(taskId, "Hook class not found or not a Spring Bean: " + hookClassName);
+            // hook 未配置或找不到 → 降级：直接反射调用原始业务方法重试（无幂等保护）
+            log.warn("[LocalRetryExecutor] Hook not found or not configured for taskId={}, hookClass={}. " +
+                    "Falling back to direct method retry.", taskId, hookClassName);
+            handleInit(taskId, context, new NoOpRetryHook(), payload);
             return;
         }
 
@@ -300,8 +302,27 @@ public class LocalRetryExecutor {
 
     // ==================== 反射和类型转换工具方法 ====================
 
+    /**
+     * 加载 Hook Bean。
+     * 业务方的 Hook 通常注册方式有两种：
+     * 1. @Component("com.xxx.XxxHook") 显式指定全类名作为 Bean 名 → 按名字查
+     * 2. @Component 用类型注册 → 按类型查
+     * 兼容两种写法，避免 hook 查找失败。
+     */
     private RetryHook getHookBean(String hookClass) throws Exception {
+        // 优先：按 Bean 名（很多业务方显式用全类名注册）
+        try {
+            Object bean = applicationContext.getBean(hookClass);
+            if (bean instanceof RetryHook) {
+                log.debug("[LocalRetryExecutor] Hook found by name: {}", hookClass);
+                return (RetryHook) bean;
+            }
+        } catch (Exception ignored) {
+            // 按名字找不到，降级按类型找
+        }
+        // 降级：按类型查找
         Class<?> clazz = Class.forName(hookClass);
+        log.debug("[LocalRetryExecutor] Hook found by type: {}", hookClass);
         return (RetryHook) applicationContext.getBean(clazz);
     }
 
@@ -494,4 +515,24 @@ public class LocalRetryExecutor {
                 .methodParamTypes(payload.getMethodParamTypes())
                 .build();
     }
+
+    /**
+     * 无 Hook 时的默认实现：checkStatus 始终返回 INIT，触发直接反射重试原始方法。
+     * doQuery / doCallback 不做任何事。
+     */
+    private static class NoOpRetryHook implements RetryHook {
+        @Override
+        public String checkStatus(RetryContext context) {
+            return "INIT"; // 直接走 handleInit → 反射调用原始业务方法
+        }
+        @Override
+        public QueryResult doQuery(RetryContext context) {
+            return QueryResult.failure("NoOpRetryHook: no query logic");
+        }
+        @Override
+        public void doCallback(RetryContext context, QueryResult result) {
+            // do nothing
+        }
+    }
 }
+
