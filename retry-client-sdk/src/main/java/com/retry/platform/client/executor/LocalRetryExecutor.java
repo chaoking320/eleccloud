@@ -404,18 +404,23 @@ public class LocalRetryExecutor {
         }
     }
 
+    private static final org.springframework.core.ParameterNameDiscoverer parameterNameDiscoverer = new org.springframework.core.DefaultParameterNameDiscoverer();
+
     /**
      * 按参数名从 Map 中还原方法入参。
      * <p>
      * 修复：移除了原来的‘参数名含 id/key 就用幂等键填充’的启发式规则——
      * 该规则将任意含“id”/“key”字符串的参数（如 buildingId、apiKey）误填为幂等键。
-     * 修复后：仅按参数名从 paramsMap 中取对应属性，找不到则置 null。
+     * 修复2：使用 Spring 的 ParameterNameDiscoverer，防止未开启 -parameters 编译参数时，
+     * 参数名变成 arg0, arg1 导致参数丢失的问题。
      */
     private Object[] prepareMethodArgs(Method method, Map<String, Object> paramsMap) throws Exception {
         Parameter[] parameters = method.getParameters();
         Object[] args = new Object[parameters.length];
+        String[] paramNames = parameterNameDiscoverer.getParameterNames(method);
+        
         for (int i = 0; i < parameters.length; i++) {
-            String paramName = parameters[i].getName();
+            String paramName = (paramNames != null && paramNames.length > i) ? paramNames[i] : parameters[i].getName();
             Class<?> paramType = parameters[i].getType();
             Object paramValue = paramsMap.get(paramName);
             if (paramValue == null && log.isDebugEnabled()) {
