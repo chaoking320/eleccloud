@@ -85,23 +85,24 @@ class LocalRetryExecutorTest {
     }
 
     @Test
-    void marksFailedWhenNoHookClassConfigured() {
+    void fallsBackToDirectRetryWhenNoHookClassConfigured() {
         RetryTaskDTO task = baseTask("INIT");
         task.setHookClass(null);
         when(retryClient.queryTask("T1")).thenReturn(task);
         when(retryClient.markExecuting("T1")).thenReturn(true);
         executor.execute("T1");
-        verify(retryClient).markFailed(eq("T1"), contains("Hook class not found"));
+        // 未配置 Hook 时降级为直接反射重试，不会直接 markFailed
+        verify(retryClient, never()).markFailed(eq("T1"), anyString());
     }
 
     @Test
-    void rollsBackToPendingWhenHookBeanMissing() {
+    void fallsBackToDirectRetryWhenHookBeanMissing() {
         RetryTaskDTO task = baseTask("INIT");
-        task.setHookClass("java.lang.String");
+        task.setHookClass("com.example.NonExistentHook");
         when(retryClient.queryTask("T1")).thenReturn(task);
         when(retryClient.markExecuting("T1")).thenReturn(true);
-        when(applicationContext.getBean(any(Class.class))).thenThrow(new RuntimeException("no such bean"));
         executor.execute("T1");
-        verify(retryClient).rollbackToPending(eq("T1"), anyString());
+        // Hook 实例缺失时降级为直接反射重试，不会中断或 rollbackToPending
+        verify(retryClient, never()).rollbackToPending(eq("T1"), anyString());
     }
 }
