@@ -172,7 +172,9 @@ public class LocalRetryExecutor {
         long startTime = System.currentTimeMillis();
         try {
             // 反射从本地 Spring 容器获取对应的 Service 实例执行方法
-            Class<?> clazz = Class.forName(context.getMethodClass());
+            // 必须用线程上下文 ClassLoader，否则 SDK jar 里的 ClassLoader 无法加载业务方的类
+            ClassLoader contextCl = Thread.currentThread().getContextClassLoader();
+            Class<?> clazz = Class.forName(context.getMethodClass(), true, contextCl);
             Object targetBean = applicationContext.getBean(clazz);
 
             Map<String, Object> paramsMap = parseParamsJson(context.getMethodParamsJson());
@@ -320,8 +322,9 @@ public class LocalRetryExecutor {
         } catch (Exception ignored) {
             // 按名字找不到，降级按类型找
         }
-        // 降级：按类型查找
-        Class<?> clazz = Class.forName(hookClass);
+        // 降级：按类型查找（同样使用线程上下文 ClassLoader）
+        ClassLoader contextCl = Thread.currentThread().getContextClassLoader();
+        Class<?> clazz = Class.forName(hookClass, true, contextCl);
         log.debug("[LocalRetryExecutor] Hook found by type: {}", hookClass);
         return (RetryHook) applicationContext.getBean(clazz);
     }
@@ -397,7 +400,7 @@ public class LocalRetryExecutor {
             case "float":   return float.class;
             case "double":  return double.class;
             case "void":    return void.class;
-            default:        return Class.forName(typeName);
+            default:        return Class.forName(typeName, true, Thread.currentThread().getContextClassLoader());
         }
     }
 
