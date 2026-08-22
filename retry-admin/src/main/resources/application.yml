@@ -39,6 +39,11 @@ mybatis:
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
 
+# 重试客户端配置
+retry:
+  client:
+    consumer-enabled: false  # 控制台不执行本地重试消费
+
 # 日志配置
 logging:
   level:

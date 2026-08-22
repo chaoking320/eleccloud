@@ -14,9 +14,13 @@
     <el-card class="filter-card">
       <el-form :inline="true" :model="filters" class="demo-form-inline">
         <el-form-item label="场景类型">
-          <el-select v-model="filters.sceneType" placeholder="选择场景" clearable style="width: 160px">
+          <el-select v-model="filters.sceneType" placeholder="选择场景" clearable style="width: 180px">
+            <el-option label="[Demo] 电商退款 (10)" :value="10" />
+            <el-option label="[Demo] 酒店结算 (11)" :value="11" />
+            <el-option label="[Demo] 库存同步 (12)" :value="12" />
             <el-option label="退款场景 (1)" :value="1" />
             <el-option label="结算场景 (2)" :value="2" />
+            <el-option label="库存场景 (3)" :value="3" />
           </el-select>
         </el-form-item>
         <el-form-item label="幂等键 (Idempotent Key)">
@@ -55,10 +59,10 @@
 
       <el-table :data="tableData" v-loading="loading" stripe style="width: 100%" class="custom-table">
         <el-table-column prop="taskId" label="任务ID" width="180" show-overflow-tooltip />
-        <el-table-column prop="sceneType" label="场景" width="120">
+        <el-table-column prop="sceneType" label="场景" width="160">
           <template #default="{ row }">
-            <el-tag :type="row.sceneType === 1 ? 'primary' : 'success'" effect="plain">
-              {{ row.sceneType === 1 ? '退款场景(1)' : '结算场景(2)' }}
+            <el-tag :type="getSceneTagType(row.sceneType)" effect="plain">
+              {{ getSceneName(row.sceneType) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -119,7 +123,7 @@
       <div v-if="selectedTask" class="dialog-content">
         <el-descriptions :column="2" border class="descriptions-box">
           <el-descriptions-item label="任务ID" :span="2">{{ selectedTask.taskId }}</el-descriptions-item>
-          <el-descriptions-item label="场景">{{ selectedTask.sceneType === 1 ? '退款场景' : '结算场景' }}</el-descriptions-item>
+          <el-descriptions-item label="场景">{{ getSceneName(selectedTask.sceneType) }} (Type: {{ selectedTask.sceneType }})</el-descriptions-item>
           <el-descriptions-item label="幂等键">{{ selectedTask.idempotentKey }}</el-descriptions-item>
           <el-descriptions-item label="触发方法类" :span="2">{{ selectedTask.methodClass }}</el-descriptions-item>
           <el-descriptions-item label="触发方法名">{{ selectedTask.methodName }}</el-descriptions-item>
@@ -184,6 +188,30 @@ const pagination = reactive({
 })
 
 // Formatting and Helper Methods
+const getSceneName = (sceneType) => {
+  const map = {
+    1: '退款场景 (1)',
+    2: '结算场景 (2)',
+    3: '库存场景 (3)',
+    10: '电商退款 (10)',
+    11: '酒店结算 (11)',
+    12: '库存同步 (12)'
+  }
+  return map[sceneType] || `场景 (${sceneType})`
+}
+
+const getSceneTagType = (sceneType) => {
+  const map = {
+    1: 'primary',
+    2: 'success',
+    3: 'warning',
+    10: 'primary',
+    11: 'success',
+    12: 'warning'
+  }
+  return map[sceneType] || 'info'
+}
+
 const formatTime = (timeVal) => {
   if (!timeVal) return '-'
   const date = new Date(timeVal)

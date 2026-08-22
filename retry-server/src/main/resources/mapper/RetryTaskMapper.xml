@@ -16,13 +16,15 @@
         <result column="retry_count" property="retryCount" jdbcType="INTEGER"/>
         <result column="max_retry_count" property="maxRetryCount" jdbcType="INTEGER"/>
         <result column="next_retry_time" property="nextRetryTime" jdbcType="BIGINT"/>
+        <result column="hook_class" property="hookClass" jdbcType="VARCHAR"/>
+        <result column="method_param_types" property="methodParamTypes" jdbcType="VARCHAR"/>
         <result column="create_time" property="createTime" jdbcType="TIMESTAMP"/>
         <result column="update_time" property="updateTime" jdbcType="TIMESTAMP"/>
     </resultMap>
 
     <sql id="Base_Column_List">
         id, task_id, scene_type, idempotent_key, method_class, method_name,
-        method_params, task_status, submit_mode, retry_count, max_retry_count, next_retry_time,
+        method_params, hook_class, method_param_types, task_status, submit_mode, retry_count, max_retry_count, next_retry_time,
         create_time, update_time
     </sql>
 
@@ -30,11 +32,11 @@
             useGeneratedKeys="true" keyProperty="id">
         INSERT INTO retry_task (
             task_id, scene_type, idempotent_key, method_class, method_name,
-            method_params, task_status, submit_mode, retry_count, max_retry_count, next_retry_time,
+            method_params, hook_class, method_param_types, task_status, submit_mode, retry_count, max_retry_count, next_retry_time,
             create_time, update_time
         ) VALUES (
             #{taskId}, #{sceneType}, #{idempotentKey}, #{methodClass}, #{methodName},
-            #{methodParams}, #{taskStatus}, #{submitMode}, #{retryCount}, #{maxRetryCount}, #{nextRetryTime},
+            #{methodParams}, #{hookClass}, #{methodParamTypes}, #{taskStatus}, #{submitMode}, #{retryCount}, #{maxRetryCount}, #{nextRetryTime},
             #{createTime}, #{updateTime}
         )
     </insert>

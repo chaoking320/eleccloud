@@ -49,4 +49,9 @@ public class RetryClientProperties {
      * 业务线专用延迟消息队列主题名称 (多业务隔离配置)
      */
     private String queueName = "retry.delayed.queue";
+
+    /**
+     * 是否启用本地重试消费者（服务端或Admin只发消息不消费时设为 false）
+     */
+    private boolean consumerEnabled = true;
 }

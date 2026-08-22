@@ -53,6 +53,8 @@ mybatis:
 
 # 重试平台配置
 retry:
+  client:
+    consumer-enabled: false  # 服务端只调度/触发消息，不执行本地重试消费
   scheduler:
     enabled: true
     scan-interval: 10000  # 扫描间隔(ms)

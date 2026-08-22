@@ -71,6 +71,16 @@ public class RetryTask {
     private Long nextRetryTime;
     
     /**
+     * Hook 类名（用于回查与幂等回调）
+     */
+    private String hookClass;
+
+    /**
+     * 方法参数类型列表（逗号分隔，用于精确反射匹配重载方法）
+     */
+    private String methodParamTypes;
+
+    /**
      * 创建时间
      */
     private LocalDateTime createTime;
