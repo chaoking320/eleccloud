@@ -172,8 +172,8 @@ public class LocalRetryExecutor {
         long startTime = System.currentTimeMillis();
         try {
             // 反射从本地 Spring 容器获取对应的 Service 实例执行方法
-            // 必须用线程上下文 ClassLoader，否则 SDK jar 里的 ClassLoader 无法加载业务方的类
-            ClassLoader contextCl = Thread.currentThread().getContextClassLoader();
+            // 使用 Spring applicationContext 的 ClassLoader 来加载业务类，确保兼容所有执行线程
+            ClassLoader contextCl = applicationContext.getClassLoader();
             Class<?> clazz = Class.forName(context.getMethodClass(), true, contextCl);
             Object targetBean = applicationContext.getBean(clazz);
 
@@ -308,25 +308,33 @@ public class LocalRetryExecutor {
      * 加载 Hook Bean。
      * 业务方的 Hook 通常注册方式有两种：
      * 1. @Component("com.xxx.XxxHook") 显式指定全类名作为 Bean 名 → 按名字查
-     * 2. @Component 用类型注册 → 按类型查
-     * 兼容两种写法，避免 hook 查找失败。
+     * 2. @Component 用类型注册 → 遍历上下文寻找匹配的类
+     * 彻底解决 ClassLoader 隔离导致的 Class.forName 找不到类的问题。
      */
     private RetryHook getHookBean(String hookClass) throws Exception {
-        // 优先：按 Bean 名（很多业务方显式用全类名注册）
+        // 1. 优先尝试直接按 Bean 名查找
         try {
             Object bean = applicationContext.getBean(hookClass);
             if (bean instanceof RetryHook) {
-                log.debug("[LocalRetryExecutor] Hook found by name: {}", hookClass);
+                log.debug("[LocalRetryExecutor] Hook found by exact name: {}", hookClass);
                 return (RetryHook) bean;
             }
         } catch (Exception ignored) {
-            // 按名字找不到，降级按类型找
         }
-        // 降级：按类型查找（同样使用线程上下文 ClassLoader）
-        ClassLoader contextCl = Thread.currentThread().getContextClassLoader();
-        Class<?> clazz = Class.forName(hookClass, true, contextCl);
-        log.debug("[LocalRetryExecutor] Hook found by type: {}", hookClass);
-        return (RetryHook) applicationContext.getBean(clazz);
+        
+        // 2. 如果按名字找不到，直接遍历 Spring 容器中所有的 RetryHook 实例
+        // 这样可以完全绕过 Class.forName，避免 ClassLoader 找不到类的问题
+        Map<String, RetryHook> hookBeans = applicationContext.getBeansOfType(RetryHook.class);
+        for (RetryHook bean : hookBeans.values()) {
+            String beanClassName = bean.getClass().getName();
+            // 注意：被 Spring AOP 代理的类名可能是 com.xxx.DemoHook$$EnhancerBySpringCGLIB$$...
+            if (beanClassName.equals(hookClass) || beanClassName.startsWith(hookClass + "$$")) {
+                log.debug("[LocalRetryExecutor] Hook found by scanning context types: {}", hookClass);
+                return bean;
+            }
+        }
+        
+        throw new ClassNotFoundException("Cannot find RetryHook bean for class: " + hookClass);
     }
 
     @SuppressWarnings("unchecked")
@@ -400,7 +408,7 @@ public class LocalRetryExecutor {
             case "float":   return float.class;
             case "double":  return double.class;
             case "void":    return void.class;
-            default:        return Class.forName(typeName, true, Thread.currentThread().getContextClassLoader());
+            default:        return Class.forName(typeName, true, applicationContext.getClassLoader());
         }
     }
 
