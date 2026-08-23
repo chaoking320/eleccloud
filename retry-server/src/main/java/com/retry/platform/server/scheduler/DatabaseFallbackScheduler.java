@@ -1,5 +1,6 @@
 package com.retry.platform.server.scheduler;
 
+import com.retry.platform.server.mapper.RetryTaskMapper;
 import com.retry.platform.server.service.DelayQueueService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,50 +31,76 @@ public class DatabaseFallbackScheduler {
     private RedisTemplate<String, String> redisTemplate;
     
     @Autowired
-    private DelayQueueService delayQueueService;
+    private RetryTaskMapper retryTaskMapper;
+
+    @Autowired
+    private com.retry.platform.server.service.SceneConfigService sceneConfigService;
+
+    @Autowired(required = false)
+    private com.retry.platform.client.mq.RetryMessageProducer retryMessageProducer;
     
     @Value("${retry.scheduler.batch-size:100}")
     private int batchSize;
     
     /**
-     * 定期扫描数据库，将应执行但未在Redis中的任务重新加入队列
-     * 每分钟执行一次
+     * 定期扫描数据库，将 INIT 状态已到期但未在 Redis 消费队列中的任务重新推送到 Redis
+     * 每 15 秒执行一次兜底扫描
      */
-    @Scheduled(fixedDelayString = "${retry.scheduler.fallback-scan-interval:60000}")
+    @Scheduled(fixedDelayString = "${retry.scheduler.fallback-scan-interval:15000}")
     public void scanAndSyncToRedis() {
-        if (redisTemplate == null) {
-            log.debug("Redis not available, skipping fallback scan");
+        if (redisTemplate == null || retryMessageProducer == null) {
             return;
         }
         
         try {
             long currentTime = System.currentTimeMillis();
             
-            // 从数据库获取应执行的任务
-            List<String> pendingTaskIds = delayQueueService.pollExpiredTasks(currentTime, batchSize);
+            // 直接从 MySQL 获取处于 INIT 状态且已到期的任务
+            List<String> pendingTaskIds = retryTaskMapper.selectPendingTasks(currentTime, batchSize);
             
-            if (pendingTaskIds.isEmpty()) {
-                log.debug("No pending tasks found in database fallback scan");
+            if (pendingTaskIds == null || pendingTaskIds.isEmpty()) {
                 return;
             }
             
-            // 检查哪些任务不在Redis中
             int syncedCount = 0;
             for (String taskId : pendingTaskIds) {
+                // 检查任务是否已经在 Redis 中排队
                 if (!isTaskInRedis(taskId)) {
-                    // 任务不在Redis中，重新加入队列
-                    delayQueueService.addTask(taskId, currentTime);
-                    syncedCount++;
-                    log.info("Synced missing task to Redis: taskId={}", taskId);
+                    com.retry.platform.server.entity.RetryTask task = retryTaskMapper.selectByTaskId(taskId);
+                    if (task != null && "INIT".equals(task.getTaskStatus())) {
+                        com.retry.platform.server.entity.SceneConfig sceneConfig = 
+                                sceneConfigService.getSceneConfigByType(task.getSceneType());
+                        
+                        com.retry.platform.client.mq.RetryMessagePayload payload = 
+                                com.retry.platform.client.mq.RetryMessagePayload.builder()
+                                        .taskId(task.getTaskId())
+                                        .sceneType(task.getSceneType())
+                                        .idempotentKey(task.getIdempotentKey())
+                                        .methodClass(task.getMethodClass())
+                                        .methodName(task.getMethodName())
+                                        .methodParams(task.getMethodParams())
+                                        .methodParamTypes(task.getMethodParamTypes())
+                                        .hookClass(sceneConfig != null ? sceneConfig.getHookClass() : null)
+                                        .backoffStrategy(sceneConfig != null ? sceneConfig.getBackoffStrategy() : null)
+                                        .backoffBase(sceneConfig != null ? sceneConfig.getBackoffBase() : null)
+                                        .retryIntervals(sceneConfig != null ? sceneConfig.getRetryIntervals() : null)
+                                        .retryCount(task.getRetryCount())
+                                        .maxRetryCount(task.getMaxRetryCount())
+                                        .build();
+
+                        retryMessageProducer.sendDelayMessageWithPayload(payload, 0L);
+                        syncedCount++;
+                        log.info("[FallbackScheduler] Synced stuck INIT task from MySQL to Redis: taskId={}", taskId);
+                    }
                 }
             }
             
             if (syncedCount > 0) {
-                log.info("Database fallback scan completed: synced {} tasks to Redis", syncedCount);
+                log.info("[FallbackScheduler] Database fallback scan completed: synced {} stuck tasks to Redis", syncedCount);
             }
             
         } catch (Exception e) {
-            log.error("Database fallback scan failed", e);
+            log.error("[FallbackScheduler] Database fallback scan failed", e);
         }
     }
     
@@ -82,8 +109,20 @@ public class DatabaseFallbackScheduler {
      */
     private boolean isTaskInRedis(String taskId) {
         try {
-            Double score = redisTemplate.opsForZSet().score(DELAY_QUEUE_KEY, taskId);
-            return score != null;
+            Long count = redisTemplate.opsForZSet().zCard(DELAY_QUEUE_KEY);
+            if (count == null || count == 0) {
+                return false;
+            }
+            Set<String> members = redisTemplate.opsForZSet().range(DELAY_QUEUE_KEY, 0, -1);
+            if (members == null || members.isEmpty()) {
+                return false;
+            }
+            for (String m : members) {
+                if (m.contains(taskId)) {
+                    return true;
+                }
+            }
+            return false;
         } catch (Exception e) {
             log.warn("Failed to check task in Redis: taskId={}", taskId, e);
             return false;

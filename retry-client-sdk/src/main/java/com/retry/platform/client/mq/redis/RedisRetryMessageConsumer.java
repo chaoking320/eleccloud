@@ -27,7 +27,8 @@ public class RedisRetryMessageConsumer {
     private final LocalRetryExecutor localRetryExecutor;
     private final ExecutorService executorService;
     private volatile boolean running = true;
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     public RedisRetryMessageConsumer(StringRedisTemplate redisTemplate,
                                      LocalRetryExecutor localRetryExecutor,
@@ -75,7 +76,7 @@ public class RedisRetryMessageConsumer {
                 }
 
                 // 减少 CPU 空转
-                TimeUnit.MILLISECONDS.sleep(3000);
+                TimeUnit.MILLISECONDS.sleep(500);
             } catch (InterruptedException e) {
                 log.info("[Redis MQ] Poll thread interrupted, stopping.");
                 running = false;
@@ -99,7 +100,7 @@ public class RedisRetryMessageConsumer {
             try {
                 RetryMessagePayload payload = MAPPER.readValue(member, RetryMessagePayload.class);
                 if (payload.getTaskId() != null) {
-                    log.debug("[Redis MQ] Dispatching fat message: taskId={}, retryCount={}",
+                    log.info("[Redis MQ] Dispatching fat message: taskId={}, retryCount={}",
                             payload.getTaskId(), payload.getRetryCount());
                     localRetryExecutor.executeWithPayload(payload);
                     return;
@@ -109,7 +110,7 @@ public class RedisRetryMessageConsumer {
             }
         }
         // 降级为瘦消息（member 直接是 taskId）
-        log.debug("[Redis MQ] Dispatching slim message: taskId={}", member);
+        log.info("[Redis MQ] Dispatching slim message: taskId={}", member);
         localRetryExecutor.execute(member);
     }
 

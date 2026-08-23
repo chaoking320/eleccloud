@@ -21,6 +21,20 @@ import java.util.Map;
 /**
  * SDK 本地重试与回查状态机执行引擎
  * 代替旧平台方案中的 Server HTTP 回调调度，完全在业务进程本地线程中安全解析并驱动重试。
+ *
+ * {"taskId":"RT1787461313418f4f63f3b",
+ *  "sceneType":10,
+ *  "idempotentKey":"RFD_DDCD58F5",
+ *  "methodClass":"com.retry.platform.example.service.RefundBusinessService",
+ *  "methodName":"refund",
+ *  "methodParams":"{\"amount\":100.0,\"orderId\":\"ORD_9870B49C\",\"transId\":\"RFD_DDCD58F5\"}",
+ *  "methodParamTypes":"java.lang.String,java.lang.String,java.lang.Double",
+ *  "hookClass":"com.retry.platform.example.hook.DemoRefundHook",
+ *  "backoffStrategy":"CUSTOM",
+ *  "backoffBase":0,
+ *  "retryIntervals":"1,3,6,9",
+ *  "retryCount":1,
+ *  "maxRetryCount":4}
  */
 @Slf4j
 @Component
