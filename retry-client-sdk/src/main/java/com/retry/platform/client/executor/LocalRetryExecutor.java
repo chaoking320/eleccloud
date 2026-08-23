@@ -536,7 +536,7 @@ public class LocalRetryExecutor {
                 return 60L * 1000L;
             }
             String[] split = intervals.split(",");
-            int idx = Math.min(retryCount - 1, split.length - 1);
+            int idx = Math.min(Math.max(0, retryCount - 1), split.length - 1);
             try {
                 return Integer.parseInt(split[idx].trim()) * 60L * 1000L;
             } catch (Exception e) {
