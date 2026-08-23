@@ -98,13 +98,20 @@ public class RetryTaskAdminController {
         try {
             Map<String, Long> stats = new HashMap<>();
             
-            // 统计活跃任务数
-            stats.put("init", retryTaskMapper.countTasks(null, "INIT"));
-            stats.put("wait", retryTaskMapper.countTasks(null, "WAIT"));
-            stats.put("success", retryTaskMapper.countTasks(null, "SUCCESS"));
-            
-            // 统计失败任务表中的数量
-            stats.put("failed", failedTaskMapper.countByConditions(null, null, null, null));
+            // 统计各状态任务数（包含活跃重试任务与已归档失败任务）
+            long countInit = retryTaskMapper.countTasks(null, "INIT");
+            long countWait = retryTaskMapper.countTasks(null, "WAIT");
+            long countSuccess = retryTaskMapper.countTasks(null, "SUCCESS");
+            long countFailedActive = retryTaskMapper.countTasks(null, "FAILED");
+            long countFailedArchived = failedTaskMapper.countByConditions(null, null, null, null);
+            long countFailedTotal = countFailedActive + countFailedArchived;
+            long countTotal = countInit + countWait + countSuccess + countFailedTotal;
+
+            stats.put("init", countInit);
+            stats.put("wait", countWait);
+            stats.put("success", countSuccess);
+            stats.put("failed", countFailedTotal);
+            stats.put("total", countTotal);
             
             return Result.success(stats);
         } catch (Exception e) {

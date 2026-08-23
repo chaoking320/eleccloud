@@ -350,7 +350,7 @@ const loadStats = async () => {
       stats.init = res.data.init || 0
       stats.wait = res.data.wait || 0
       stats.failed = res.data.failed || 0
-      stats.total = stats.init + stats.wait + (res.data.success || 0) + stats.failed
+      stats.total = res.data.total !== undefined ? res.data.total : (stats.init + stats.wait + (res.data.success || 0) + stats.failed)
     }
   } catch (e) {
     console.error('Failed to load dashboard stats', e)
@@ -464,46 +464,55 @@ onMounted(() => {
 
 <style scoped>
 .task-monitor {
-  padding: 24px;
-  background-color: #f7f8fa;
-  min-height: 100vh;
+  padding: 20px;
+  background-color: #f0f2f5;
+  box-sizing: border-box;
 }
 
 /* Dashboard cards styling with beautiful linear-gradients */
 .stat-dashboard {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .stat-card {
-  height: 108px;
-  display: flex;
-  align-items: center;
+  height: 96px;
   border: none;
-  border-radius: 12px;
+  border-radius: 10px;
   color: #fff;
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.stat-card :deep(.el-card__body) {
+  padding: 16px 20px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .stat-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
 }
 
 .total-card {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  background: linear-gradient(135deg, #1890ff 0%, #36cfc9 100%);
 }
 
 .init-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #597ef7 0%, #722ed1 100%);
 }
 
 .wait-card {
-  background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+  background: linear-gradient(135deg, #fa8c16 0%, #ffc069 100%);
 }
 
 .failed-card {
-  background: linear-gradient(135deg, #ff0844 0%, #ffb199 100%);
+  background: linear-gradient(135deg, #ff4d4f 0%, #ff7875 100%);
 }
 
 .stat-content {
@@ -511,21 +520,23 @@ onMounted(() => {
 }
 
 .stat-label {
-  font-size: 14px;
-  opacity: 0.85;
+  font-size: 13px;
+  opacity: 0.9;
   margin-bottom: 6px;
   font-weight: 500;
 }
 
 .stat-value {
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 700;
   line-height: 1;
 }
 
 .stat-icon {
-  font-size: 40px;
-  opacity: 0.3;
+  font-size: 36px;
+  opacity: 0.35;
+  display: flex;
+  align-items: center;
 }
 
 /* Filter area styling */

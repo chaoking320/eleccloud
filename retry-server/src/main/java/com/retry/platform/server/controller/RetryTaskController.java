@@ -225,13 +225,28 @@ public class RetryTaskController {
                 return Result.fail("Task not found");
             }
             
-            // 重置为 INIT 状态，使其能够被抢占
-            retryTaskService.updateTaskStatus(taskId, "INIT");
+            // 人工在后台手动触发重试：重置为 INIT 状态且将已重试次数重置为 0，赋予全新的重试机会
+            retryTaskService.updateTaskStatusAndRetryInfo(taskId, "INIT", 0, System.currentTimeMillis());
             
             if (retryMessageProducer != null) {
-                // 向 MQ 发送即时投递消息，直接唤醒 SDK Consumer
-                retryMessageProducer.sendDelayMessage(taskId, 0L, task.getSceneType());
-                log.info("Manually triggered task by sending delay=0 message to MQ. taskId={}", taskId);
+                // 向 MQ 发送胖消息即时投递，携带完整上下文直接唤醒 SDK Consumer，无需二次 HTTP 查询
+                com.retry.platform.client.mq.RetryMessagePayload payload = com.retry.platform.client.mq.RetryMessagePayload.builder()
+                        .taskId(task.getTaskId())
+                        .sceneType(task.getSceneType())
+                        .idempotentKey(task.getIdempotentKey())
+                        .methodClass(task.getMethodClass())
+                        .methodName(task.getMethodName())
+                        .methodParams(task.getMethodParams())
+                        .methodParamTypes(task.getMethodParamTypes())
+                        .hookClass(task.getHookClass())
+                        .backoffStrategy(task.getBackoffStrategy())
+                        .backoffBase(task.getBackoffBase())
+                        .retryIntervals(task.getRetryIntervals())
+                        .retryCount(0)
+                        .maxRetryCount(task.getMaxRetryCount())
+                        .build();
+                retryMessageProducer.sendDelayMessageWithPayload(payload, 0L);
+                log.info("Manually triggered task by sending fat delay=0 message to MQ. taskId={}", taskId);
                 return Result.success(true);
             } else {
                 return Result.fail("RetryMessageProducer not configured on server side");

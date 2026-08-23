@@ -60,6 +60,8 @@ public class RedisRetryMessageConsumer {
                         // 原子移除：谁移出成功谁执行，防多节点并发消费
                         Long removed = redisTemplate.opsForZSet().remove(delayQueueKey, member);
                         if (removed != null && removed > 0) {
+                            log.info("[Redis MQ] Popped message from delay queue: {}", 
+                                    member.length() > 60 ? member.substring(0, 60) + "..." : member);
                             final String memberCopy = member;
                             executorService.submit(() -> {
                                 try {
@@ -73,7 +75,7 @@ public class RedisRetryMessageConsumer {
                 }
 
                 // 减少 CPU 空转
-                TimeUnit.MILLISECONDS.sleep(500);
+                TimeUnit.MILLISECONDS.sleep(3000);
             } catch (InterruptedException e) {
                 log.info("[Redis MQ] Poll thread interrupted, stopping.");
                 running = false;

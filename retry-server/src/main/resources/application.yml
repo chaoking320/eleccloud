@@ -14,7 +14,7 @@ spring:
   redis:
     host: 127.0.0.1
     port: 6379
-    database: 1
+    database: 0
     password: 123456
     timeout: 3000ms
     lettuce:
@@ -55,6 +55,7 @@ mybatis:
 retry:
   client:
     consumer-enabled: false  # 服务端只调度/触发消息，不执行本地重试消费
+    queue-name: retry.delayed.queue # 统一延时队列名
   scheduler:
     enabled: true
     scan-interval: 10000  # 扫描间隔(ms)
@@ -80,10 +81,19 @@ management:
       prometheus:
         enabled: true
 
-# 日志配置
+# 日志配置（统一输出到工程根目录 logs/ 文件夹）
 logging:
+  file:
+    name: logs/retry-server.log
+  logback:
+    rollingpolicy:
+      file-name-pattern: logs/retry-server-%d{yyyy-MM-dd}.%i.log
+      max-file-size: 10MB
+      max-history: 30
+      total-size-cap: 1GB
   level:
     com.retry.platform: INFO
     org.springframework: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"

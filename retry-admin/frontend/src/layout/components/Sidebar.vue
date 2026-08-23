@@ -1,10 +1,13 @@
 <template>
-  <div class="sidebar">
+  <div class="sidebar" :class="{ 'is-collapse': isCollapse }">
     <div class="logo">
-      <h2>重试平台</h2>
+      <h2 v-if="!isCollapse">重试平台</h2>
+      <h2 v-else class="logo-mini">RT</h2>
     </div>
     <el-menu
       :default-active="$route.path"
+      :collapse="isCollapse"
+      :collapse-transition="false"
       class="el-menu-vertical"
       background-color="#304156"
       text-color="#bfcbd9"
@@ -13,34 +16,39 @@
     >
       <el-menu-item index="/dashboard">
         <el-icon><DataBoard /></el-icon>
-        <span>仪表盘</span>
+        <template #title>仪表盘</template>
       </el-menu-item>
       
       <el-menu-item index="/scene">
         <el-icon><Setting /></el-icon>
-        <span>场景配置</span>
+        <template #title>场景配置</template>
       </el-menu-item>
       
       <el-menu-item index="/task">
         <el-icon><Monitor /></el-icon>
-        <span>任务监控</span>
+        <template #title>任务监控</template>
       </el-menu-item>
       
       <el-menu-item index="/failed">
         <el-icon><Warning /></el-icon>
-        <span>失败任务</span>
+        <template #title>失败任务</template>
       </el-menu-item>
       
       <el-menu-item index="/system">
         <el-icon><Tools /></el-icon>
-        <span>系统配置</span>
+        <template #title>系统配置</template>
       </el-menu-item>
     </el-menu>
   </div>
 </template>
 
 <script setup>
+import { computed } from 'vue'
+import { useAppStore } from '@/stores'
 import { DataBoard, Setting, Monitor, Warning, Tools } from '@element-plus/icons-vue'
+
+const appStore = useAppStore()
+const isCollapse = computed(() => !appStore.sidebar.opened)
 </script>
 
 <style scoped>
@@ -57,11 +65,22 @@ import { DataBoard, Setting, Monitor, Warning, Tools } from '@element-plus/icons
   color: #fff;
   font-size: 16px;
   font-weight: bold;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.logo-mini {
+  font-size: 18px;
+  color: #409EFF;
 }
 
 .el-menu-vertical {
   border-right: none;
   height: calc(100vh - 50px);
+}
+
+.el-menu-vertical:not(.el-menu--collapse) {
+  width: 210px;
 }
 
 .el-menu-item {

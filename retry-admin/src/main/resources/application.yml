@@ -44,10 +44,19 @@ retry:
   client:
     consumer-enabled: false  # 控制台不执行本地重试消费
 
-# 日志配置
+# 日志配置（统一输出到工程根目录 logs/ 文件夹）
 logging:
+  file:
+    name: logs/retry-admin.log
+  logback:
+    rollingpolicy:
+      file-name-pattern: logs/retry-admin-%d{yyyy-MM-dd}.%i.log
+      max-file-size: 10MB
+      max-history: 30
+      total-size-cap: 1GB
   level:
     com.retry.platform: INFO
     org.springframework: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"

@@ -24,7 +24,7 @@ import java.util.Set;
 @ConditionalOnProperty(prefix = "retry.scheduler", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class DatabaseFallbackScheduler {
     
-    private static final String DELAY_QUEUE_KEY = "retry:delay:queue";
+    private static final String DELAY_QUEUE_KEY = "retry:client:delay:queue:retry.delayed.queue";
     
     @Autowired(required = false)
     private RedisTemplate<String, String> redisTemplate;

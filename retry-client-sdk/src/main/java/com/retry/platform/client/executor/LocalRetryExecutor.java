@@ -188,15 +188,37 @@ public class LocalRetryExecutor {
             // 仅按参数名从 Map 还原入参，不再用启发式内容填充
             Object[] args = prepareMethodArgs(targetMethod, paramsMap);
             targetMethod.setAccessible(true);
-            targetMethod.invoke(targetBean, args);
+
+            try {
+                com.retry.platform.client.aspect.RetryableTaskAspect.IN_RETRY_CONTEXT.set(Boolean.TRUE);
+                targetMethod.invoke(targetBean, args);
+            } finally {
+                com.retry.platform.client.aspect.RetryableTaskAspect.IN_RETRY_CONTEXT.remove();
+            }
 
             long costMs = System.currentTimeMillis() - startTime;
-            log.info("[LocalRetryExecutor] Local method execution completed → WAIT. taskId={}", taskId);
-            // ★ M1 修复：记录方法执行成功历史（进入 WAIT 等待状态确认）
-            safeRecordHistory(taskId, context.getRetryCount(), "SUCCESS", null, costMs);
-            // 执行完毕，切换为 WAIT 状态等待 Hook 确认
-            updateTaskStatus(taskId, "WAIT");
-            scheduleNext(payload);
+            log.info("[LocalRetryExecutor] Local method execution succeeded! Checking hook. taskId={}", taskId);
+
+            // 执行完业务方法后，立即调用 Hook 进行确认与回调
+            QueryResult queryResult = null;
+            try {
+                queryResult = hook.doQuery(context);
+            } catch (Exception qe) {
+                log.warn("[LocalRetryExecutor] hook.doQuery threw exception: {}", qe.getMessage());
+            }
+
+            if (queryResult != null && queryResult.isSuccess()) {
+                log.info("[LocalRetryExecutor] Hook confirmed SUCCESS. Triggering doCallback & markSuccess. taskId={}", taskId);
+                hook.doCallback(context, queryResult);
+                retryClient.markSuccess(taskId);
+                safeRecordHistory(taskId, context.getRetryCount(), "SUCCESS", "Method executed and hook confirmed SUCCESS", costMs);
+            } else {
+                // 下游尚未完成或需异步回调确认，进入 WAIT 状态等待下轮查询
+                log.info("[LocalRetryExecutor] Hook returned not-success/pending. Entering WAIT state. taskId={}", taskId);
+                safeRecordHistory(taskId, context.getRetryCount(), "WAIT", "Method executed, waiting for callback/query", costMs);
+                updateTaskStatus(taskId, "WAIT");
+                scheduleNext(payload);
+            }
 
         } catch (Exception e) {
             long costMs = System.currentTimeMillis() - startTime;

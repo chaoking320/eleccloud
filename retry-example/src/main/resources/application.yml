@@ -20,9 +20,26 @@ retry:
     server-url: http://localhost:8080   # ElecCloud Server 地址
     enabled: true
     mq-type: REDIS                      # 延时队列类型：REDIS 或 RABBITMQ
-    queue-name: demo.retry              # 业务线专属队列名
+    queue-name: retry.delayed.queue     # 统一业务线延时队列名
     dev-mode: false                     # true 时仅打日志，不实际提交
 
 # Demo 应用自身地址（业务服务调用 MockAPI 时使用）
 app:
   self-url: http://localhost:8082
+
+# 日志配置（统一输出到工程根目录 logs/ 文件夹）
+logging:
+  file:
+    name: logs/retry-example.log
+  logback:
+    rollingpolicy:
+      file-name-pattern: logs/retry-example-%d{yyyy-MM-dd}.%i.log
+      max-file-size: 10MB
+      max-history: 30
+      total-size-cap: 1GB
+  level:
+    com.retry.platform: INFO
+    org.springframework: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"

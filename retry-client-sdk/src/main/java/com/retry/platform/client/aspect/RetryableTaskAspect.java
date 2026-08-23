@@ -30,11 +30,17 @@ import java.util.Map;
 @Component
 public class RetryableTaskAspect {
 
+    public static final ThreadLocal<Boolean> IN_RETRY_CONTEXT = ThreadLocal.withInitial(() -> Boolean.FALSE);
+
     @Autowired
     private RetryClient retryClient;
 
     @Around("@annotation(retryableTask)")
     public Object around(ProceedingJoinPoint pjp, RetryableTask retryableTask) throws Throwable {
+        if (Boolean.TRUE.equals(IN_RETRY_CONTEXT.get())) {
+            // 正在处于 LocalRetryExecutor 本地重试反射调用中，直接放行，不进行递归 AOP 拦截与重复提单
+            return pjp.proceed();
+        }
         if (retryableTask.preSubmit()) {
             return handlePreSubmitMode(pjp, retryableTask);
         } else {

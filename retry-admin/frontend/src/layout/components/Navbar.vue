@@ -2,8 +2,8 @@
   <div class="navbar">
     <div class="left-menu">
       <el-icon class="hamburger" @click="toggleSidebar">
-        <Expand v-if="sidebar.opened" />
-        <Fold v-else />
+        <Fold v-if="sidebar.opened" />
+        <Expand v-else />
       </el-icon>
       <el-breadcrumb class="app-breadcrumb" separator="/">
         <el-breadcrumb-item>

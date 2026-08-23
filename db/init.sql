@@ -95,7 +95,7 @@ INSERT INTO scene_config (scene_type, scene_name, retry_intervals, max_retry_cou
     hook_class, client_app_url, enabled)
 VALUES (1, '电商退款场景', '1,5,10,30', 4,
     'CUSTOM', 1, 3600,
-    'com.retry.platform.example.hook.RefundRetryHook', 'http://retry-example:8082', 1)
+    'com.retry.platform.example.hook.DemoRefundHook', 'http://retry-example:8082', 1)
 ON DUPLICATE KEY UPDATE
     scene_name=VALUES(scene_name), retry_intervals=VALUES(retry_intervals),
     backoff_strategy=VALUES(backoff_strategy), backoff_base=VALUES(backoff_base),
