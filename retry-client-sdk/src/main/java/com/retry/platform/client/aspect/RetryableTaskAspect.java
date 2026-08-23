@@ -128,8 +128,8 @@ public class RetryableTaskAspect {
                         taskId, retryableTask.sceneType(), request.getIdempotentKey());
                 
                 if (taskId != null) {
-                    // 方法失败后，立刻开始第一轮投递，延时由场景策略决定（这里默认先延时 10 秒或者是 1 分钟开始）
-                    long initialDelayMs = 5000L; // 失败后 5 秒立即本地重试
+                    // 方法失败后，立刻开始第一轮投递，延时默认为 1 分钟（后续由场景策略精确推进）
+                    long initialDelayMs = 60 * 1000L; 
                     retryMessageProducer.sendDelayMessage(taskId, initialDelayMs, retryableTask.sceneType());
                 }
             } catch (Exception ex) {

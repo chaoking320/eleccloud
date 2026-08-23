@@ -170,14 +170,14 @@ public class LocalRetryExecutor {
                 log.info("[LocalRetryExecutor] Query returned failure/pending. Rescheduling. taskId={}", taskId);
                 // ★ M1 修复：记录 WAIT 查询未完成历史
                 safeRecordHistory(taskId, context.getRetryCount(), "PENDING", "doQuery returned not-success", costMs);
-                scheduleNext(payload);
+                scheduleNext(payload, "WAIT");
             }
         } catch (Exception e) {
             long costMs = System.currentTimeMillis() - startTime;
             log.error("[LocalRetryExecutor] Query failed. Rescheduling. taskId={}", taskId, e);
             // ★ M1 修复：记录 WAIT 查询异常历史
             safeRecordHistory(taskId, context.getRetryCount(), "FAILED", e.getMessage(), costMs);
-            scheduleNext(payload);
+            scheduleNext(payload, "WAIT");
         }
     }
 
@@ -230,46 +230,44 @@ public class LocalRetryExecutor {
                 // 下游尚未完成或需异步回调确认，进入 WAIT 状态等待下轮查询
                 log.info("[LocalRetryExecutor] Hook returned not-success/pending. Entering WAIT state. taskId={}", taskId);
                 safeRecordHistory(taskId, context.getRetryCount(), "WAIT", "Method executed, waiting for callback/query", costMs);
-                updateTaskStatus(taskId, "WAIT");
-                scheduleNext(payload);
+                scheduleNext(payload, "WAIT");
             }
 
         } catch (Exception e) {
             long costMs = System.currentTimeMillis() - startTime;
+            int currentCount = (context.getRetryCount() != null && context.getRetryCount() > 0) ? context.getRetryCount() : 1;
             log.warn("[LocalRetryExecutor] Local method invocation failed: taskId={}, retryCount={}, error={}", 
-                    taskId, context.getRetryCount(), e.getMessage());
-            // 5 秒快速自愈（retryCount == 0）失败时静默，不记录失败历史，保留正式重试从 1 开始记录
-            if (context.getRetryCount() > 0) {
-                safeRecordHistory(taskId, context.getRetryCount(), "FAILED",
-                        e.getCause() != null ? e.getCause().getMessage() : e.getMessage(), costMs);
-            }
-            scheduleNext(payload);
+                    taskId, currentCount, e.getMessage());
+            safeRecordHistory(taskId, currentCount, "FAILED",
+                    e.getCause() != null ? e.getCause().getMessage() : e.getMessage(), costMs);
+            scheduleNext(payload, "INIT");
         }
     }
 
-    private void scheduleNext(RetryMessagePayload payload) {
+    private void scheduleNext(RetryMessagePayload payload, String targetStatus) {
         String taskId = payload.getTaskId();
-        int newRetryCount = (payload.getRetryCount() != null ? payload.getRetryCount() : 0) + 1;
+        int currentCount = (payload.getRetryCount() != null && payload.getRetryCount() > 0) ? payload.getRetryCount() : 1;
 
         // 次数上限检查
-        if (payload.getMaxRetryCount() != null && newRetryCount > payload.getMaxRetryCount()) {
-            log.warn("[LocalRetryExecutor] Exceeded max retry count. Marking FAILED. taskId={}", taskId);
+        if (payload.getMaxRetryCount() != null && currentCount >= payload.getMaxRetryCount()) {
+            log.warn("[LocalRetryExecutor] Reached max retry count ({}/{}). Marking FAILED. taskId={}", 
+                    currentCount, payload.getMaxRetryCount(), taskId);
             markFailed(taskId, "Exceeded max retry count limit");
             return;
         }
 
-        // 计算下次延迟时间（newRetryCount = 1 时取配置第 1 项：1分钟）
+        int newRetryCount = currentCount + 1;
+        // 计算下次延迟时间
         long delayMs = calculateDelayMsFromPayload(payload, newRetryCount);
 
-        // 如果刚跑完 5 秒快速自愈失败，数据库 retry_count 保持为 0（等待 1 分钟后正式开始第 1 次）
-        // 如果是正式重试失败，则更新为对应的正式重试次数
-        int dbCount = (payload.getRetryCount() == null || payload.getRetryCount() == 0) ? 0 : payload.getRetryCount();
-        updateRetryCountAndStatus(taskId, dbCount, "INIT");
+        // 更新 Server 上的重试信息（精准保持目标状态：WAIT 或 INIT）
+        updateRetryCountAndStatus(taskId, currentCount, targetStatus != null ? targetStatus : "INIT");
 
         // 投递胖消息（下一次执行时携带 newRetryCount）
         RetryMessagePayload nextPayload = clonePayloadWithNewCount(payload, newRetryCount);
         retryMessageProducer.sendDelayMessageWithPayload(nextPayload, delayMs);
-        log.info("[LocalRetryExecutor] Scheduled next retry: taskId={}, nextRetryCount={}, delayMs={}", taskId, newRetryCount, delayMs);
+        log.info("[LocalRetryExecutor] Scheduled next retry: taskId={}, nextRetryCount={}, targetStatus={}, delayMs={}", 
+                taskId, newRetryCount, targetStatus, delayMs);
     }
 
     private RetryMessagePayload clonePayloadWithNewCount(RetryMessagePayload payload, int newRetryCount) {
