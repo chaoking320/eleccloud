@@ -236,10 +236,13 @@ public class LocalRetryExecutor {
 
         } catch (Exception e) {
             long costMs = System.currentTimeMillis() - startTime;
-            log.warn("[LocalRetryExecutor] Local method invocation failed: taskId={}, error={}", taskId, e.getMessage());
-            // ★ M1 修复：记录方法执行失败历史
-            safeRecordHistory(taskId, context.getRetryCount(), "FAILED",
-                    e.getCause() != null ? e.getCause().getMessage() : e.getMessage(), costMs);
+            log.warn("[LocalRetryExecutor] Local method invocation failed: taskId={}, retryCount={}, error={}", 
+                    taskId, context.getRetryCount(), e.getMessage());
+            // 5 秒快速自愈（retryCount == 0）失败时静默，不记录失败历史，保留正式重试从 1 开始记录
+            if (context.getRetryCount() > 0) {
+                safeRecordHistory(taskId, context.getRetryCount(), "FAILED",
+                        e.getCause() != null ? e.getCause().getMessage() : e.getMessage(), costMs);
+            }
             scheduleNext(payload);
         }
     }
@@ -255,16 +258,18 @@ public class LocalRetryExecutor {
             return;
         }
 
-        // 计算下次延迟时间
+        // 计算下次延迟时间（newRetryCount = 1 时取配置第 1 项：1分钟）
         long delayMs = calculateDelayMsFromPayload(payload, newRetryCount);
 
-        // 更新 Server 上的重试信息（增加重试次数并重新标记为 INIT）
-        updateRetryCountAndStatus(taskId, newRetryCount, "INIT");
+        // 如果刚跑完 5 秒快速自愈失败，数据库 retry_count 保持为 0（等待 1 分钟后正式开始第 1 次）
+        // 如果是正式重试失败，则更新为对应的正式重试次数
+        int dbCount = (payload.getRetryCount() == null || payload.getRetryCount() == 0) ? 0 : payload.getRetryCount();
+        updateRetryCountAndStatus(taskId, dbCount, "INIT");
 
-        // 投递胖消息（更新 retryCount 后重新投递）
+        // 投递胖消息（下一次执行时携带 newRetryCount）
         RetryMessagePayload nextPayload = clonePayloadWithNewCount(payload, newRetryCount);
         retryMessageProducer.sendDelayMessageWithPayload(nextPayload, delayMs);
-        log.info("[LocalRetryExecutor] Scheduled next retry: taskId={}, retryCount={}, delayMs={}", taskId, newRetryCount, delayMs);
+        log.info("[LocalRetryExecutor] Scheduled next retry: taskId={}, nextRetryCount={}, delayMs={}", taskId, newRetryCount, delayMs);
     }
 
     private RetryMessagePayload clonePayloadWithNewCount(RetryMessagePayload payload, int newRetryCount) {
