@@ -1,17 +1,24 @@
-# 公共基础设施：MySQL + Redis（独立 Compose 项目，供所有项目共用）
+# 公共基础设施：MySQL + Redis + MinIO + Elasticsearch（独立 Compose 项目，供所有项目共用）
 #
 # 启动：
-#   docker compose -p infra -f infra/docker-compose.yml up -d
-#
-# ⚠️ 首次使用前，务必把下面两处密码改成你自己的强密码（保持两处一致），
-#    并同步修改 eleccloud 的 retry-server-shared.yml / retry-admin-shared.yml，
-#    以及 docker-compose.shared.yml 里 retry-example 的 SPRING_REDIS_PASSWORD。
+#   docker compose -p infra -f D:\workspace\mine\eleccloud\infra\docker-compose.yml up -d
 #
 # 隔离方式：
-#   - MySQL：每个项目建一个 database（schema）区分
-#   - Redis：每个项目用一个 db 编号区分（0~15）
-#     本项目占用：db 0 = Demo 应用 SDK 延时队列；db 1 = server/admin 的 spring.redis；
-#                db 2 = server/admin 的 Redisson 分布式锁/延时队列
+#   - MySQL (3306)：每个项目建一个 database（schema）区分
+#     * eleccloud
+#     * ragflow (RAGFlow 专用)
+#     * kms (KMS 业务)
+#   - Redis (6379)：每个项目用一个 db 编号区分（0~15）
+#     * db 0 = Demo 应用 SDK 延时队列
+#     * db 1 = eleccloud server/admin 的 spring.redis
+#     * db 2 = eleccloud server/admin 的 Redisson 分布式锁/延时队列
+#     * db 4 = RAGFlow 专用
+#   - MinIO (API: 9000, Console: 9001)：每个项目建一个 Bucket 区分
+#     * 用户名: minioadmin，密码: minioadmin
+#     * bucket: ragflow, bucket: eleccloud, bucket: jkkms 等
+#   - Elasticsearch (9200)：
+#     * 供 RAGFlow 知识库文档向量与全文检索
+#
 version: "3.8"
 
 services:
@@ -20,7 +27,7 @@ services:
     container_name: shared-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_ROOT_PASSWORD: "123456"
       TZ: Asia/Shanghai
     ports:
       - "3306:3306"
@@ -52,9 +59,59 @@ services:
     networks:
       - shared-network
 
+  minio:
+    image: minio/minio:latest
+    container_name: shared-minio
+    restart: unless-stopped
+    command: server --console-address ":9001" /data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      TZ: Asia/Shanghai
+    volumes:
+      - shared-minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+    networks:
+      - shared-network
+
+  elasticsearch:
+    image: elasticsearch:8.11.3
+    container_name: shared-elasticsearch
+    restart: unless-stopped
+    environment:
+      - node.name=es01
+      - discovery.type=single-node
+      - bootstrap.memory_lock=false
+      - xpack.security.enabled=false
+      - cluster.routing.allocation.disk.watermark.low=5gb
+      - cluster.routing.allocation.disk.watermark.high=3gb
+      - cluster.routing.allocation.disk.watermark.flood_stage=2gb
+      - ES_JAVA_OPTS=-Xms1g -Xmx2g
+      - TZ=Asia/Shanghai
+    ports:
+      - "9200:9200"
+    volumes:
+      - shared-es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200 >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    networks:
+      - shared-network
+
 volumes:
   shared-mysql-data:
   shared-redis-data:
+  shared-minio-data:
+  shared-es-data:
 
 networks:
   shared-network:

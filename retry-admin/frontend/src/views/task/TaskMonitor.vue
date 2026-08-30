@@ -209,7 +209,12 @@
                       </el-tag>
                     </div>
                     <div class="timeline-card-body">
-                      <p v-if="history.errorMessage" class="error-msg"><strong>异常信息：</strong>{{ history.errorMessage }}</p>
+                      <p v-if="history.errorMessage && history.executeResult !== 'SUCCESS'" class="error-msg">
+                        <strong>异常信息：</strong>{{ formatErrorMessage(history.errorMessage) }}
+                      </p>
+                      <p v-else-if="history.errorMessage && history.executeResult === 'SUCCESS'" class="success-msg">
+                        <strong>执行反馈：</strong>{{ formatErrorMessage(history.errorMessage) }}
+                      </p>
                       <p class="cost-time"><strong>耗时：</strong>{{ history.costTime }} ms</p>
                     </div>
                   </el-card>
@@ -339,6 +344,15 @@ const formatJson = (jsonStr) => {
     return JSON.stringify(obj, null, 2)
   } catch (e) {
     return jsonStr
+  }
+}
+
+const formatErrorMessage = (msg) => {
+  if (!msg) return ''
+  try {
+    return decodeURIComponent(msg.replace(/\+/g, ' '))
+  } catch (e) {
+    return msg
   }
 }
 
@@ -664,6 +678,15 @@ onMounted(() => {
   border-radius: 4px;
   word-break: break-all;
   border-left: 3px solid #f56c6c;
+}
+
+.success-msg {
+  color: #67c23a;
+  background-color: #f0f9eb;
+  padding: 8px 12px;
+  border-radius: 4px;
+  word-break: break-all;
+  border-left: 3px solid #67c23a;
 }
 
 .cost-time {

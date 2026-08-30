@@ -102,7 +102,7 @@ public class SceneConfigController {
 
             // 如果仅仅是更新启用状态 (比如前端 Switch 切换，参数中 retryIntervals 为 null 且没传策略)
             if (sceneConfig.getRetryIntervals() == null && sceneConfig.getBackoffStrategy() == null && sceneConfig.getEnabled() != null) {
-                boolean success = sceneConfigService.updateSceneEnabled(id, sceneConfig.isEnabled());
+                boolean success = sceneConfigService.updateSceneEnabled(id, sceneConfig.checkEnabled());
                 if (success) {
                     return Result.success();
                 } else {

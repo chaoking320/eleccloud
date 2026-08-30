@@ -55,8 +55,8 @@ public class RetryTaskServiceImpl implements RetryTaskService {
             throw new IllegalArgumentException("Scene config not found for sceneType: " + request.getSceneType());
         }
         
-        if (!sceneConfig.isEnabled()) {
-            throw new IllegalStateException("Scene is disabled: " + request.getSceneType());
+        if (!sceneConfig.checkEnabled()) {
+            throw new IllegalArgumentException("Scene is disabled: " + request.getSceneType());
         }
         
         // 3. 幂等性校验：检查是否已存在相同场景类型+幂等键的任务

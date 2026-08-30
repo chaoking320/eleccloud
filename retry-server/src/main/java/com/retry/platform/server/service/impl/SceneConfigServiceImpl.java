@@ -73,7 +73,7 @@ public class SceneConfigServiceImpl implements SceneConfigService {
         sceneConfigMapper.insert(sceneConfig);
         
         // 刷新缓存
-        if (sceneConfig.isEnabled()) {
+        if (sceneConfig.checkEnabled()) {
             localCache.put(sceneConfig.getSceneType(), sceneConfig);
             saveToRedis(sceneConfig);
         }
@@ -110,7 +110,7 @@ public class SceneConfigServiceImpl implements SceneConfigService {
             evictCache(sceneConfig.getSceneType());
             
             // 如果启用，重新加载到缓存
-            if (sceneConfig.isEnabled()) {
+            if (sceneConfig.checkEnabled()) {
                 localCache.put(sceneConfig.getSceneType(), sceneConfig);
                 saveToRedis(sceneConfig);
             }
@@ -164,7 +164,7 @@ public class SceneConfigServiceImpl implements SceneConfigService {
         
         // 3. 从数据库查询
         config = sceneConfigMapper.selectBySceneType(sceneType);
-        if (config != null && config.isEnabled()) {
+        if (config != null && config.checkEnabled()) {
             localCache.put(sceneType, config);
             saveToRedis(config);
         }

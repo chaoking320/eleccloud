@@ -161,11 +161,11 @@ public class LocalRetryExecutor {
             QueryResult queryResult = hook.doQuery(context);
             long costMs = System.currentTimeMillis() - startTime;
             if (queryResult.isSuccess()) {
-                log.info("[LocalRetryExecutor] Query confirmed SUCCESS. Triggering doCallback. taskId={}", taskId);
+                int currentCount = (context.getRetryCount() != null && context.getRetryCount() > 0) ? context.getRetryCount() : 1;
+                log.info("[LocalRetryExecutor] Query confirmed SUCCESS. Triggering doCallback. taskId={}, retryCount={}", taskId, currentCount);
                 hook.doCallback(context, queryResult);
-                retryClient.markSuccess(taskId);
-                // ★ M1 修复：记录 WAIT 查询成功历史
-                safeRecordHistory(taskId, context.getRetryCount(), "SUCCESS", null, costMs);
+                updateRetryCountAndStatus(taskId, currentCount, "SUCCESS");
+                safeRecordHistory(taskId, currentCount, "SUCCESS", null, costMs);
             } else {
                 log.info("[LocalRetryExecutor] Query returned failure/pending. Rescheduling. taskId={}", taskId);
                 // ★ M1 修复：记录 WAIT 查询未完成历史
@@ -222,10 +222,11 @@ public class LocalRetryExecutor {
             }
 
             if (queryResult != null && queryResult.isSuccess()) {
-                log.info("[LocalRetryExecutor] Hook confirmed SUCCESS. Triggering doCallback & markSuccess. taskId={}", taskId);
+                int currentCount = (context.getRetryCount() != null && context.getRetryCount() > 0) ? context.getRetryCount() : 1;
+                log.info("[LocalRetryExecutor] Hook confirmed SUCCESS. Triggering doCallback & markSuccess. taskId={}, retryCount={}", taskId, currentCount);
                 hook.doCallback(context, queryResult);
-                retryClient.markSuccess(taskId);
-                safeRecordHistory(taskId, context.getRetryCount(), "SUCCESS", "Method executed and hook confirmed SUCCESS", costMs);
+                updateRetryCountAndStatus(taskId, currentCount, "SUCCESS");
+                safeRecordHistory(taskId, currentCount, "SUCCESS", "Method executed and hook confirmed SUCCESS", costMs);
             } else {
                 // 下游尚未完成或需异步回调确认，进入 WAIT 状态等待下轮查询
                 log.info("[LocalRetryExecutor] Hook returned not-success/pending. Entering WAIT state. taskId={}", taskId);

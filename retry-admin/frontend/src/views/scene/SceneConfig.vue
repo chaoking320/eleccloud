@@ -47,7 +47,9 @@
           <template #default="{ row }">
             <el-switch 
               v-model="row.enabled" 
-              @change="handleStatusChange(row)"
+              :active-value="1"
+              :inactive-value="0"
+              :before-change="() => handleBeforeChange(row)"
               :loading="row.switching"
             />
           </template>
@@ -111,7 +113,7 @@
         </el-form-item>
         
         <el-form-item label="启用状态" prop="enabled">
-          <el-switch v-model="form.enabled" />
+          <el-switch v-model="form.enabled" :active-value="1" :inactive-value="0" />
         </el-form-item>
       </el-form>
       
@@ -174,8 +176,8 @@ const rules = {
 // 计算属性
 const isEdit = computed(() => !!form.id)
 const dialogTitle = computed(() => isEdit.value ? '编辑场景配置' : '新增场景配置')
-const enabledCount = computed(() => sceneList.value.filter(scene => scene.enabled).length)
-const disabledCount = computed(() => sceneList.value.filter(scene => !scene.enabled).length)
+const enabledCount = computed(() => sceneList.value.filter(scene => scene.enabled === 1 || scene.enabled === true).length)
+const disabledCount = computed(() => sceneList.value.filter(scene => scene.enabled === 0 || scene.enabled === false).length)
 
 // 解析重试间隔字符串
 const parseIntervals = (intervals) => {
@@ -205,6 +207,7 @@ const handleAdd = () => {
 // 处理编辑
 const handleEdit = (row) => {
   Object.assign(form, { ...row })
+  form.enabled = (row.enabled === 1 || row.enabled === true) ? 1 : 0
   dialogVisible.value = true
 }
 
@@ -231,13 +234,14 @@ const handleDelete = async (row) => {
   }
 }
 
-// 处理状态切换
-const handleStatusChange = async (row) => {
-  const originalStatus = row.enabled
-  const action = row.enabled ? '启用' : '禁用'
+// 处理状态切换（使用 before-change 机制，彻底避免加载时误触发）
+const handleBeforeChange = (row) => {
+  const currentEnabled = (row.enabled === 1 || row.enabled === true) ? 1 : 0
+  const nextStatus = currentEnabled === 1 ? 0 : 1
+  const action = nextStatus === 1 ? '启用' : '禁用'
   
-  try {
-    await ElMessageBox.confirm(
+  return new Promise((resolve, reject) => {
+    ElMessageBox.confirm(
       `确定要${action}场景"${row.sceneName}"吗？`,
       `确认${action}`,
       {
@@ -245,24 +249,23 @@ const handleStatusChange = async (row) => {
         cancelButtonText: '取消',
         type: 'warning'
       }
-    )
-    
-    row.switching = true
-    
-    // 构建更新数据，只包含enabled字段
-    const updateData = { enabled: row.enabled }
-    
-    await sceneApi.updateScene(row.id, updateData)
-    ElMessage.success(`${action}成功`)
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(`${action}失败：` + (error.response?.data?.message || error.message))
-    }
-    // 恢复原状态
-    row.enabled = originalStatus
-  } finally {
-    row.switching = false
-  }
+    ).then(async () => {
+      try {
+        row.switching = true
+        await sceneApi.updateScene(row.id, { enabled: nextStatus })
+        ElMessage.success(`${action}成功`)
+        await loadSceneList()
+        resolve(true)
+      } catch (error) {
+        ElMessage.error(`${action}失败：` + (error.response?.data?.message || error.message))
+        reject(false)
+      } finally {
+        row.switching = false
+      }
+    }).catch(() => {
+      reject(false)
+    })
+  })
 }
 
 // 处理表单提交
