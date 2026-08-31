@@ -241,19 +241,48 @@ public class RetryClientImpl implements RetryClient {
      */
     private void validateRequest(RetryTaskRequest request) {
         if (request == null) {
-            throw new IllegalArgumentException("RetryTaskRequest cannot be null");
+            throw new IllegalArgumentException(
+                "RetryTaskRequest cannot be null.\n" +
+                "This usually indicates an internal error in retry task creation.\n" +
+                "Please check your @RetryableTask annotation configuration."
+            );
         }
         if (request.getSceneType() == null) {
-            throw new IllegalArgumentException("SceneType cannot be null");
+            throw new IllegalArgumentException(
+                "SceneType cannot be null.\n" +
+                "Solution: Specify a valid sceneType in @RetryableTask annotation.\n" +
+                "Example: @RetryableTask(sceneType = 1001, idempotentKey = \"#orderId\")\n" +
+                "Note: SceneType must be configured in retry-server before use."
+            );
         }
         if (request.getIdempotentKey() == null || request.getIdempotentKey().isEmpty()) {
-            throw new IllegalArgumentException("IdempotentKey cannot be null or empty");
+            throw new IllegalArgumentException(
+                "IdempotentKey cannot be null or empty.\n" +
+                "The idempotent key is used to uniquely identify a retry task.\n" +
+                "Solution: Ensure the parameter specified in @RetryableTask exists and has a non-null value.\n" +
+                "Example: @RetryableTask(sceneType = 1001, idempotentKey = \"#orderId\")\n" +
+                "Check: The method parameter 'orderId' must not be null when called."
+            );
         }
         if (request.getMethodClass() == null || request.getMethodClass().isEmpty()) {
-            throw new IllegalArgumentException("MethodClass cannot be null or empty");
+            throw new IllegalArgumentException(
+                "MethodClass cannot be null or empty.\n" +
+                "This is an internal error - the retry framework should automatically capture the method class.\n" +
+                "Possible causes:\n" +
+                "1. AOP proxy configuration issue\n" +
+                "2. Method called from non-Spring-managed bean\n" +
+                "Solution: Ensure the annotated method is in a Spring-managed bean (@Service, @Component, etc.)"
+            );
         }
         if (request.getMethodName() == null || request.getMethodName().isEmpty()) {
-            throw new IllegalArgumentException("MethodName cannot be null or empty");
+            throw new IllegalArgumentException(
+                "MethodName cannot be null or empty.\n" +
+                "This is an internal error - the retry framework should automatically capture the method name.\n" +
+                "Possible causes:\n" +
+                "1. AOP proxy configuration issue\n" +
+                "2. Reflection limitation in current environment\n" +
+                "Solution: Check Spring AOP configuration and ensure @EnableAspectJAutoProxy is present."
+            );
         }
     }
 

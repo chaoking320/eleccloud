@@ -24,12 +24,29 @@ public class ParameterExtractor {
      */
     public static String extractIdempotentKey(MethodSignature signature, Object[] args, String idempotentKeyName) {
         if (args == null || args.length == 0) {
-            throw new IllegalArgumentException("Method has no parameters to extract idempotent key");
+            throw new IllegalArgumentException(
+                "Cannot extract idempotent key: method has no parameters.\n" +
+                "Method: " + signature.getMethod().getDeclaringClass().getName() + "." + signature.getName() + "\n" +
+                "Idempotent key: " + idempotentKeyName + "\n" +
+                "Solution: Add at least one parameter to the method or use a different idempotent key source."
+            );
         }
         
         String[] parameterNames = signature.getParameterNames();
         if (parameterNames == null || parameterNames.length == 0) {
-            throw new IllegalStateException("Failed to resolve parameter names. Ensure Spring AOP is working.");
+            throw new IllegalStateException(
+                "Failed to resolve parameter names - this is required for @RetryableTask to work.\n" +
+                "Method: " + signature.getMethod().getDeclaringClass().getName() + "." + signature.getName() + "\n" +
+                "Root cause: Spring AOP is not configured to preserve parameter names.\n" +
+                "Solution: Add the following to your pom.xml:\n" +
+                "  <plugin>\n" +
+                "    <groupId>org.apache.maven.plugins</groupId>\n" +
+                "    <artifactId>maven-compiler-plugin</artifactId>\n" +
+                "    <configuration>\n" +
+                "      <parameters>true</parameters>  <!-- Enable parameter name preservation -->\n" +
+                "    </configuration>\n" +
+                "  </plugin>"
+            );
         }
 
         // 兼容 SpEL 风格前缀（如 "#orderId"），去掉前导 '#' 后按参数名匹配
@@ -45,7 +62,13 @@ public class ParameterExtractor {
             if (normalizedKey.equals(paramName)) {
                 Object value = args[i];
                 if (value == null) {
-                    throw new IllegalArgumentException("Idempotent key value is null");
+                    throw new IllegalArgumentException(
+                        "Idempotent key value is null - cannot use null as idempotent key.\n" +
+                        "Method: " + signature.getMethod().getDeclaringClass().getName() + "." + signature.getName() + "\n" +
+                        "Parameter: " + paramName + " (position " + i + ")\n" +
+                        "Idempotent key: " + idempotentKeyName + "\n" +
+                        "Solution: Ensure the parameter value is not null before calling this method."
+                    );
                 }
                 return value.toString();
             }
@@ -63,7 +86,25 @@ public class ParameterExtractor {
             }
         }
         
-        throw new IllegalArgumentException("Idempotent key not found: " + idempotentKeyName);
+        // 构建友好的错误提示
+        StringBuilder errorMsg = new StringBuilder();
+        errorMsg.append("Idempotent key '").append(idempotentKeyName).append("' not found in method parameters.\n");
+        errorMsg.append("Method: ").append(signature.getMethod().getDeclaringClass().getName())
+                .append(".").append(signature.getName()).append("\n");
+        errorMsg.append("Available parameters: [");
+        for (int i = 0; i < parameterNames.length; i++) {
+            if (i > 0) errorMsg.append(", ");
+            errorMsg.append(parameterNames[i]).append(" (").append(args[i] != null ? args[i].getClass().getSimpleName() : "null").append(")");
+        }
+        errorMsg.append("]\n");
+        errorMsg.append("Requested key: ").append(normalizedKey).append("\n\n");
+        errorMsg.append("Common solutions:\n");
+        errorMsg.append("1. Check parameter name spelling (case-sensitive)\n");
+        errorMsg.append("2. If using SpEL syntax, ensure format is correct: @RetryableTask(idempotentKey = \"#paramName\")\n");
+        errorMsg.append("3. If extracting from object field, ensure the field/getter exists\n");
+        errorMsg.append("4. Verify Maven compiler plugin has <parameters>true</parameters> enabled\n");
+        
+        throw new IllegalArgumentException(errorMsg.toString());
     }
     
     /**

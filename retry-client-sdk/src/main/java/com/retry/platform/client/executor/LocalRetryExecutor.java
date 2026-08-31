@@ -161,7 +161,11 @@ public class LocalRetryExecutor {
             QueryResult queryResult = hook.doQuery(context);
             long costMs = System.currentTimeMillis() - startTime;
             if (queryResult.isSuccess()) {
-                int currentCount = (context.getRetryCount() != null && context.getRetryCount() > 0) ? context.getRetryCount() : 1;
+                // 防御性编程：处理可能的null值
+                int currentCount = context.getRetryCount() != null ? context.getRetryCount() : 1;
+                if (currentCount <= 0) {
+                    currentCount = 1; // 保证至少为1
+                }
                 log.info("[LocalRetryExecutor] Query confirmed SUCCESS. Triggering doCallback. taskId={}, retryCount={}", taskId, currentCount);
                 hook.doCallback(context, queryResult);
                 updateRetryCountAndStatus(taskId, currentCount, "SUCCESS");
@@ -169,14 +173,16 @@ public class LocalRetryExecutor {
             } else {
                 log.info("[LocalRetryExecutor] Query returned failure/pending. Rescheduling. taskId={}", taskId);
                 // ★ M1 修复：记录 WAIT 查询未完成历史
-                safeRecordHistory(taskId, context.getRetryCount(), "PENDING", "doQuery returned not-success", costMs);
+                int currentCount = context.getRetryCount() != null ? context.getRetryCount() : 0;
+                safeRecordHistory(taskId, currentCount, "PENDING", "doQuery returned not-success", costMs);
                 scheduleNext(payload, "WAIT");
             }
         } catch (Exception e) {
             long costMs = System.currentTimeMillis() - startTime;
             log.error("[LocalRetryExecutor] Query failed. Rescheduling. taskId={}", taskId, e);
             // ★ M1 修复：记录 WAIT 查询异常历史
-            safeRecordHistory(taskId, context.getRetryCount(), "FAILED", e.getMessage(), costMs);
+            int currentCount = context.getRetryCount() != null ? context.getRetryCount() : 0;
+            safeRecordHistory(taskId, currentCount, "FAILED", e.getMessage(), costMs);
             scheduleNext(payload, "WAIT");
         }
     }
@@ -222,7 +228,11 @@ public class LocalRetryExecutor {
             }
 
             if (queryResult != null && queryResult.isSuccess()) {
-                int currentCount = (context.getRetryCount() != null && context.getRetryCount() > 0) ? context.getRetryCount() : 1;
+                // 防御性编程：处理可能的null值
+                int currentCount = context.getRetryCount() != null ? context.getRetryCount() : 1;
+                if (currentCount <= 0) {
+                    currentCount = 1; // 保证至少为1
+                }
                 log.info("[LocalRetryExecutor] Hook confirmed SUCCESS. Triggering doCallback & markSuccess. taskId={}, retryCount={}", taskId, currentCount);
                 hook.doCallback(context, queryResult);
                 updateRetryCountAndStatus(taskId, currentCount, "SUCCESS");
@@ -230,13 +240,18 @@ public class LocalRetryExecutor {
             } else {
                 // 下游尚未完成或需异步回调确认，进入 WAIT 状态等待下轮查询
                 log.info("[LocalRetryExecutor] Hook returned not-success/pending. Entering WAIT state. taskId={}", taskId);
-                safeRecordHistory(taskId, context.getRetryCount(), "WAIT", "Method executed, waiting for callback/query", costMs);
+                int currentCount = context.getRetryCount() != null ? context.getRetryCount() : 0;
+                safeRecordHistory(taskId, currentCount, "WAIT", "Method executed, waiting for callback/query", costMs);
                 scheduleNext(payload, "WAIT");
             }
 
         } catch (Exception e) {
             long costMs = System.currentTimeMillis() - startTime;
-            int currentCount = (context.getRetryCount() != null && context.getRetryCount() > 0) ? context.getRetryCount() : 1;
+            // 防御性编程：处理可能的null值
+            int currentCount = context.getRetryCount() != null ? context.getRetryCount() : 1;
+            if (currentCount <= 0) {
+                currentCount = 1; // 保证至少为1
+            }
             log.warn("[LocalRetryExecutor] Local method invocation failed: taskId={}, retryCount={}, error={}", 
                     taskId, currentCount, e.getMessage());
             safeRecordHistory(taskId, currentCount, "FAILED",
@@ -247,12 +262,17 @@ public class LocalRetryExecutor {
 
     private void scheduleNext(RetryMessagePayload payload, String targetStatus) {
         String taskId = payload.getTaskId();
-        int currentCount = (payload.getRetryCount() != null && payload.getRetryCount() > 0) ? payload.getRetryCount() : 1;
+        // 防御性编程：处理可能的null值
+        int currentCount = payload.getRetryCount() != null ? payload.getRetryCount() : 1;
+        if (currentCount <= 0) {
+            currentCount = 1; // 保证至少为1
+        }
 
-        // 次数上限检查
-        if (payload.getMaxRetryCount() != null && currentCount >= payload.getMaxRetryCount()) {
+        // 次数上限检查 - 防御性处理maxRetryCount可能为null
+        Integer maxRetryCount = payload.getMaxRetryCount();
+        if (maxRetryCount != null && maxRetryCount > 0 && currentCount >= maxRetryCount) {
             log.warn("[LocalRetryExecutor] Reached max retry count ({}/{}). Marking FAILED. taskId={}", 
-                    currentCount, payload.getMaxRetryCount(), taskId);
+                    currentCount, maxRetryCount, taskId);
             markFailed(taskId, "Exceeded max retry count limit");
             return;
         }

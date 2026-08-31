@@ -85,15 +85,25 @@ public class RetryTaskServiceImpl implements RetryTaskService {
         retryTask.setTaskStatus("INIT");
         retryTask.setSubmitMode(request.getSubmitMode() != null ? request.getSubmitMode() : "POST_FAIL");
         retryTask.setRetryCount(0);
-        retryTask.setMaxRetryCount(sceneConfig.getMaxRetryCount());
+        // 防御性编程：sceneConfig.getMaxRetryCount() 可能为null
+        Integer maxRetryCount = sceneConfig.getMaxRetryCount();
+        retryTask.setMaxRetryCount(maxRetryCount != null ? maxRetryCount : 3); // 默认最多重试3次
         
         // 6. 计算下次重试时间（首轮重试，retryCount=0）
         // 注意：LINEAR/EXPONENTIAL/FIXED 策略的 retry_intervals 在库中可能为 NULL，
         // 不能硬取 retryIntervals.get(0)，必须按退避策略 + 基数计算（与 RetryControlServiceImpl 保持一致）
-        long nextRetryTime = sceneConfig.getBackoffStrategyEnum().calculateNextRetryTime(
-                0,
-                sceneConfig.getBackoffBaseOrDefault(),
-                sceneConfig.getRetryIntervalList());
+        long nextRetryTime;
+        try {
+            nextRetryTime = sceneConfig.getBackoffStrategyEnum().calculateNextRetryTime(
+                    0,
+                    sceneConfig.getBackoffBaseOrDefault(),
+                    sceneConfig.getRetryIntervalList());
+        } catch (Exception e) {
+            // 如果计算失败，使用默认值（1分钟后重试）
+            log.warn("Failed to calculate next retry time for taskId={}, using default 60s. Error: {}", 
+                    taskId, e.getMessage());
+            nextRetryTime = System.currentTimeMillis() + 60 * 1000L;
+        }
         retryTask.setNextRetryTime(nextRetryTime);
         
         LocalDateTime now = LocalDateTime.now();
@@ -144,6 +154,10 @@ public class RetryTaskServiceImpl implements RetryTaskService {
             dto.setBackoffStrategy(sceneConfig.getBackoffStrategy());
             dto.setBackoffBase(sceneConfig.getBackoffBase());
             dto.setRetryIntervals(sceneConfig.getRetryIntervals());
+        } else {
+            // 防御性编程：场景配置可能已被删除，记录警告但不抛异常
+            log.warn("Scene config not found for taskId={}, sceneType={}. Task will use default retry strategy.", 
+                    taskId, retryTask.getSceneType());
         }
         
         return dto;
@@ -191,18 +205,29 @@ public class RetryTaskServiceImpl implements RetryTaskService {
     @Override
     public void recordHistory(String taskId, Integer retryCount, String executeResult, 
                              String errorMessage, Integer costTime) {
+        // 防御性编程：处理可能的null值
+        if (taskId == null || taskId.trim().isEmpty()) {
+            log.warn("Cannot record history: taskId is null or empty");
+            return;
+        }
+        
         RetryHistory history = new RetryHistory();
         history.setTaskId(taskId);
-        history.setRetryCount(retryCount);
+        history.setRetryCount(retryCount != null ? retryCount : 0);
         history.setExecuteTime(LocalDateTime.now());
-        history.setExecuteResult(executeResult);
+        history.setExecuteResult(executeResult != null ? executeResult : "UNKNOWN");
         history.setErrorMessage(errorMessage);
-        history.setCostTime(costTime);
+        history.setCostTime(costTime != null ? costTime : 0);
         history.setCreateTime(LocalDateTime.now());
         
-        retryHistoryMapper.insert(history);
-        log.debug("Recorded task history: taskId={}, retryCount={}, result={}", 
-                taskId, retryCount, executeResult);
+        try {
+            retryHistoryMapper.insert(history);
+            log.debug("Recorded task history: taskId={}, retryCount={}, result={}", 
+                    taskId, retryCount, executeResult);
+        } catch (Exception e) {
+            // 历史记录失败不应影响主流程，只记录错误日志
+            log.error("Failed to record history for taskId={}: {}", taskId, e.getMessage());
+        }
     }
     
     @Override
