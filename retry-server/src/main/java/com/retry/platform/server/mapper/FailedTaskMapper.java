@@ -63,4 +63,11 @@ public interface FailedTaskMapper {
      * @return 影响行数
      */
     int deleteByTaskId(@Param("taskId") String taskId);
+
+    /**
+     * 统计指定时间之后的失败任务数量
+     * @param startTime 开始时间
+     * @return 失败任务数量
+     */
+    int countFailedTasksSince(@Param("startTime") LocalDateTime startTime);
 }

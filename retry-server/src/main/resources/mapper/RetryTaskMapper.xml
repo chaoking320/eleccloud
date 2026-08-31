@@ -172,4 +172,10 @@
         </where>
     </select>
 
+    <delete id="deleteSuccessTasksBefore">
+        DELETE FROM retry_task
+        WHERE task_status = 'SUCCESS'
+          AND update_time &lt; #{beforeDate}
+    </delete>
+
 </mapper>

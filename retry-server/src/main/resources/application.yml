@@ -5,6 +5,23 @@ spring:
   application:
     name: retry-server
   
+  # 邮件配置（可选，启用邮件告警时需要配置）
+  mail:
+    host: smtp.example.com  # SMTP服务器地址
+    port: 465
+    username: noreply@example.com  # 发件邮箱
+    password: your-email-password   # 邮箱密码或授权码
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          ssl:
+            enable: true
+    default-encoding: UTF-8
+  
   datasource:
     url: jdbc:mysql://127.0.0.1:3306/retry_platform?useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&rewriteBatchedStatements=true&useSSL=false&serverTimezone=GMT%2B8
     username: root
@@ -53,6 +70,58 @@ mybatis:
 
 # 重试平台配置
 retry:
+  # 安全配置
+  security:
+    enabled: true  # 是否启用API鉴权，生产环境必须为true，开发环境可设置为false
+    api-keys: demo-key-12345678,prod-key-87654321  # 支持多个API Key，逗号分隔
+    whitelist: /actuator/**,/error  # 白名单路径，不需要鉴权
+
+  # 告警配置
+  alert:
+    enabled: false  # 是否启用告警（默认关闭，生产环境建议开启）
+    channels: EMAIL,DINGTALK  # 告警渠道，支持：EMAIL, DINGTALK, WECHAT
+    
+    # 邮件告警配置
+    email:
+      recipients:
+        - admin@example.com
+        - ops@example.com
+      from-name: ElecCloud Alert
+    
+    # 钉钉告警配置
+    dingtalk:
+      webhook: https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN
+      secret: YOUR_SECRET  # 可选，加签密钥
+      keyword: 告警  # 可选，安全设置关键词
+      at-mobiles:  # 可选，@指定人的手机号
+        - "13800138000"
+      at-all: false  # 是否@所有人
+    
+    # 企业微信告警配置
+    wechat:
+      webhook: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_KEY
+      mentioned-list:  # 可选，@指定人的userid
+        - user1
+      mentioned-mobile-list:  # 可选，@指定人的手机号
+        - "13800138000"
+    
+    # 告警阈值配置
+    threshold:
+      failed-tasks-per-hour: 10  # 死信任务突增阈值（个/小时）
+      failure-rate-percent: 20   # 执行失败率阈值（百分比）
+      time-window-minutes: 60    # 统计时间窗口（分钟）
+      enable-failed-task-alert: true   # 是否启用死信突增告警
+      enable-failure-rate-alert: true  # 是否启用失败率告警
+
+  # 数据归档配置
+  archive:
+    enabled: false  # 是否启用数据归档（默认关闭，生产环境建议开启）
+    history-retention-days: 90  # 历史记录保留天数
+    success-task-retention-days: 30  # 成功任务保留天数
+    history-clean-cron: "0 0 3 * * ?"  # 历史清理定时任务（每天凌晨3点）
+    success-clean-cron: "0 0 4 * * ?"  # 成功任务清理定时任务（每天凌晨4点）
+    export-dir: ./data/export  # 失败任务导出目录
+  
   client:
     consumer-enabled: false  # 服务端只调度/触发消息，不执行本地重试消费
     queue-name: retry.delayed.queue # 统一延时队列名

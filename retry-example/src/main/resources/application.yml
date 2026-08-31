@@ -19,6 +19,7 @@ retry:
   client:
     server-url: http://localhost:8080   # ElecCloud Server 地址
     enabled: true
+    api-key: demo-key-12345678          # API Key（需与服务端配置匹配）
     mq-type: REDIS                      # 延时队列类型：REDIS 或 RABBITMQ
     queue-name: retry.delayed.queue     # 统一业务线延时队列名
     dev-mode: false                     # true 时仅打日志，不实际提交

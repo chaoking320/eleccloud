@@ -4,6 +4,7 @@ import com.retry.platform.server.entity.RetryTask;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -54,9 +55,9 @@ public interface RetryTaskMapper {
 
     /**
      * 将超时卡死在 EXECUTING 状态的任务回滚为 INIT，供后续重试消费。
-     * <p>修复 Bug6：进程被 kill -9 / OOM Killer 强杀后，任务状态永久卡在 EXECUTING。
+     * 修复 Bug6：进程被 kill -9 / OOM Killer 强杀后，任务状态永久卡在 EXECUTING。
      *
-     * @param timeoutMillis 超时鈰值（update_time 超过该时间前则视为卡死）
+     * @param timeoutMillis 超时阈值（update_time 超过该时间前则视为卡死）
      * @return 回滚的任务数
      */
     int recoverStuckExecutingTasks(@Param("timeoutMillis") long timeoutMillis);
@@ -132,4 +133,11 @@ public interface RetryTaskMapper {
     long countByConditions(@Param("sceneType") Integer sceneType,
                           @Param("idempotentKey") String idempotentKey,
                           @Param("taskStatus") String taskStatus);
+
+    /**
+     * 删除指定时间之前更新的成功任务
+     * @param beforeDate 截止时间
+     * @return 删除的记录数
+     */
+    int deleteSuccessTasksBefore(@Param("beforeDate") LocalDateTime beforeDate);
 }

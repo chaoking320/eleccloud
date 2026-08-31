@@ -84,4 +84,10 @@
         WHERE task_id = #{taskId}
     </delete>
 
+    <select id="countFailedTasksSince" resultType="java.lang.Integer">
+        SELECT COUNT(*)
+        FROM failed_task
+        WHERE fail_time &gt;= #{startTime}
+    </select>
+
 </mapper>

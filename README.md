@@ -72,6 +72,8 @@ eleccloud/
 | [架构设计](docs/ARCHITECTURE.md) | 整体架构图、状态机流转、业务线隔离原理、数据库 ER 图 |
 | [SDK 接入指南](docs/SDK_GUIDE.md) | 5 分钟上手、三种接入模式、配置详解、RetryHook 开发规范 |
 | [部署运维手册](docs/DEPLOYMENT.md) | Docker Compose 一键部署、手动部署、Prometheus 监控 |
+| [安全配置指南](docs/SECURITY.md) | API Key 鉴权、密钥管理、安全最佳实践 |
+| [告警配置指南](docs/ALERT_GUIDE.md) | 邮件/钉钉/企业微信告警、阈值配置、故障排查 |
 
 ---
 

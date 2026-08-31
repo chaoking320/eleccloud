@@ -31,7 +31,7 @@ import org.springframework.web.client.RestTemplate;
 public class RetryClientAutoConfiguration {
     
     /**
-     * 配置RestTemplate
+     * 配置RestTemplate（支持API Key鉴权）
      */
     @Bean
     @ConditionalOnMissingBean(name = "retryRestTemplate")
@@ -41,6 +41,16 @@ public class RetryClientAutoConfiguration {
         factory.setReadTimeout(properties.getReadTimeout());
         
         RestTemplate restTemplate = new RestTemplate(factory);
+        
+        // 如果配置了API Key，添加拦截器自动注入Header
+        if (properties.getApiKey() != null && !properties.getApiKey().isEmpty()) {
+            restTemplate.getInterceptors().add((request, body, execution) -> {
+                request.getHeaders().add("X-API-Key", properties.getApiKey());
+                return execution.execute(request, body);
+            });
+            log.info("RetryClient RestTemplate initialized with API Key authentication");
+        }
+        
         log.info("RetryClient RestTemplate initialized. ServerUrl: {}, DevMode: {}", 
                 properties.getServerUrl(), properties.isDevMode());
         return restTemplate;

@@ -4,6 +4,7 @@ import com.retry.platform.server.entity.RetryHistory;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -11,32 +12,31 @@ import java.util.List;
  */
 @Mapper
 public interface RetryHistoryMapper {
-    
+
     /**
-     * 插入重试历史
-     * @param retryHistory 重试历史
-     * @return 影响行数
+     * 插入重试历史记录
      */
-    int insert(RetryHistory retryHistory);
-    
+    int insert(RetryHistory history);
+
     /**
      * 根据任务ID查询历史记录
-     * @param taskId 任务ID
-     * @return 重试历史列表
      */
     List<RetryHistory> selectByTaskId(@Param("taskId") String taskId);
-    
+
     /**
-     * 根据任务ID查询最新一条历史记录
-     * @param taskId 任务ID
-     * @return 重试历史
+     * 统计指定时间之后的执行次数
      */
-    RetryHistory selectLatestByTaskId(@Param("taskId") String taskId);
-    
+    int countExecutionsSince(@Param("startTime") LocalDateTime startTime);
+
     /**
-     * 根据任务ID删除历史记录
-     * @param taskId 任务ID
-     * @return 影响行数
+     * 统计指定时间之后的失败执行次数
      */
-    int deleteByTaskId(@Param("taskId") String taskId);
+    int countFailedExecutionsSince(@Param("startTime") LocalDateTime startTime);
+
+    /**
+     * 删除指定时间之前的历史记录
+     * @param beforeDate 截止时间
+     * @return 删除的记录数
+     */
+    int deleteByExecuteTimeBefore(@Param("beforeDate") LocalDateTime beforeDate);
 }

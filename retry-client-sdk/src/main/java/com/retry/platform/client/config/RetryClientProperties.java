@@ -54,4 +54,9 @@ public class RetryClientProperties {
      * 是否启用本地重试消费者（服务端或Admin只发消息不消费时设为 false）
      */
     private boolean consumerEnabled = true;
+
+    /**
+     * API Key（用于服务端鉴权）
+     */
+    private String apiKey;
 }

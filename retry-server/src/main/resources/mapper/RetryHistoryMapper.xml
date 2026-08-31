@@ -14,15 +14,9 @@
         <result column="create_time" property="createTime" jdbcType="TIMESTAMP"/>
     </resultMap>
 
-    <sql id="Base_Column_List">
-        id, task_id, retry_count, execute_time, execute_result, 
-        error_message, cost_time, create_time
-    </sql>
-
-    <insert id="insert" parameterType="com.retry.platform.server.entity.RetryHistory"
-            useGeneratedKeys="true" keyProperty="id">
+    <insert id="insert" parameterType="com.retry.platform.server.entity.RetryHistory">
         INSERT INTO retry_history (
-            task_id, retry_count, execute_time, execute_result,
+            task_id, retry_count, execute_time, execute_result, 
             error_message, cost_time, create_time
         ) VALUES (
             #{taskId}, #{retryCount}, #{executeTime}, #{executeResult},
@@ -31,23 +25,28 @@
     </insert>
 
     <select id="selectByTaskId" resultMap="BaseResultMap">
-        SELECT <include refid="Base_Column_List"/>
+        SELECT *
         FROM retry_history
         WHERE task_id = #{taskId}
         ORDER BY execute_time DESC
     </select>
 
-    <select id="selectLatestByTaskId" resultMap="BaseResultMap">
-        SELECT <include refid="Base_Column_List"/>
+    <select id="countExecutionsSince" resultType="java.lang.Integer">
+        SELECT COUNT(*)
         FROM retry_history
-        WHERE task_id = #{taskId}
-        ORDER BY execute_time DESC
-        LIMIT 1
+        WHERE execute_time &gt;= #{startTime}
     </select>
 
-    <delete id="deleteByTaskId">
+    <select id="countFailedExecutionsSince" resultType="java.lang.Integer">
+        SELECT COUNT(*)
+        FROM retry_history
+        WHERE execute_time &gt;= #{startTime}
+          AND execute_result = 'FAILED'
+    </select>
+
+    <delete id="deleteByExecuteTimeBefore">
         DELETE FROM retry_history
-        WHERE task_id = #{taskId}
+        WHERE execute_time &lt; #{beforeDate}
     </delete>
 
 </mapper>
