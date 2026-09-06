@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.retry.platform.client.standalone.StandaloneRetryTaskMapper">
+
+    <resultMap id="BaseResultMap" type="com.retry.platform.client.dto.RetryTaskDTO">
+        <result column="task_id"           property="taskId"           jdbcType="VARCHAR"/>
+        <result column="scene_type"        property="sceneType"        jdbcType="INTEGER"/>
+        <result column="idempotent_key"    property="idempotentKey"    jdbcType="VARCHAR"/>
+        <result column="method_class"      property="methodClass"      jdbcType="VARCHAR"/>
+        <result column="method_name"       property="methodName"       jdbcType="VARCHAR"/>
+        <result column="method_params"     property="methodParams"     jdbcType="VARCHAR"/>
+        <result column="hook_class"        property="hookClass"        jdbcType="VARCHAR"/>
+        <result column="method_param_types" property="methodParamTypes" jdbcType="VARCHAR"/>
+        <result column="backoff_strategy"  property="backoffStrategy"  jdbcType="VARCHAR"/>
+        <result column="backoff_base"      property="backoffBase"      jdbcType="INTEGER"/>
+        <result column="retry_intervals"   property="retryIntervals"   jdbcType="VARCHAR"/>
+        <result column="task_status"       property="taskStatus"       jdbcType="VARCHAR"/>
+        <result column="submit_mode"       property="submitMode"       jdbcType="VARCHAR"/>
+        <result column="retry_count"       property="retryCount"       jdbcType="INTEGER"/>
+        <result column="max_retry_count"   property="maxRetryCount"    jdbcType="INTEGER"/>
+        <result column="next_retry_time"   property="nextRetryTime"    jdbcType="BIGINT"/>
+        <result column="create_time"       property="createTime"       jdbcType="TIMESTAMP"/>
+        <result column="update_time"       property="updateTime"       jdbcType="TIMESTAMP"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        task_id, scene_type, idempotent_key, method_class, method_name,
+        method_params, hook_class, method_param_types, backoff_strategy, backoff_base,
+        retry_intervals, task_status, submit_mode, retry_count, max_retry_count,
+        next_retry_time, create_time, update_time
+    </sql>
+
+    <!-- 插入任务 -->
+    <insert id="insert" parameterType="com.retry.platform.client.dto.RetryTaskDTO">
+        INSERT INTO retry_task (
+            task_id, scene_type, idempotent_key, method_class, method_name,
+            method_params, hook_class, method_param_types, backoff_strategy, backoff_base,
+            retry_intervals, task_status, submit_mode, retry_count, max_retry_count,
+            next_retry_time, create_time, update_time
+        ) VALUES (
+            #{taskId}, #{sceneType}, #{idempotentKey}, #{methodClass}, #{methodName},
+            #{methodParams}, #{hookClass}, #{methodParamTypes}, #{backoffStrategy}, #{backoffBase},
+            #{retryIntervals}, #{taskStatus}, #{submitMode}, #{retryCount}, #{maxRetryCount},
+            #{nextRetryTime}, NOW(), NOW()
+        )
+    </insert>
+
+    <!-- 按 taskId 查询 -->
+    <select id="selectByTaskId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM retry_task
+        WHERE task_id = #{taskId}
+    </select>
+
+    <!-- 按场景+幂等键查询（幂等判断用） -->
+    <select id="selectBySceneAndIdempotentKey" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM retry_task
+        WHERE scene_type = #{sceneType}
+          AND idempotent_key = #{idempotentKey}
+        LIMIT 1
+    </select>
+
+    <!-- 更新任务状态 -->
+    <update id="updateStatus">
+        UPDATE retry_task
+        SET task_status = #{taskStatus},
+            update_time = NOW()
+        WHERE task_id = #{taskId}
+    </update>
+
+    <!--
+        原子 CAS 抢占：仅当 task_status IN ('INIT', 'WAIT') 时才更新为 EXECUTING。
+        数据库行级加锁，多节点并发消费同一任务时只有一个节点 affected rows = 1，
+        其他节点返回 0，彻底避免 Check-Then-Act 竞态。
+    -->
+    <update id="casUpdateToExecuting">
+        UPDATE retry_task
+        SET task_status = 'EXECUTING',
+            update_time  = NOW()
+        WHERE task_id    = #{taskId}
+          AND task_status IN ('INIT', 'WAIT')
+    </update>
+
+    <!-- 更新重试计数、状态与下次重试时间 -->
+    <update id="updateStatusAndRetryInfo">
+        UPDATE retry_task
+        SET task_status     = #{taskStatus},
+            retry_count     = #{retryCount},
+            next_retry_time = #{nextRetryTime},
+            update_time     = NOW()
+        WHERE task_id = #{taskId}
+    </update>
+
+    <!-- 执行异常时回滚为 INIT，记录 error_msg -->
+    <update id="rollbackToPending">
+        UPDATE retry_task
+        SET task_status = 'INIT',
+            update_time = NOW()
+        WHERE task_id = #{taskId}
+    </update>
+
+    <!--
+        数据库兜底：查询已到执行时间但未被 MQ 消费的任务。
+        用于定时兜底扫描，防止 MQ 消息丢失导致任务永久停滞。
+    -->
+    <select id="selectPendingTasks" resultType="java.lang.String">
+        SELECT task_id
+        FROM retry_task
+        WHERE task_status IN ('INIT', 'WAIT')
+          AND next_retry_time &lt;= #{currentTime}
+        ORDER BY next_retry_time ASC
+        LIMIT #{limit}
+    </select>
+
+    <!--
+        恢复卡死在 EXECUTING 状态的任务（进程被 kill -9 后 update_time 不再更新）。
+        将超时任务回滚为 INIT，供下一轮 CAS 抢占执行。
+    -->
+    <update id="recoverStuckExecutingTasks">
+        UPDATE retry_task
+        SET task_status = 'INIT',
+            update_time  = NOW()
+        WHERE task_status = 'EXECUTING'
+          AND UNIX_TIMESTAMP(update_time) * 1000 &lt; #{timeoutMillis}
+    </update>
+
+</mapper>

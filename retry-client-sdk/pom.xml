@@ -74,5 +74,21 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- MyBatis Spring Boot Starter（Standalone 模式直接操作本地 DB，optional 不强制依赖方引入）-->
+        <dependency>
+            <groupId>org.mybatis.spring.boot</groupId>
+            <artifactId>mybatis-spring-boot-starter</artifactId>
+            <version>2.3.1</version>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Spring Context Support（提供 @EnableScheduling，Standalone 兜底扫描定时任务用）-->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context-support</artifactId>
+            <optional>true</optional>
+        </dependency>
     </dependencies>
+
 </project>

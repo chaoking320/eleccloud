@@ -44,10 +44,9 @@ class RedisFailureRecoveryTest extends BaseIntegrationTest {
 
             // 更新任务状态（应该成功，因为数据库仍然可用）
             taskAfterRedisDown.setTaskStatus("EXECUTING");
-            int updated = retryTaskMapper.updateTaskStatus(
+            int updated = retryTaskMapper.updateStatus(
                     taskAfterRedisDown.getTaskId(),
-                    "EXECUTING",
-                    taskAfterRedisDown.getRetryCount()
+                    "EXECUTING"
             );
             assertTrue(updated > 0);
 

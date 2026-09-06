@@ -8,11 +8,13 @@
 #     * eleccloud
 #     * ragflow (RAGFlow 专用)
 #     * kms (KMS 业务)
+#     * n9e_v6 (Nightingale 监控平台)
 #   - Redis (6379)：每个项目用一个 db 编号区分（0~15）
 #     * db 0 = Demo 应用 SDK 延时队列
 #     * db 1 = eleccloud server/admin 的 spring.redis
 #     * db 2 = eleccloud server/admin 的 Redisson 分布式锁/延时队列
 #     * db 4 = RAGFlow 专用
+#     * db 5 = Nightingale 监控平台
 #   - MinIO (API: 9000, Console: 9001)：每个项目建一个 Bucket 区分
 #     * 用户名: minioadmin，密码: minioadmin
 #     * bucket: ragflow, bucket: eleccloud, bucket: jkkms 等

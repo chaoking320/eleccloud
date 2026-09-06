@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.retry.platform.client.standalone.StandaloneRetryHistoryMapper">
+
+    <!-- 插入执行历史 -->
+    <insert id="insert">
+        INSERT INTO retry_history (
+            task_id, retry_count, execute_time, execute_result,
+            error_message, cost_time, create_time
+        ) VALUES (
+            #{taskId}, #{retryCount}, NOW(), #{executeResult},
+            #{errorMessage}, #{costTimeMs}, NOW()
+        )
+    </insert>
+
+    <!-- 清理过期历史记录 -->
+    <delete id="deleteByExecuteTimeBefore">
+        DELETE FROM retry_history
+        WHERE execute_time &lt; #{beforeDate}
+    </delete>
+
+</mapper>

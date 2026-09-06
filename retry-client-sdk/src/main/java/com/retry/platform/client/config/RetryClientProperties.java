@@ -3,6 +3,9 @@ package com.retry.platform.client.config;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * 重试客户端配置属性
  */
@@ -59,4 +62,15 @@ public class RetryClientProperties {
      * API Key（用于服务端鉴权）
      */
     private String apiKey;
+
+    /**
+     * 运行模式：remote（默认，依赖远程 retry-server）/ standalone（本地模式，无需 Server）
+     */
+    private String mode = "remote";
+
+    /**
+     * Standalone 模式下的场景配置列表（替代 Server DB 中的 scene_config 表）
+     * 每个场景对应一个 @RetryableTask 使用的 sceneType
+     */
+    private List<StandaloneSceneConfig> scenes = new ArrayList<>();
 }

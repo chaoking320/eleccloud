@@ -9,20 +9,93 @@ spring:
     port: 6379
     password: 123456
     database: 0
+  # MySQL 数据源（Standalone 模式需要，在你的业务数据库中建表）
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/retry_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
   # 允许异步 SSE 推送
   mvc:
     async:
       request-timeout: 600000
 
+# ============================================================
 # 分布式重试平台客户端配置
+#
+# 模式一：Remote 模式（默认，依赖 retry-server）
+#   将下面 standalone 部分注释掉，取消 remote 部分注释即可
+# ============================================================
+#retry:
+#  client:
+#    mode: remote                          # 远程模式（默认）
+#    server-url: http://localhost:8080     # ElecCloud Server 地址
+#    enabled: true
+#    api-key: demo-key-12345678
+#    mq-type: REDIS
+#    queue-name: retry.delayed.queue
+
+# ============================================================
+# 模式二：Standalone 模式（无需 retry-server，直接操作本地 DB）
+# 接入步骤：
+#   1. 在你的 DB 中执行 standalone-retry-schema.sql 建表
+#   2. 按需配置 scenes 列表（替代 Server 后台的场景配置）
+#   3. 不需要启动 retry-server
+# ============================================================
 retry:
   client:
-    server-url: http://localhost:8080   # ElecCloud Server 地址
+    mode: standalone                      # ← 开启 Standalone 模式
     enabled: true
-    api-key: demo-key-12345678          # API Key（需与服务端配置匹配）
-    mq-type: REDIS                      # 延时队列类型：REDIS 或 RABBITMQ
-    queue-name: retry.delayed.queue     # 统一业务线延时队列名
-    dev-mode: false                     # true 时仅打日志，不实际提交
+    mq-type: REDIS
+    queue-name: retry.delayed.queue
+
+    # Standalone 模式下的场景配置（替代 Server 后台的 scene_config 表）
+    scenes:
+      # Demo 退款场景（对应 @RetryableTask(sceneType = 10)）
+      - scene-type: 10
+        scene-name: "[Demo] 退款场景"
+        retry-intervals: "0,0,0"          # 间隔（分钟），0 表示立即重试（Demo 用）
+        max-retry-count: 3
+        hook-class: com.retry.platform.example.hook.DemoRefundHook
+
+      # Demo 结算场景
+      - scene-type: 11
+        scene-name: "[Demo] 结算场景"
+        backoff-strategy: FIXED
+        backoff-base: 0                   # 0 分钟间隔（Demo 用）
+        max-retry-count: 3
+        hook-class: com.retry.platform.example.hook.SettlementRetryHook
+
+      # Demo 库存场景
+      - scene-type: 12
+        scene-name: "[Demo] 库存场景"
+        backoff-strategy: FIXED
+        backoff-base: 0
+        max-retry-count: 3
+        hook-class: com.retry.platform.example.hook.InventoryRetryHook
+
+      # 生产级退款场景（按真实间隔）
+      - scene-type: 1
+        scene-name: 电商退款场景
+        retry-intervals: "1,5,10,30"
+        max-retry-count: 4
+        hook-class: com.retry.platform.example.hook.DemoRefundHook
+
+      # 生产级结算场景
+      - scene-type: 2
+        scene-name: 酒店结算场景
+        backoff-strategy: LINEAR
+        backoff-base: 2
+        max-retry-count: 5
+        hook-class: com.retry.platform.example.hook.SettlementRetryHook
+
+      # 生产级库存场景
+      - scene-type: 3
+        scene-name: 库存同步场景
+        backoff-strategy: EXPONENTIAL
+        backoff-base: 1
+        max-retry-count: 5
+        hook-class: com.retry.platform.example.hook.InventoryRetryHook
 
 # Demo 应用自身地址（业务服务调用 MockAPI 时使用）
 app:

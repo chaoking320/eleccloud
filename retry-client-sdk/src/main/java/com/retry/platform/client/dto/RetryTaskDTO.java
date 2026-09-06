@@ -47,6 +47,11 @@ public class RetryTaskDTO implements Serializable {
      * 任务状态
      */
     private String taskStatus;
+
+    /**
+     * 提交模式: POST_FAIL-失败后提交(默认), PRE_SUBMIT-执行前预注册
+     */
+    private String submitMode;
     
     /**
      * 重试次数

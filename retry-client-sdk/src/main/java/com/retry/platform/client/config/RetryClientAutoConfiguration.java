@@ -9,25 +9,43 @@ import com.retry.platform.client.mq.redis.RedisRetryMessageConsumer;
 import com.retry.platform.client.mq.redis.RedisRetryMessageProducer;
 import com.retry.platform.client.mq.rabbit.RabbitRetryMessageConsumer;
 import com.retry.platform.client.mq.rabbit.RabbitRetryMessageProducer;
+import com.retry.platform.client.standalone.StandaloneDatabaseFallbackScheduler;
+import com.retry.platform.client.standalone.StandaloneRetryClientImpl;
+import com.retry.platform.client.standalone.StandaloneRetryHistoryMapper;
+import com.retry.platform.client.standalone.StandaloneRetryTaskMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.ibatis.session.SqlSessionFactory;
+import org.mybatis.spring.SqlSessionFactoryBean;
+import org.mybatis.spring.mapper.MapperFactoryBean;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.client.RestTemplate;
 
 import javax.annotation.PostConstruct;
+import javax.sql.DataSource;
 
 /**
  * 重试客户端自动配置类
+ *
+ * <p>支持两种运行模式，通过 {@code retry.client.mode} 切换：
+ * <ul>
+ *   <li>{@code remote}（默认）：依赖远程 retry-server，HTTP 调用存取任务</li>
+ *   <li>{@code standalone}：本地 DB 直读写，无需部署 retry-server</li>
+ * </ul>
  */
 @Slf4j
 @Configuration
+@EnableScheduling
 @EnableConfigurationProperties(RetryClientProperties.class)
 @ConditionalOnProperty(prefix = "retry.client", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class RetryClientAutoConfiguration {
@@ -40,147 +58,108 @@ public class RetryClientAutoConfiguration {
     
     /**
      * 启动时配置校验 - 快速失败原则
-     * 在应用启动时立即检测配置问题，避免运行时才发现错误
      */
     @PostConstruct
     public void validateConfiguration() {
         log.info("========================================");
         log.info("ElecCloud Retry Client Configuration Validation");
         log.info("========================================");
-        
-        // 1. 校验 server-url（必填）
-        if (properties.getServerUrl() == null || properties.getServerUrl().trim().isEmpty()) {
-            throw new IllegalStateException(
-                "❌ Configuration Error: retry.client.server-url is required but not configured.\n" +
-                "\n" +
-                "The Retry Client needs to know where the Retry Server is located.\n" +
-                "\n" +
-                "Solution: Add the following to your application.yml or application.properties:\n" +
-                "\n" +
-                "YAML format (application.yml):\n" +
-                "  retry:\n" +
-                "    client:\n" +
-                "      enabled: true\n" +
-                "      server-url: http://retry-server:8080  # Change to your actual server address\n" +
-                "      api-key: your-api-key-here            # Required if server security is enabled\n" +
-                "\n" +
-                "Properties format (application.properties):\n" +
-                "  retry.client.enabled=true\n" +
-                "  retry.client.server-url=http://retry-server:8080\n" +
-                "  retry.client.api-key=your-api-key-here\n" +
-                "\n" +
-                "Common server URLs:\n" +
-                "  - Local development: http://localhost:8080\n" +
-                "  - Docker Compose: http://retry-server:8080\n" +
-                "  - Production: https://retry.yourcompany.com\n"
-            );
+
+        String mode = properties.getMode() != null ? properties.getMode().toLowerCase() : "remote";
+
+        if ("standalone".equals(mode)) {
+            // Standalone 模式：不需要 serverUrl，但需要至少配置一个场景
+            log.info("Running in STANDALONE mode (local DB, no retry-server required)");
+            if (properties.getScenes() == null || properties.getScenes().isEmpty()) {
+                log.warn("⚠️  retry.client.scenes is empty in standalone mode. " +
+                         "No retryable scenes configured. All @RetryableTask submissions will fail.");
+            } else {
+                log.info("  - Standalone scenes configured: {}", properties.getScenes().size());
+                properties.getScenes().forEach(s ->
+                    log.info("    scene-type={}, name={}, maxRetry={}, intervals={}, hookClass={}",
+                        s.getSceneType(), s.getSceneName(), s.getMaxRetryCount(),
+                        s.getRetryIntervals(), s.getHookClass())
+                );
+            }
+        } else {
+            // Remote 模式：校验 server-url（必填）
+            if (properties.getServerUrl() == null || properties.getServerUrl().trim().isEmpty()) {
+                throw new IllegalStateException(
+                    "❌ Configuration Error: retry.client.server-url is required but not configured.\n" +
+                    "\n" +
+                    "The Retry Client needs to know where the Retry Server is located.\n" +
+                    "\n" +
+                    "Solution: Add the following to your application.yml or application.properties:\n" +
+                    "\n" +
+                    "YAML format (application.yml):\n" +
+                    "  retry:\n" +
+                    "    client:\n" +
+                    "      enabled: true\n" +
+                    "      server-url: http://retry-server:8080  # Change to your actual server address\n" +
+                    "      api-key: your-api-key-here            # Required if server security is enabled\n" +
+                    "\n" +
+                    "Properties format (application.properties):\n" +
+                    "  retry.client.enabled=true\n" +
+                    "  retry.client.server-url=http://retry-server:8080\n" +
+                    "  retry.client.api-key=your-api-key-here\n" +
+                    "\n" +
+                    "Or switch to standalone mode (no server needed):\n" +
+                    "  retry.client.mode=standalone\n"
+                );
+            }
+            
+            // 校验 server-url 格式
+            String serverUrl = properties.getServerUrl().trim();
+            if (!serverUrl.startsWith("http://") && !serverUrl.startsWith("https://")) {
+                throw new IllegalStateException(
+                    "❌ Configuration Error: retry.client.server-url must start with 'http://' or 'https://'.\n" +
+                    "Current value: " + serverUrl
+                );
+            }
+            log.info("Running in REMOTE mode. Server URL: {}", serverUrl);
         }
         
-        // 2. 校验 server-url 格式
-        String serverUrl = properties.getServerUrl().trim();
-        if (!serverUrl.startsWith("http://") && !serverUrl.startsWith("https://")) {
-            throw new IllegalStateException(
-                "❌ Configuration Error: retry.client.server-url must start with 'http://' or 'https://'.\n" +
-                "Current value: " + serverUrl + "\n" +
-                "\n" +
-                "Valid examples:\n" +
-                "  ✓ http://localhost:8080\n" +
-                "  ✓ https://retry.yourcompany.com\n" +
-                "  ✗ localhost:8080 (missing protocol)\n" +
-                "  ✗ retry-server (missing protocol)\n"
-            );
-        }
-        
-        // 3. 校验超时配置
+        // 通用校验
         if (properties.getConnectTimeout() <= 0) {
-            log.warn("⚠️  Invalid retry.client.connect-timeout: {}ms. Using default: 5000ms", 
-                    properties.getConnectTimeout());
             properties.setConnectTimeout(5000);
-        } else if (properties.getConnectTimeout() < 1000) {
-            log.warn("⚠️  retry.client.connect-timeout is very short: {}ms. Recommended: >= 3000ms", 
-                    properties.getConnectTimeout());
         }
-        
         if (properties.getReadTimeout() <= 0) {
-            log.warn("⚠️  Invalid retry.client.read-timeout: {}ms. Using default: 30000ms", 
-                    properties.getReadTimeout());
             properties.setReadTimeout(30000);
-        } else if (properties.getReadTimeout() < 5000) {
-            log.warn("⚠️  retry.client.read-timeout is very short: {}ms. May cause timeout for slow operations.", 
-                    properties.getReadTimeout());
         }
-        
-        // 4. 校验消费者并发度
         if (properties.getConsumerConcurrency() <= 0) {
-            log.warn("⚠️  Invalid retry.client.consumer-concurrency: {}. Using default: 5", 
-                    properties.getConsumerConcurrency());
             properties.setConsumerConcurrency(5);
-        } else if (properties.getConsumerConcurrency() > 50) {
-            log.warn("⚠️  retry.client.consumer-concurrency is very high: {}. May cause resource exhaustion. Recommended: <= 20", 
-                    properties.getConsumerConcurrency());
         }
-        
-        // 5. 校验队列名称
         if (properties.getQueueName() == null || properties.getQueueName().trim().isEmpty()) {
-            log.warn("⚠️  retry.client.queue-name not configured. Using default: retry-tasks");
-            properties.setQueueName("retry-tasks");
+            properties.setQueueName("retry.delayed.queue");
         }
-        
-        // 6. 校验 MQ 类型
         String mqType = properties.getMqType();
         if (mqType != null && !mqType.isEmpty()) {
             if (!"REDIS".equalsIgnoreCase(mqType) && !"RABBITMQ".equalsIgnoreCase(mqType)) {
                 throw new IllegalStateException(
-                    "❌ Configuration Error: Invalid retry.client.mq-type value: " + mqType + "\n" +
-                    "\n" +
-                    "Supported values:\n" +
-                    "  - REDIS (default, recommended for most cases)\n" +
-                    "  - RABBITMQ (requires RabbitMQ server)\n" +
-                    "\n" +
-                    "Current value: " + mqType + "\n" +
-                    "Solution: Change to one of the supported values.\n"
+                    "❌ Configuration Error: Invalid retry.client.mq-type value: " + mqType +
+                    ". Supported values: REDIS, RABBITMQ"
                 );
             }
         }
         
-        // 7. API Key 检查（警告，不强制）
-        if (properties.getApiKey() == null || properties.getApiKey().trim().isEmpty()) {
-            if (!properties.isDevMode()) {
-                log.warn("========================================");
-                log.warn("⚠️  SECURITY WARNING");
-                log.warn("========================================");
-                log.warn("retry.client.api-key is not configured.");
-                log.warn("If the Retry Server has security enabled, requests will be rejected.");
-                log.warn("");
-                log.warn("Solution: Add to your configuration:");
-                log.warn("  retry.client.api-key: <your-api-key>");
-                log.warn("");
-                log.warn("To obtain an API key, contact your Retry Server administrator");
-                log.warn("or check the server's API key management interface.");
-                log.warn("========================================");
-            }
-        }
-        
-        // 输出配置摘要
         log.info("✅ Configuration validation passed!");
         log.info("Configuration Summary:");
-        log.info("  - Server URL: {}", properties.getServerUrl());
-        log.info("  - Dev Mode: {}", properties.isDevMode());
-        log.info("  - API Key: {}", properties.getApiKey() != null ? "***configured***" : "not configured");
+        log.info("  - Mode: {}", mode);
         log.info("  - MQ Type: {}", properties.getMqType());
         log.info("  - Queue Name: {}", properties.getQueueName());
         log.info("  - Consumer Enabled: {}", properties.isConsumerEnabled());
         log.info("  - Consumer Concurrency: {}", properties.getConsumerConcurrency());
-        log.info("  - Connect Timeout: {}ms", properties.getConnectTimeout());
-        log.info("  - Read Timeout: {}ms", properties.getReadTimeout());
         log.info("========================================");
     }
     
+    // ==================== Remote 模式：RestTemplate + RetryClientImpl ====================
+
     /**
-     * 配置RestTemplate（支持API Key鉴权）
+     * Remote 模式专用 RestTemplate（含 API Key 鉴权拦截器）
      */
-    @Bean
+    @Bean("retryRestTemplate")
     @ConditionalOnMissingBean(name = "retryRestTemplate")
+    @ConditionalOnProperty(prefix = "retry.client", name = "mode", havingValue = "remote", matchIfMissing = true)
     public RestTemplate retryRestTemplate(RetryClientProperties properties) {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(properties.getConnectTimeout());
@@ -188,32 +167,98 @@ public class RetryClientAutoConfiguration {
         
         RestTemplate restTemplate = new RestTemplate(factory);
         
-        // 如果配置了API Key，添加拦截器自动注入Header
         if (properties.getApiKey() != null && !properties.getApiKey().isEmpty()) {
             restTemplate.getInterceptors().add((request, body, execution) -> {
                 request.getHeaders().add("X-API-Key", properties.getApiKey());
                 return execution.execute(request, body);
             });
-            log.info("RetryClient RestTemplate initialized with API Key authentication");
         }
-        
-        log.info("RetryClient RestTemplate initialized. ServerUrl: {}, DevMode: {}", 
-                properties.getServerUrl(), properties.isDevMode());
+        log.info("RetryClient RestTemplate initialized. ServerUrl: {}", properties.getServerUrl());
         return restTemplate;
     }
-    
+
     /**
-     * 注册RetryClient Bean
+     * Remote 模式下注册 RetryClientImpl（HTTP 实现）
      */
     @Bean
-    @ConditionalOnMissingBean
-    public RetryClient retryClient() {
-        log.info("RetryClient bean registered");
+    @ConditionalOnMissingBean(RetryClient.class)
+    @ConditionalOnProperty(prefix = "retry.client", name = "mode", havingValue = "remote", matchIfMissing = true)
+    public RetryClient retryClientRemote() {
+        log.info("[Remote] RetryClientImpl (HTTP) bean registered");
         return new RetryClientImpl();
     }
-    
+
+    // ==================== Standalone 模式：本地 DB Mapper + StandaloneRetryClientImpl ====================
+
     /**
-     * 注册AOP切面
+     * Standalone 模式下注册 SqlSessionFactory（指向业务方主 DataSource）
+     * 不走 @MapperScan，避免与业务方的 MapperScan 冲突
+     */
+    @Bean("standaloneRetrySqlSessionFactory")
+    @ConditionalOnProperty(prefix = "retry.client", name = "mode", havingValue = "standalone")
+    public SqlSessionFactory standaloneRetrySqlSessionFactory(DataSource dataSource) throws Exception {
+        SqlSessionFactoryBean factoryBean = new SqlSessionFactoryBean();
+        factoryBean.setDataSource(dataSource);
+        // 加载 SDK 内置的 Mapper XML
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        factoryBean.setMapperLocations(
+                resolver.getResources("classpath:mapper/standalone/*.xml"));
+        log.info("[Standalone] SqlSessionFactory initialized with mapper: classpath:mapper/standalone/*.xml");
+        return factoryBean.getObject();
+    }
+
+    /**
+     * Standalone 模式下注册 StandaloneRetryTaskMapper
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "retry.client", name = "mode", havingValue = "standalone")
+    public StandaloneRetryTaskMapper standaloneRetryTaskMapper(
+            SqlSessionFactory standaloneRetrySqlSessionFactory) throws Exception {
+        MapperFactoryBean<StandaloneRetryTaskMapper> factoryBean = new MapperFactoryBean<>(StandaloneRetryTaskMapper.class);
+        factoryBean.setSqlSessionFactory(standaloneRetrySqlSessionFactory);
+        return factoryBean.getObject();
+    }
+
+    /**
+     * Standalone 模式下注册 StandaloneRetryHistoryMapper
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "retry.client", name = "mode", havingValue = "standalone")
+    public StandaloneRetryHistoryMapper standaloneRetryHistoryMapper(
+            SqlSessionFactory standaloneRetrySqlSessionFactory) throws Exception {
+        MapperFactoryBean<StandaloneRetryHistoryMapper> factoryBean = new MapperFactoryBean<>(StandaloneRetryHistoryMapper.class);
+        factoryBean.setSqlSessionFactory(standaloneRetrySqlSessionFactory);
+        return factoryBean.getObject();
+    }
+
+    /**
+     * Standalone 模式下注册 RetryClient（本地 DB 实现，替代 HTTP）
+     */
+    @Bean
+    @ConditionalOnMissingBean(RetryClient.class)
+    @ConditionalOnProperty(prefix = "retry.client", name = "mode", havingValue = "standalone")
+    public RetryClient retryClientStandalone(StandaloneRetryTaskMapper taskMapper,
+                                             StandaloneRetryHistoryMapper historyMapper) {
+        log.info("[Standalone] StandaloneRetryClientImpl (local DB) bean registered");
+        return new StandaloneRetryClientImpl(taskMapper, historyMapper, properties);
+    }
+
+    /**
+     * Standalone 模式下注册数据库兜底扫描定时任务
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "retry.client", name = "mode", havingValue = "standalone")
+    public StandaloneDatabaseFallbackScheduler standaloneDatabaseFallbackScheduler(
+            StandaloneRetryTaskMapper taskMapper,
+            RetryMessageProducer retryMessageProducer) {
+        log.info("[Standalone] StandaloneDatabaseFallbackScheduler registered");
+        return new StandaloneDatabaseFallbackScheduler(taskMapper, retryMessageProducer);
+    }
+
+    // ==================== 公共 Bean（两种模式共用）====================
+
+    /**
+     * 注册AOP切面（两种模式均需要）
      */
     @Bean
     @ConditionalOnMissingBean
@@ -223,7 +268,7 @@ public class RetryClientAutoConfiguration {
     }
 
     /**
-     * 注册本地重试状态机驱动器
+     * 注册本地重试状态机驱动器（两种模式均需要）
      */
     @Bean
     @ConditionalOnMissingBean
@@ -247,7 +292,7 @@ public class RetryClientAutoConfiguration {
     }
 
     /**
-     * 2. 装配 REDIS 消费者（仅在 client 端消费；服务端或控制台设 consumer-enabled: false 时不启动）
+     * 2. 装配 REDIS 消费者
      */
     @Bean
     @ConditionalOnProperty(prefix = "retry.client", name = "consumer-enabled", havingValue = "true", matchIfMissing = true)
@@ -276,7 +321,7 @@ public class RetryClientAutoConfiguration {
     }
 
     /**
-     * 4. 装配 RABBITMQ 消费者（仅在 client 端消费；服务端或控制台设 consumer-enabled: false 时不启动）
+     * 4. 装配 RABBITMQ 消费者
      */
     @Bean
     @ConditionalOnProperty(prefix = "retry.client", name = "consumer-enabled", havingValue = "true", matchIfMissing = true)

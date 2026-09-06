@@ -115,7 +115,7 @@ class RetryTaskIntegrationTest extends BaseIntegrationTest {
         // 应该返回错误或相同的taskId
         assertEquals(HttpStatus.OK, response2.getStatusCode());
         // 验证数据库中只有一条记录
-        RetryTask task = retryTaskMapper.selectBySceneAndKey(999, idempotentKey);
+        RetryTask task = retryTaskMapper.selectBySceneAndIdempotentKey(999, idempotentKey);
         assertNotNull(task);
     }
 
