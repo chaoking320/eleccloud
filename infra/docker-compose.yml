@@ -1,4 +1,4 @@
-# 公共基础设施：MySQL + Redis + MinIO + Elasticsearch（独立 Compose 项目，供所有项目共用）
+# 公共基础设施：MySQL + Redis + MinIO + Elasticsearch + PostgreSQL（独立 Compose 项目，供所有项目共用）
 #
 # 启动：
 #   docker compose -p infra -f D:\workspace\mine\eleccloud\infra\docker-compose.yml up -d
@@ -9,6 +9,8 @@
 #     * ragflow (RAGFlow 专用)
 #     * kms (KMS 业务)
 #     * n9e_v6 (Nightingale 监控平台)
+#   - PostgreSQL (5432)：
+#     * coolify (Coolify 专用，用户名: postgres，密码: 123456，库: coolify)
 #   - Redis (6379)：每个项目用一个 db 编号区分（0~15）
 #     * db 0 = Demo 应用 SDK 延时队列
 #     * db 1 = eleccloud server/admin 的 spring.redis
@@ -109,11 +111,33 @@ services:
     networks:
       - shared-network
 
+  postgres:
+    image: postgres:15-alpine
+    container_name: shared-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "123456"
+      POSTGRES_DB: coolify
+      TZ: Asia/Shanghai
+    ports:
+      - "5432:5432"
+    volumes:
+      - shared-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d coolify"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - shared-network
+
 volumes:
   shared-mysql-data:
   shared-redis-data:
   shared-minio-data:
   shared-es-data:
+  shared-postgres-data:
 
 networks:
   shared-network:
