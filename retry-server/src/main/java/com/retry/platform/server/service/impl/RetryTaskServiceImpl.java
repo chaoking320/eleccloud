@@ -131,8 +131,17 @@ public class RetryTaskServiceImpl implements RetryTaskService {
             return existingTask != null ? existingTask.getTaskId() : taskId;
         }
         
-        // 8. 加入Redis延时队列
-        delayQueueService.addTask(taskId, nextRetryTime);
+        // 8. 加入Redis延时队列 (在事务提交后执行)
+        final String finalTaskId = taskId;
+        final long finalNextRetryTime = nextRetryTime;
+        org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+            new org.springframework.transaction.support.TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    delayQueueService.addTask(finalTaskId, finalNextRetryTime);
+                }
+            }
+        );
         
         return taskId;
     }

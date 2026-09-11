@@ -25,7 +25,11 @@ import java.util.Set;
 @ConditionalOnProperty(prefix = "retry.scheduler", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class DatabaseFallbackScheduler {
     
-    private static final String DELAY_QUEUE_KEY = "retry:client:delay:queue:retry.delayed.queue";
+    private final String DELAY_QUEUE_KEY;
+    
+    public DatabaseFallbackScheduler(@Value("${retry.client.queue-name:retry.delayed.queue}") String queueName) {
+        this.DELAY_QUEUE_KEY = "retry:client:delay:queue:" + queueName;
+    }
     
     @Autowired(required = false)
     private RedisTemplate<String, String> redisTemplate;
@@ -109,20 +113,10 @@ public class DatabaseFallbackScheduler {
      */
     private boolean isTaskInRedis(String taskId) {
         try {
-            Long count = redisTemplate.opsForZSet().zCard(DELAY_QUEUE_KEY);
-            if (count == null || count == 0) {
-                return false;
-            }
-            Set<String> members = redisTemplate.opsForZSet().range(DELAY_QUEUE_KEY, 0, -1);
-            if (members == null || members.isEmpty()) {
-                return false;
-            }
-            for (String m : members) {
-                if (m.contains(taskId)) {
-                    return true;
-                }
-            }
-            return false;
+            // O(1) 检查瘦消息（member=taskId）是否存在
+            // 胖消息（member=JSON）无法精确判断，但幂等性由 CAS 保证安全
+            Double score = redisTemplate.opsForZSet().score(DELAY_QUEUE_KEY, taskId);
+            return score != null;
         } catch (Exception e) {
             log.warn("Failed to check task in Redis: taskId={}", taskId, e);
             return false;

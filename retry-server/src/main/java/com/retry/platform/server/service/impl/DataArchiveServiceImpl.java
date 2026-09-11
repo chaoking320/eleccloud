@@ -79,22 +79,6 @@ public class DataArchiveServiceImpl implements DataArchiveService {
                 sceneType, startTime, endTime);
 
         try {
-            // 查询失败任务（最多导出10万条）
-            List<FailedTask> failedTasks = failedTaskMapper.selectByConditions(
-                    sceneType,
-                    null,  // idempotentKey
-                    startTime,
-                    endTime,
-                    0,     // offset
-                    100000 // limit
-            );
-            log.info("[DataArchive] Found {} failed tasks to export", failedTasks.size());
-
-            if (failedTasks.isEmpty()) {
-                log.warn("[DataArchive] No failed tasks found to export");
-                return null;
-            }
-
             // 生成CSV文件
             String fileName = "failed_tasks_" + LocalDateTime.now().format(FILE_FORMATTER) + ".csv";
             File exportFile = new File(exportDir, fileName);
@@ -102,30 +86,59 @@ public class DataArchiveServiceImpl implements DataArchiveService {
             // 创建导出目录
             exportFile.getParentFile().mkdirs();
 
+            int offset = 0;
+            int batchSize = 1000;
+            int totalExported = 0;
+
             // 写入CSV
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(exportFile))) {
                 // 写入表头
                 writer.write("任务ID,场景类型,幂等键,方法类,方法名,重试次数,失败原因,创建时间,失败时间");
                 writer.newLine();
 
-                // 写入数据
-                for (FailedTask task : failedTasks) {
-                    writer.write(String.format("%s,%d,%s,%s,%s,%d,\"%s\",%s,%s",
-                            escapeCsv(task.getTaskId()),
-                            task.getSceneType(),
-                            escapeCsv(task.getIdempotentKey()),
-                            escapeCsv(task.getMethodClass()),
-                            escapeCsv(task.getMethodName()),
-                            task.getRetryCount(),
-                            escapeCsv(task.getFailReason()),
-                            task.getCreateTime() != null ? task.getCreateTime().format(FORMATTER) : "",
-                            task.getFailTime() != null ? task.getFailTime().format(FORMATTER) : ""
-                    ));
-                    writer.newLine();
+                while (true) {
+                    // 分批查询失败任务
+                    List<FailedTask> failedTasks = failedTaskMapper.selectByConditions(
+                            sceneType,
+                            null,  // idempotentKey
+                            startTime,
+                            endTime,
+                            offset,
+                            batchSize
+                    );
+
+                    if (failedTasks.isEmpty()) {
+                        break;
+                    }
+
+                    // 写入数据
+                    for (FailedTask task : failedTasks) {
+                        writer.write(String.format("%s,%d,%s,%s,%s,%d,\"%s\",%s,%s",
+                                escapeCsv(task.getTaskId()),
+                                task.getSceneType(),
+                                escapeCsv(task.getIdempotentKey()),
+                                escapeCsv(task.getMethodClass()),
+                                escapeCsv(task.getMethodName()),
+                                task.getRetryCount(),
+                                escapeCsv(task.getFailReason()),
+                                task.getCreateTime() != null ? task.getCreateTime().format(FORMATTER) : "",
+                                task.getFailTime() != null ? task.getFailTime().format(FORMATTER) : ""
+                        ));
+                        writer.newLine();
+                    }
+                    
+                    totalExported += failedTasks.size();
+                    offset += batchSize;
                 }
             }
 
-            log.info("[DataArchive] Exported {} failed tasks to: {}", failedTasks.size(), exportFile.getAbsolutePath());
+            if (totalExported == 0) {
+                log.warn("[DataArchive] No failed tasks found to export");
+                exportFile.delete();
+                return null;
+            }
+
+            log.info("[DataArchive] Exported {} failed tasks to: {}", totalExported, exportFile.getAbsolutePath());
             return exportFile.getAbsolutePath();
 
         } catch (IOException e) {

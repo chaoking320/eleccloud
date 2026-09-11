@@ -35,12 +35,10 @@ public class RabbitRetryMessageProducer implements RetryMessageProducer {
         }
     }
 
-    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
-
     @Override
     public void sendDelayMessageWithPayload(com.retry.platform.client.mq.RetryMessagePayload payload, long delayMs) {
         try {
-            String payloadJson = MAPPER.writeValueAsString(payload);
+            String payloadJson = com.retry.platform.client.util.JsonUtil.toJson(payload);
             rabbitTemplate.convertAndSend(DELAYED_EXCHANGE, routingKey, payloadJson, message -> {
                 message.getMessageProperties().setDelay((int) delayMs);
                 return message;

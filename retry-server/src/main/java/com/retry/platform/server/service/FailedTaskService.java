@@ -14,4 +14,12 @@ public interface FailedTaskService {
      * @param failReason 失败原因
      */
     void moveToFailedTask(RetryTask retryTask, String failReason);
+
+    /**
+     * 根据任务ID标记任务为失败
+     *
+     * @param taskId 任务ID
+     * @param failReason 失败原因
+     */
+    void markTaskAsFailed(String taskId, String failReason);
 }

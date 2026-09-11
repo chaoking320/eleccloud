@@ -1,6 +1,5 @@
 package com.retry.platform.client.mq.redis;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.retry.platform.client.executor.LocalRetryExecutor;
 import com.retry.platform.client.mq.RetryMessagePayload;
 import lombok.extern.slf4j.Slf4j;
@@ -27,8 +26,6 @@ public class RedisRetryMessageConsumer {
     private final LocalRetryExecutor localRetryExecutor;
     private final ExecutorService executorService;
     private volatile boolean running = true;
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     public RedisRetryMessageConsumer(StringRedisTemplate redisTemplate,
                                      LocalRetryExecutor localRetryExecutor,
@@ -37,7 +34,14 @@ public class RedisRetryMessageConsumer {
         this.redisTemplate = redisTemplate;
         this.localRetryExecutor = localRetryExecutor;
         this.delayQueueKey = "retry:client:delay:queue:" + (queueName != null ? queueName : "default");
-        this.executorService = Executors.newFixedThreadPool(concurrency > 0 ? concurrency : 5);
+        int corePoolSize = concurrency > 0 ? concurrency : 5;
+        this.executorService = new java.util.concurrent.ThreadPoolExecutor(
+                corePoolSize,
+                corePoolSize,
+                60L, TimeUnit.SECONDS,
+                new java.util.concurrent.LinkedBlockingQueue<>(1000),
+                new java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy()
+        );
     }
 
     @PostConstruct
@@ -98,8 +102,8 @@ public class RedisRetryMessageConsumer {
         // 尝试解析为胖消息
         if (member.startsWith("{")) {
             try {
-                RetryMessagePayload payload = MAPPER.readValue(member, RetryMessagePayload.class);
-                if (payload.getTaskId() != null) {
+                RetryMessagePayload payload = com.retry.platform.client.util.JsonUtil.fromJson(member, RetryMessagePayload.class);
+                if (payload != null && payload.getTaskId() != null) {
                     log.info("[Redis MQ] Dispatching fat message: taskId={}, retryCount={}",
                             payload.getTaskId(), payload.getRetryCount());
                     localRetryExecutor.executeWithPayload(payload);

@@ -4,6 +4,7 @@ import com.retry.platform.server.mapper.RetryTaskMapper;
 import com.retry.platform.server.service.DelayQueueService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -19,7 +20,11 @@ import java.util.Set;
 @Service
 public class DelayQueueServiceImpl implements DelayQueueService {
     
-    private static final String DELAY_QUEUE_KEY = "retry:client:delay:queue:retry.delayed.queue";
+    private final String DELAY_QUEUE_KEY;
+    
+    public DelayQueueServiceImpl(@Value("${retry.client.queue-name:retry.delayed.queue}") String queueName) {
+        this.DELAY_QUEUE_KEY = "retry:client:delay:queue:" + queueName;
+    }
     
     @Autowired(required = false)
     private RedisTemplate<String, String> redisTemplate;

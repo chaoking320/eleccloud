@@ -7,7 +7,6 @@ import com.retry.platform.client.hook.RetryContext;
 import com.retry.platform.client.hook.RetryHook;
 import com.retry.platform.client.mq.RetryMessagePayload;
 import com.retry.platform.client.mq.RetryMessageProducer;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
@@ -48,8 +47,6 @@ public class LocalRetryExecutor {
 
     @Autowired
     private RetryMessageProducer retryMessageProducer;
-
-    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * 核心调度消费处理入口（瘦消息路径：需要先 HTTP 查询任务详情）
@@ -190,6 +187,16 @@ public class LocalRetryExecutor {
     private void handleInit(String taskId, RetryContext context, RetryHook hook, RetryMessagePayload payload) {
         log.info("[LocalRetryExecutor] Task in INIT state. Invoking local method. taskId={}", taskId);
         long startTime = System.currentTimeMillis();
+        
+        java.util.concurrent.ScheduledExecutorService watchdog = java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
+        watchdog.scheduleAtFixedRate(() -> {
+            try {
+                retryClient.markExecuting(taskId);
+            } catch (Exception e) {
+                log.warn("[LocalRetryExecutor] Failed to update heartbeat for taskId={}", taskId);
+            }
+        }, 30, 30, java.util.concurrent.TimeUnit.SECONDS);
+
         try {
             // 反射从本地 Spring 容器获取对应的 Service 实例执行方法
             // 使用 Spring applicationContext 的 ClassLoader 来加载业务类，确保兼容所有执行线程
@@ -257,6 +264,8 @@ public class LocalRetryExecutor {
             safeRecordHistory(taskId, currentCount, "FAILED",
                     e.getCause() != null ? e.getCause().getMessage() : e.getMessage(), costMs);
             scheduleNext(payload, "INIT");
+        } finally {
+            watchdog.shutdownNow();
         }
     }
 
@@ -402,7 +411,7 @@ public class LocalRetryExecutor {
         if (paramsJson == null || paramsJson.trim().isEmpty()) {
             return new HashMap<>();
         }
-        return objectMapper.readValue(paramsJson, Map.class);
+        return com.retry.platform.client.util.JsonUtil.fromJson(paramsJson, Map.class);
     }
 
     /**
@@ -519,8 +528,8 @@ public class LocalRetryExecutor {
             if (value instanceof Boolean) return value;
             return Boolean.parseBoolean(value.toString());
         }
-        String json = objectMapper.writeValueAsString(value);
-        return objectMapper.readValue(json, targetType);
+        String json = com.retry.platform.client.util.JsonUtil.toJson(value);
+        return com.retry.platform.client.util.JsonUtil.fromJson(json, targetType);
     }
 
     private RetryMessagePayload buildPayloadFromDTO(RetryTaskDTO task) {
@@ -573,7 +582,7 @@ public class LocalRetryExecutor {
         Map<String, Object> paramsMap = null;
         try {
             if (payload.getMethodParams() != null && !payload.getMethodParams().trim().isEmpty()) {
-                paramsMap = objectMapper.readValue(payload.getMethodParams(), Map.class);
+                paramsMap = com.retry.platform.client.util.JsonUtil.fromJson(payload.getMethodParams(), Map.class);
             }
         } catch (Exception e) {
             log.error("Failed to parse method params: taskId={}", payload.getTaskId(), e);

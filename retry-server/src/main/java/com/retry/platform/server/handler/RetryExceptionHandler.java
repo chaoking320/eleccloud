@@ -87,8 +87,8 @@ public class RetryExceptionHandler {
         // 配置异常不应该继续重试，直接标记为失败
         try {
             // TODO: 2026/1/17  标记失败
-//            failedTaskService.markTaskAsFailed(taskId,
-//                String.format("配置异常: [%s] %s", e.getErrorCode(), e.getMessage()));
+            failedTaskService.markTaskAsFailed(taskId,
+                String.format("配置异常: [%s] %s", e.getErrorCode(), e.getMessage()));
         } catch (Exception ex) {
             log.error("Failed to mark task {} as failed", taskId, ex);
         }

@@ -134,6 +134,8 @@ public class RetryableTaskAspect {
                 }
             } catch (Exception ex) {
                 log.error("[POST_FAIL] Failed to submit retry task", ex);
+                log.warn("[POST_FAIL] Retry submission failed. Rethrowing original business exception.");
+                throw e;
             }
 
             if (retryableTask.throwException()) {

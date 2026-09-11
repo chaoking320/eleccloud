@@ -2,6 +2,8 @@ package com.retry.platform.client.util;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONWriter;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -10,6 +12,9 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class JsonUtil {
     
+    public static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
     /**
      * 对象转JSON字符串
      */
@@ -18,7 +23,7 @@ public class JsonUtil {
             return null;
         }
         try {
-            return JSON.toJSONString(obj, JSONWriter.Feature.WriteMapNullValue);
+            return MAPPER.writeValueAsString(obj);
         } catch (Exception e) {
             log.error("Object to JSON failed", e);
             throw new RuntimeException("JSON serialization failed", e);
@@ -33,7 +38,7 @@ public class JsonUtil {
             return null;
         }
         try {
-            return JSON.parseObject(json, clazz);
+            return MAPPER.readValue(json, clazz);
         } catch (Exception e) {
             log.error("JSON to Object failed", e);
             throw new RuntimeException("JSON deserialization failed", e);
@@ -48,7 +53,7 @@ public class JsonUtil {
             return null;
         }
         try {
-            return JSON.toJSONBytes(obj);
+            return MAPPER.writeValueAsBytes(obj);
         } catch (Exception e) {
             log.error("Object to JSON bytes failed", e);
             throw new RuntimeException("JSON serialization failed", e);

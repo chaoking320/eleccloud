@@ -21,6 +21,9 @@ public class FailedTaskServiceImpl implements FailedTaskService {
     @Autowired
     private FailedTaskMapper failedTaskMapper;
     
+    @Autowired
+    private com.retry.platform.server.mapper.RetryTaskMapper retryTaskMapper;
+    
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void moveToFailedTask(RetryTask retryTask, String failReason) {
@@ -42,5 +45,17 @@ public class FailedTaskServiceImpl implements FailedTaskService {
         
         log.info("Moved task to failed_task table: taskId={}, retryCount={}, failReason={}", 
                 retryTask.getTaskId(), retryTask.getRetryCount(), failReason);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void markTaskAsFailed(String taskId, String failReason) {
+        RetryTask retryTask = retryTaskMapper.selectByTaskId(taskId);
+        if (retryTask != null) {
+            moveToFailedTask(retryTask, failReason);
+            retryTaskMapper.deleteByTaskId(taskId);
+        } else {
+            log.warn("Cannot mark task as failed because it does not exist: taskId={}", taskId);
+        }
     }
 }

@@ -84,8 +84,8 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        // 检查是否需要鉴权（/api/retry/** 路径）
-        if (!requestUri.startsWith("/api/retry/")) {
+        // 检查是否需要鉴权（/api/retry/** 和 /api/admin/** 路径）
+        if (!requestUri.startsWith("/api/retry/") && !requestUri.startsWith("/api/admin/")) {
             filterChain.doFilter(request, response);
             return;
         }

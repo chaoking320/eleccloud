@@ -24,8 +24,9 @@ service.interceptors.response.use(
   response => {
     const res = response.data
     
-    // 如果返回的状态码不是200，说明接口有问题
-    if (res.code && res.code !== 200) {
+    // 检查后端统一响应格式 Result { success, message, data }
+    // 如果响应中有 success 字段且为 false，说明业务处理失败
+    if (res.success !== undefined && res.success === false) {
       ElMessage.error(res.message || '请求失败')
       return Promise.reject(new Error(res.message || '请求失败'))
     }

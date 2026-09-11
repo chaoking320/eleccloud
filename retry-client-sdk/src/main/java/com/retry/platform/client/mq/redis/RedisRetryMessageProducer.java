@@ -1,6 +1,5 @@
 package com.retry.platform.client.mq.redis;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.retry.platform.client.mq.RetryMessagePayload;
 import com.retry.platform.client.mq.RetryMessageProducer;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +16,6 @@ public class RedisRetryMessageProducer implements RetryMessageProducer {
 
     private final String delayQueueKey;
     private final StringRedisTemplate redisTemplate;
-    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     public RedisRetryMessageProducer(StringRedisTemplate redisTemplate, String queueName) {
         this.redisTemplate = redisTemplate;
@@ -45,7 +43,7 @@ public class RedisRetryMessageProducer implements RetryMessageProducer {
     public void sendDelayMessageWithPayload(RetryMessagePayload payload, long delayMs) {
         long executeTime = System.currentTimeMillis() + delayMs;
         try {
-            String member = MAPPER.writeValueAsString(payload);
+            String member = com.retry.platform.client.util.JsonUtil.toJson(payload);
             redisTemplate.opsForZSet().add(delayQueueKey, member, executeTime);
             log.info("[Redis MQ] Sent fat message: key={}, taskId={}, delayMs={}, retryCount={}",
                     delayQueueKey, payload.getTaskId(), delayMs, payload.getRetryCount());

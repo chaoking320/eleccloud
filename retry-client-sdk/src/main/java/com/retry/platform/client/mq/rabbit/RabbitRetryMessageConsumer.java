@@ -19,8 +19,6 @@ public class RabbitRetryMessageConsumer {
         this.localRetryExecutor = localRetryExecutor;
     }
 
-    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
-
     @RabbitListener(bindings = @QueueBinding(
             value = @Queue(value = "${retry.client.queue-name:retry.delayed.queue}", durable = "true"),
             exchange = @Exchange(
@@ -34,8 +32,8 @@ public class RabbitRetryMessageConsumer {
         try {
             if (messageBody.startsWith("{")) {
                 // 尝试按胖消息解析
-                com.retry.platform.client.mq.RetryMessagePayload payload = MAPPER.readValue(messageBody, com.retry.platform.client.mq.RetryMessagePayload.class);
-                if (payload.getTaskId() != null) {
+                com.retry.platform.client.mq.RetryMessagePayload payload = com.retry.platform.client.util.JsonUtil.fromJson(messageBody, com.retry.platform.client.mq.RetryMessagePayload.class);
+                if (payload != null && payload.getTaskId() != null) {
                     log.debug("[Rabbit MQ] Received fat message: taskId={}, retryCount={}", payload.getTaskId(), payload.getRetryCount());
                     localRetryExecutor.executeWithPayload(payload);
                     return;
