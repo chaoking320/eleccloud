@@ -7,10 +7,13 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 
 /**
  * 基于 Redis ZSET 的 SDK 本地延时消息轮询消费者（支持胖消息/瘦消息）
@@ -20,6 +23,21 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 public class RedisRetryMessageConsumer {
+
+    private static final DefaultRedisScript<List> LUA_SCRIPT;
+    static {
+        String script = "-- KEYS[1] = delay queue key\n" +
+                        "-- ARGV[1] = current time (score upper bound)\n" +
+                        "-- ARGV[2] = batch size\n" +
+                        "local expired = redis.call('ZRANGEBYSCORE', KEYS[1], '0', ARGV[1], 'LIMIT', '0', ARGV[2])\n" +
+                        "if #expired > 0 then\n" +
+                        "    for i, member in ipairs(expired) do\n" +
+                        "        redis.call('ZREM', KEYS[1], member)\n" +
+                        "    end\n" +
+                        "end\n" +
+                        "return expired";
+        LUA_SCRIPT = new DefaultRedisScript<>(script, List.class);
+    }
 
     private final String delayQueueKey;
     private final StringRedisTemplate redisTemplate;
@@ -53,34 +71,45 @@ public class RedisRetryMessageConsumer {
     }
 
     private void pollLoop() {
+        long pollInterval = 500; // 初始值
+        final long MIN_INTERVAL = 200;
+        final long MAX_INTERVAL = 2000;
+
         while (running) {
             try {
                 long currentTime = System.currentTimeMillis();
-                // 使用 Lua 脚本原子性地 rangeByScore + remove，防止多节点竞争
-                Set<String> expiredMembers = redisTemplate.opsForZSet()
-                        .rangeByScore(delayQueueKey, 0, currentTime, 0, 10);
+                
+                @SuppressWarnings("unchecked")
+                List<String> expiredMembers = redisTemplate.execute(
+                        LUA_SCRIPT,
+                        Collections.singletonList(delayQueueKey),
+                        String.valueOf(currentTime),
+                        "10"
+                );
 
+                boolean hasMessages = false;
                 if (expiredMembers != null && !expiredMembers.isEmpty()) {
+                    hasMessages = true;
                     for (String member : expiredMembers) {
-                        // 原子移除：谁移出成功谁执行，防多节点并发消费
-                        Long removed = redisTemplate.opsForZSet().remove(delayQueueKey, member);
-                        if (removed != null && removed > 0) {
-                            log.info("[Redis MQ] Popped message from delay queue: {}", 
-                                    member.length() > 60 ? member.substring(0, 60) + "..." : member);
-                            final String memberCopy = member;
-                            executorService.submit(() -> {
-                                try {
-                                    dispatch(memberCopy);
-                                } catch (Exception e) {
-                                    log.error("[Redis MQ] Error dispatching member", e);
-                                }
-                            });
-                        }
+                        log.info("[Redis MQ] Popped message from delay queue: {}", 
+                                member.length() > 60 ? member.substring(0, 60) + "..." : member);
+                        final String memberCopy = member;
+                        executorService.submit(() -> {
+                            try {
+                                dispatch(memberCopy);
+                            } catch (Exception e) {
+                                log.error("[Redis MQ] Error dispatching member", e);
+                            }
+                        });
                     }
                 }
 
-                // 减少 CPU 空转
-                TimeUnit.MILLISECONDS.sleep(500);
+                if (hasMessages) {
+                    pollInterval = MIN_INTERVAL;
+                } else {
+                    pollInterval = Math.min(pollInterval + 200, MAX_INTERVAL);
+                }
+                TimeUnit.MILLISECONDS.sleep(pollInterval);
             } catch (InterruptedException e) {
                 log.info("[Redis MQ] Poll thread interrupted, stopping.");
                 running = false;

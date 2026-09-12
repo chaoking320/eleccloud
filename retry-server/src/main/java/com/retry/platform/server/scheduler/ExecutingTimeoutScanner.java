@@ -51,6 +51,7 @@ public class ExecutingTimeoutScanner {
      * 只有进程崩溃后 update_time 停止更新，超出阈值后才被回滚。
      */
     @Scheduled(fixedDelayString = "${retry.scheduler.executing-scan-interval:60000}")
+    @net.javacrumbs.shedlock.spring.annotation.SchedulerLock(name = "executingTimeoutScan", lockAtLeastFor = "PT10S", lockAtMostFor = "PT5M")
     public void recoverStuckTasks() {
         try {
             long timeoutThreshold = System.currentTimeMillis()

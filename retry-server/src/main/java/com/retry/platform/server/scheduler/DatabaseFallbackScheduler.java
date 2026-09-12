@@ -51,6 +51,7 @@ public class DatabaseFallbackScheduler {
      * 每 15 秒执行一次兜底扫描
      */
     @Scheduled(fixedDelayString = "${retry.scheduler.fallback-scan-interval:15000}")
+    @net.javacrumbs.shedlock.spring.annotation.SchedulerLock(name = "databaseFallbackScan", lockAtLeastFor = "PT10S", lockAtMostFor = "PT5M")
     public void scanAndSyncToRedis() {
         if (redisTemplate == null || retryMessageProducer == null) {
             return;

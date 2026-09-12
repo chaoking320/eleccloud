@@ -32,6 +32,7 @@ public class DataArchiveScheduler {
      * 清理历史记录（每天凌晨3点执行）
      */
     @Scheduled(cron = "${retry.archive.history-clean-cron:0 0 3 * * ?}")
+    @net.javacrumbs.shedlock.spring.annotation.SchedulerLock(name = "dataArchiveScan", lockAtLeastFor = "PT30S", lockAtMostFor = "PT10M")
     public void cleanHistoryData() {
         log.info("[DataArchive] Starting scheduled history data cleanup...");
 
@@ -50,6 +51,7 @@ public class DataArchiveScheduler {
      * 清理成功任务（每天凌晨4点执行）
      */
     @Scheduled(cron = "${retry.archive.success-clean-cron:0 0 4 * * ?}")
+    @net.javacrumbs.shedlock.spring.annotation.SchedulerLock(name = "dataArchiveScanSuccess", lockAtLeastFor = "PT30S", lockAtMostFor = "PT10M")
     public void cleanSuccessTasks() {
         log.info("[DataArchive] Starting scheduled success tasks cleanup...");
 

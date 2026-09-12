@@ -40,6 +40,7 @@ public class AlertMonitorScheduler {
      * 监控死信任务突增（每10分钟检查一次）
      */
     @Scheduled(fixedDelay = 600000, initialDelay = 60000)
+    @net.javacrumbs.shedlock.spring.annotation.SchedulerLock(name = "alertMonitorFailedTasksSpike", lockAtLeastFor = "PT10S", lockAtMostFor = "PT5M")
     public void monitorFailedTasksSpike() {
         if (!alertConfig.getThreshold().isEnableFailedTaskAlert()) {
             return;
@@ -87,6 +88,7 @@ public class AlertMonitorScheduler {
      * 监控执行失败率（每15分钟检查一次）
      */
     @Scheduled(fixedDelay = 900000, initialDelay = 120000)
+    @net.javacrumbs.shedlock.spring.annotation.SchedulerLock(name = "alertMonitorFailureRate", lockAtLeastFor = "PT10S", lockAtMostFor = "PT5M")
     public void monitorFailureRate() {
         if (!alertConfig.getThreshold().isEnableFailureRateAlert()) {
             return;
@@ -146,6 +148,7 @@ public class AlertMonitorScheduler {
      * 系统健康检查（每小时一次）
      */
     @Scheduled(fixedDelay = 3600000, initialDelay = 300000)
+    @net.javacrumbs.shedlock.spring.annotation.SchedulerLock(name = "alertSystemHealthCheck", lockAtLeastFor = "PT10S", lockAtMostFor = "PT5M")
     public void systemHealthCheck() {
         try {
             int timeWindowMinutes = 60;
