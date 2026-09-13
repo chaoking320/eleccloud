@@ -36,7 +36,7 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/retry_platform?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=password
-      - SPRING_REDIS_HHOST=redis
+      - SPRING_REDIS_HOST=redis
       - SPRING_REDIS_REDISSON_CONFIG=singleServerConfig:\n  address: "redis://redis:6379"\n  database: 2
     depends_on:
       - mysql

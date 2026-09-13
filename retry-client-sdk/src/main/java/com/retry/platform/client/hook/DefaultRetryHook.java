@@ -63,10 +63,10 @@ public class DefaultRetryHook implements RetryHook {
      * @return 总是返回 "INIT"
      */
     @Override
-    public String checkStatus(RetryContext context) {
+    public RetryStatus checkStatus(RetryContext context) {
         log.debug("[DefaultRetryHook] checkStatus: taskId={}, always return INIT", 
                 context.getTaskId());
-        return "INIT";
+        return RetryStatus.INIT;
     }
     
     /**

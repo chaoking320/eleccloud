@@ -137,6 +137,12 @@
             <artifactId>shedlock-provider-redis-spring</artifactId>
             <version>5.10.0</version>
         </dependency>
+
+        <!-- Caffeine Cache -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

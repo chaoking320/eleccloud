@@ -50,7 +50,7 @@ export const taskApi = {
   // 获取任务统计
   getStatistics(sceneType) {
     return request({
-      url: '/task/statistics',
+      url: '/task/stats',
       method: 'get',
       params: { sceneType }
     })
@@ -84,7 +84,7 @@ export const taskApi = {
   // 获取失败任务列表
   getFailedTasks(params) {
     return request({
-      url: '/task/failed',
+      url: '/failed/list',
       method: 'get',
       params
     })

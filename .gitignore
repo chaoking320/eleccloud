@@ -44,3 +44,8 @@ application-dev.yml
 design.md
 PROJECT_SETUP.md
 debug.log
+
+# Frontend build artifacts
+retry-admin/src/main/resources/static/assets/
+retry-admin/frontend/node_modules/
+retry-admin/frontend/dist/

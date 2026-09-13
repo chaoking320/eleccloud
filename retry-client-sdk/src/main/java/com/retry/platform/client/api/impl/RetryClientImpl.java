@@ -50,7 +50,7 @@ public class RetryClientImpl implements RetryClient {
                      new ParameterizedTypeReference<Result<Boolean>>() {}
             );
             Result<Boolean> result = response.getBody();
-            if (result != null && result.getSuccess()) {
+            if (result != null && Boolean.TRUE.equals(result.getSuccess())) {
                 log.info("Marked task as SUCCESS: taskId={}", taskId);
                 return true;
             } else {
@@ -72,7 +72,7 @@ public class RetryClientImpl implements RetryClient {
                     url, HttpMethod.POST, null, new ParameterizedTypeReference<Result<Boolean>>() {}
             );
             Result<Boolean> result = response.getBody();
-            return result != null && result.getSuccess() && Boolean.TRUE.equals(result.getData());
+            return result != null && Boolean.TRUE.equals(result.getSuccess()) && Boolean.TRUE.equals(result.getData());
         } catch (Exception e) {
             log.error("Failed to mark task executing: taskId={}", taskId, e);
             return false;
@@ -156,7 +156,7 @@ public class RetryClientImpl implements RetryClient {
             );
             
             Result<String> result = response.getBody();
-            if (result != null && result.getSuccess()) {
+            if (result != null && Boolean.TRUE.equals(result.getSuccess())) {
                 return result.getData();
             } else {
                 String errorMsg = result != null ? result.getMessage() : "Unknown error";
@@ -191,7 +191,7 @@ public class RetryClientImpl implements RetryClient {
             );
             
             Result<Boolean> result = response.getBody();
-            return result != null && result.getSuccess() && Boolean.TRUE.equals(result.getData());
+            return result != null && Boolean.TRUE.equals(result.getSuccess()) && Boolean.TRUE.equals(result.getData());
         } catch (Exception e) {
             log.error("Failed to cancel retry task: {}", taskId, e);
             return false;
@@ -224,7 +224,7 @@ public class RetryClientImpl implements RetryClient {
             );
             
             Result<RetryTaskDTO> result = response.getBody();
-            if (result != null && result.getSuccess()) {
+            if (result != null && Boolean.TRUE.equals(result.getSuccess())) {
                 return result.getData();
             } else {
                 String errorMsg = result != null ? result.getMessage() : "Unknown error";

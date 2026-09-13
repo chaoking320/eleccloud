@@ -43,6 +43,12 @@ public class RetryTaskServiceImpl implements RetryTaskService {
     @Autowired(required = false)
     private com.retry.platform.server.metrics.RetryMetrics retryMetrics;
     
+    @Autowired(required = false)
+    private com.retry.platform.client.mq.RetryMessageProducer retryMessageProducer;
+    
+    @org.springframework.beans.factory.annotation.Value("${retry.server.default-first-delay-ms:60000}")
+    private long defaultFirstDelayMs;
+    
     @Override
     @Transactional(rollbackFor = Exception.class)
     public String createTask(RetryTaskRequest request) {
@@ -99,10 +105,10 @@ public class RetryTaskServiceImpl implements RetryTaskService {
                     sceneConfig.getBackoffBaseOrDefault(),
                     sceneConfig.getRetryIntervalList());
         } catch (Exception e) {
-            // 如果计算失败，使用默认值（1分钟后重试）
-            log.warn("Failed to calculate next retry time for taskId={}, using default 60s. Error: {}", 
-                    taskId, e.getMessage());
-            nextRetryTime = System.currentTimeMillis() + 60 * 1000L;
+            // 如果计算失败，使用默认值
+            log.warn("Failed to calculate next retry time for taskId={}, using default {}ms. Error: {}", 
+                    taskId, defaultFirstDelayMs, e.getMessage());
+            nextRetryTime = System.currentTimeMillis() + defaultFirstDelayMs;
         }
         retryTask.setNextRetryTime(nextRetryTime);
         
@@ -242,6 +248,40 @@ public class RetryTaskServiceImpl implements RetryTaskService {
     @Override
     public List<RetryHistory> getTaskHistory(String taskId) {
         return retryHistoryMapper.selectByTaskId(taskId);
+    }
+    
+    @Override
+    public void triggerRetry(String taskId) {
+        RetryTaskDTO task = getTask(taskId);
+        if (task == null) {
+            throw new IllegalArgumentException("Task not found");
+        }
+        
+        // 人工在后台手动触发重试：重置为 INIT 状态且将已重试次数重置为 0，赋予全新的重试机会
+        updateTaskStatusAndRetryInfo(taskId, "INIT", 0, System.currentTimeMillis());
+        
+        if (retryMessageProducer != null) {
+            // 向 MQ 发送胖消息即时投递，携带完整上下文直接唤醒 SDK Consumer，无需二次 HTTP 查询
+            com.retry.platform.client.mq.RetryMessagePayload payload = com.retry.platform.client.mq.RetryMessagePayload.builder()
+                    .taskId(task.getTaskId())
+                    .sceneType(task.getSceneType())
+                    .idempotentKey(task.getIdempotentKey())
+                    .methodClass(task.getMethodClass())
+                    .methodName(task.getMethodName())
+                    .methodParams(task.getMethodParams())
+                    .methodParamTypes(task.getMethodParamTypes())
+                    .hookClass(task.getHookClass())
+                    .backoffStrategy(task.getBackoffStrategy())
+                    .backoffBase(task.getBackoffBase())
+                    .retryIntervals(task.getRetryIntervals())
+                    .retryCount(0)
+                    .maxRetryCount(task.getMaxRetryCount())
+                    .build();
+            retryMessageProducer.sendDelayMessageWithPayload(payload, 0L);
+            log.info("Manually triggered task by sending fat delay=0 message to MQ. taskId={}", taskId);
+        } else {
+            throw new IllegalStateException("RetryMessageProducer not configured on server side");
+        }
     }
     
     /**

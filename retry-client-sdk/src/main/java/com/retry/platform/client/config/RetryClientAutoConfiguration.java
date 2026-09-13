@@ -51,9 +51,11 @@ import javax.sql.DataSource;
 public class RetryClientAutoConfiguration {
     
     private final RetryClientProperties properties;
+    private final org.springframework.core.env.Environment environment;
     
-    public RetryClientAutoConfiguration(RetryClientProperties properties) {
+    public RetryClientAutoConfiguration(RetryClientProperties properties, org.springframework.core.env.Environment environment) {
         this.properties = properties;
+        this.environment = environment;
     }
     
     /**
@@ -131,6 +133,13 @@ public class RetryClientAutoConfiguration {
         }
         if (properties.getQueueName() == null || properties.getQueueName().trim().isEmpty()) {
             properties.setQueueName("retry.delayed.queue");
+        }
+        if ("retry.delayed.queue".equals(properties.getQueueName())) {
+            String appName = environment.getProperty("spring.application.name");
+            if (appName != null && !appName.isEmpty()) {
+                properties.setQueueName("retry.delayed.queue." + appName);
+                log.info("Auto-configured queueName to: {}", properties.getQueueName());
+            }
         }
         String mqType = properties.getMqType();
         if (mqType != null && !mqType.isEmpty()) {
@@ -283,6 +292,7 @@ public class RetryClientAutoConfiguration {
      * 1. 装配 REDIS 生产者
      */
     @Bean
+    @ConditionalOnMissingBean(RetryMessageProducer.class)
     @ConditionalOnProperty(prefix = "retry.client", name = "mq-type", havingValue = "REDIS", matchIfMissing = true)
     @ConditionalOnClass(StringRedisTemplate.class)
     public RetryMessageProducer redisRetryMessageProducer(StringRedisTemplate stringRedisTemplate,

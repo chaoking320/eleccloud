@@ -37,11 +37,15 @@ public class DemoRefundHook implements RetryHook {
     public static final Map<String, String> localDb = new ConcurrentHashMap<>();
 
     @Override
-    public String checkStatus(RetryContext context) {
+    public com.retry.platform.client.hook.RetryStatus checkStatus(RetryContext context) {
         String transId = (String) context.getParams().get("transId");
         String status = localDb.getOrDefault(transId, "INIT");
         log.info("[DemoRefundHook] checkStatus: transId={}, status={}", transId, status);
-        return status;
+        try {
+            return com.retry.platform.client.hook.RetryStatus.valueOf(status);
+        } catch (IllegalArgumentException e) {
+            return com.retry.platform.client.hook.RetryStatus.INIT;
+        }
     }
 
     @Override

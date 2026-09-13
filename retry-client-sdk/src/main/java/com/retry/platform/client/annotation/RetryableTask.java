@@ -74,4 +74,14 @@ public @interface RetryableTask {
      * </ul>
      */
     boolean throwException() default false;
+
+    /**
+     * 是否使用默认重试钩子（DefaultRetryHook）
+     * <ul>
+     *   <li>{@code false}（默认）：使用 scene_config 中配置的 hookClass</li>
+     *   <li>{@code true}：跳过 Hook 三步检查（checkStatus/doQuery/doCallback），
+     *       直接反射调用业务方法执行重试。适用于简单场景，无需编写 Hook 类。</li>
+     * </ul>
+     */
+    boolean useDefaultHook() default false;
 }

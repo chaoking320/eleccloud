@@ -1,5 +1,7 @@
 package com.retry.platform.server.service.impl;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.retry.platform.server.entity.SceneConfig;
 import com.retry.platform.server.mapper.SceneConfigMapper;
 import com.retry.platform.server.service.SceneConfigService;
@@ -11,8 +13,6 @@ import org.springframework.stereotype.Service;
 import javax.annotation.PostConstruct;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -34,7 +34,10 @@ public class SceneConfigServiceImpl implements SceneConfigService {
     /**
      * 本地缓存：场景类型 -> 场景配置
      */
-    private final Map<Integer, SceneConfig> localCache = new ConcurrentHashMap<>();
+    private final Cache<Integer, SceneConfig> cache = Caffeine.newBuilder()
+            .maximumSize(100)
+            .expireAfterWrite(5, TimeUnit.MINUTES)
+            .build();
     
     /**
      * 初始化：加载所有启用的场景配置到本地缓存
@@ -43,7 +46,7 @@ public class SceneConfigServiceImpl implements SceneConfigService {
     public void init() {
         try {
             refreshCache();
-            log.info("SceneConfigService initialized, loaded {} configs", localCache.size());
+            log.info("SceneConfigService initialized, loaded {} configs", cache.estimatedSize());
         } catch (Exception e) {
             log.error("Failed to initialize SceneConfigService", e);
         }
@@ -95,7 +98,7 @@ public class SceneConfigServiceImpl implements SceneConfigService {
         
         // 刷新缓存
         if (sceneConfig.checkEnabled()) {
-            localCache.put(sceneConfig.getSceneType(), sceneConfig);
+            cache.put(sceneConfig.getSceneType(), sceneConfig);
             saveToRedis(sceneConfig);
         }
         
@@ -143,7 +146,7 @@ public class SceneConfigServiceImpl implements SceneConfigService {
             
             // 如果启用，重新加载到缓存
             if (sceneConfig.checkEnabled()) {
-                localCache.put(sceneConfig.getSceneType(), sceneConfig);
+                cache.put(sceneConfig.getSceneType(), sceneConfig);
                 saveToRedis(sceneConfig);
             }
             
@@ -181,27 +184,21 @@ public class SceneConfigServiceImpl implements SceneConfigService {
     
     @Override
     public SceneConfig getSceneConfigByType(Integer sceneType) {
-        // 1. 先从本地缓存获取
-        SceneConfig config = localCache.get(sceneType);
-        if (config != null) {
+        return cache.get(sceneType, key -> {
+            // 先从Redis缓存获取
+            SceneConfig config = getFromRedis(key);
+            if (config != null) {
+                return config;
+            }
+            
+            // 从数据库查询
+            config = sceneConfigMapper.selectBySceneType(key);
+            if (config != null && config.checkEnabled()) {
+                saveToRedis(config);
+                return config;
+            }
             return config;
-        }
-        
-        // 2. 从Redis缓存获取
-        config = getFromRedis(sceneType);
-        if (config != null) {
-            localCache.put(sceneType, config);
-            return config;
-        }
-        
-        // 3. 从数据库查询
-        config = sceneConfigMapper.selectBySceneType(sceneType);
-        if (config != null && config.checkEnabled()) {
-            localCache.put(sceneType, config);
-            saveToRedis(config);
-        }
-        
-        return config;
+        });
     }
     
     @Override
@@ -231,7 +228,7 @@ public class SceneConfigServiceImpl implements SceneConfigService {
             // 如果启用，重新加载到缓存
             if (enabled) {
                 config.setEnabled(enabledValue);
-                localCache.put(config.getSceneType(), config);
+                cache.put(config.getSceneType(), config);
                 saveToRedis(config);
             }
             
@@ -292,11 +289,11 @@ public class SceneConfigServiceImpl implements SceneConfigService {
             List<SceneConfig> configs = sceneConfigMapper.selectAllEnabled();
             
             // 清空本地缓存
-            localCache.clear();
+            cache.invalidateAll();
             
             // 重新加载
             for (SceneConfig config : configs) {
-                localCache.put(config.getSceneType(), config);
+                cache.put(config.getSceneType(), config);
                 saveToRedis(config);
             }
             
@@ -309,7 +306,7 @@ public class SceneConfigServiceImpl implements SceneConfigService {
     @Override
     public void evictCache(Integer sceneType) {
         // 清除本地缓存
-        localCache.remove(sceneType);
+        cache.invalidate(sceneType);
         
         // 清除Redis缓存
         deleteFromRedis(sceneType);

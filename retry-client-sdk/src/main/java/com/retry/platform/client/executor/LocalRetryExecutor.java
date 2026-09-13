@@ -127,17 +127,21 @@ public class LocalRetryExecutor {
         }
 
         // 核心状态机驱动
-        String status = hook.checkStatus(context);
+        com.retry.platform.client.hook.RetryStatus status = hook.checkStatus(context);
         log.info("[LocalRetryExecutor] checkStatus: taskId={}, status={}", taskId, status);
 
+        if (status == null) {
+            status = com.retry.platform.client.hook.RetryStatus.INIT;
+        }
+
         switch (status) {
-            case "SUCCESS":
+            case SUCCESS:
                 handleSuccess(taskId, context, hook);
                 break;
-            case "WAIT":
+            case WAIT:
                 handleWait(taskId, context, hook, payload);
                 break;
-            case "INIT":
+            case INIT:
             default:
                 handleInit(taskId, context, hook, payload);
                 break;
@@ -553,13 +557,19 @@ public class LocalRetryExecutor {
     private long calculateDelayMsFromPayload(RetryMessagePayload payload, int retryCount) {
         // 自定义或回退支持
         String strategy = payload.getBackoffStrategy() != null ? payload.getBackoffStrategy() : "CUSTOM";
+        com.retry.platform.client.strategy.BackoffType type;
+        try {
+            type = com.retry.platform.client.strategy.BackoffType.valueOf(strategy.toUpperCase());
+        } catch (Exception e) {
+            type = com.retry.platform.client.strategy.BackoffType.CUSTOM;
+        }
         int baseMins = payload.getBackoffBase() != null ? payload.getBackoffBase() : 1;
         
-        if ("FIXED".equalsIgnoreCase(strategy)) {
+        if (com.retry.platform.client.strategy.BackoffType.FIXED == type) {
             return baseMins * 60L * 1000L;
-        } else if ("LINEAR".equalsIgnoreCase(strategy)) {
+        } else if (com.retry.platform.client.strategy.BackoffType.LINEAR == type) {
             return (long) retryCount * baseMins * 60L * 1000L;
-        } else if ("EXPONENTIAL".equalsIgnoreCase(strategy)) {
+        } else if (com.retry.platform.client.strategy.BackoffType.EXPONENTIAL == type) {
             int exp = Math.min(retryCount - 1, 30);
             return baseMins * (1L << exp) * 60L * 1000L;
         } else {
@@ -607,8 +617,8 @@ public class LocalRetryExecutor {
      */
     private static class NoOpRetryHook implements RetryHook {
         @Override
-        public String checkStatus(RetryContext context) {
-            return "INIT"; // 直接走 handleInit → 反射调用原始业务方法
+        public com.retry.platform.client.hook.RetryStatus checkStatus(RetryContext context) {
+            return com.retry.platform.client.hook.RetryStatus.INIT; // 直接走 handleInit → 反射调用原始业务方法
         }
         @Override
         public QueryResult doQuery(RetryContext context) {

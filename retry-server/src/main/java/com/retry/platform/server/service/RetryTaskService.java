@@ -77,4 +77,10 @@ public interface RetryTaskService {
      * @return 重试历史列表
      */
     List<RetryHistory> getTaskHistory(String taskId);
+    
+    /**
+     * 手动触发重试任务
+     * @param taskId 任务ID
+     */
+    void triggerRetry(String taskId);
 }

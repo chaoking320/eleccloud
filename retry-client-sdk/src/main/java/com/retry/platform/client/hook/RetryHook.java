@@ -320,7 +320,7 @@ public interface RetryHook {
      * @throws RuntimeException 如果检查过程出现异常，建议捕获并返回 "INIT"，
      *                          否则异常会被框架捕获，任务进入下一轮重试
      */
-    String checkStatus(RetryContext context);
+    RetryStatus checkStatus(RetryContext context);
     
     /**
      * 查询第三方系统确认最终状态（远程查询）

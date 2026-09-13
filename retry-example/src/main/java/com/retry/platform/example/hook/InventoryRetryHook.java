@@ -39,12 +39,16 @@ public class InventoryRetryHook implements RetryHook {
      * 预提交模式下，重试前必须先检查本地状态，防止重复扣减
      */
     @Override
-    public String checkStatus(RetryContext context) {
+    public com.retry.platform.client.hook.RetryStatus checkStatus(RetryContext context) {
         String transId = (String) context.getParams().get("transId");
         String status = localDb.getOrDefault(transId, "INIT");
         log.info("[InventoryHook] checkStatus: transId={}, localStatus={}", transId, status);
         // 若本地已记录 SUCCESS，平台将直接标记任务成功，跳过重试
-        return status;
+        try {
+            return com.retry.platform.client.hook.RetryStatus.valueOf(status);
+        } catch (IllegalArgumentException e) {
+            return com.retry.platform.client.hook.RetryStatus.INIT;
+        }
     }
 
     /**

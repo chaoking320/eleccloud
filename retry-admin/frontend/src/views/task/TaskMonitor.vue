@@ -66,6 +66,7 @@
             <el-option label="INIT" value="INIT" />
             <el-option label="WAIT" value="WAIT" />
             <el-option label="SUCCESS" value="SUCCESS" />
+            <el-option label="最终失败" value="FAILED" />
           </el-select>
         </el-form-item>
         <el-form-item label="幂等键 (Idempotent Key)">

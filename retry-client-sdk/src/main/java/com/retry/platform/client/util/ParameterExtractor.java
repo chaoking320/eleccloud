@@ -55,25 +55,46 @@ public class ParameterExtractor {
             normalizedKey = normalizedKey.substring(1);
         }
 
-        for (int i = 0; i < parameterNames.length; i++) {
-            String paramName = parameterNames[i];
+        // 支持多级嵌套字段: "#req.user.id" → paramName="req", fieldPath="user.id"
+        String paramName = normalizedKey;
+        String fieldPath = null;
+        int dotIndex = normalizedKey.indexOf('.');
+        if (dotIndex > 0) {
+            paramName = normalizedKey.substring(0, dotIndex);
+            fieldPath = normalizedKey.substring(dotIndex + 1);
+        }
 
-            // 匹配参数名
-            if (normalizedKey.equals(paramName)) {
+        for (int i = 0; i < parameterNames.length; i++) {
+            if (paramName.equals(parameterNames[i])) {
                 Object value = args[i];
                 if (value == null) {
                     throw new IllegalArgumentException(
                         "Idempotent key value is null - cannot use null as idempotent key.\n" +
                         "Method: " + signature.getMethod().getDeclaringClass().getName() + "." + signature.getName() + "\n" +
-                        "Parameter: " + paramName + " (position " + i + ")\n" +
+                        "Parameter: " + parameterNames[i] + " (position " + i + ")\n" +
                         "Idempotent key: " + idempotentKeyName + "\n" +
                         "Solution: Ensure the parameter value is not null before calling this method."
                     );
                 }
+                // 如果有嵌套字段路径，逐级提取
+                if (fieldPath != null) {
+                    Object resolved = resolveNestedField(value, fieldPath);
+                    if (resolved != null) {
+                        return resolved.toString();
+                    }
+                    throw new IllegalArgumentException(
+                        "Failed to resolve nested field path '" + fieldPath + "' from parameter '" + paramName + "'.\n" +
+                        "Method: " + signature.getMethod().getDeclaringClass().getName() + "." + signature.getName() + "\n" +
+                        "Idempotent key: " + idempotentKeyName + "\n" +
+                        "Solution: Check that each level of the field path has a public getter or accessible field."
+                    );
+                }
                 return value.toString();
             }
-            
-            // 如果参数是对象，尝试从对象字段中提取
+        }
+        
+        // 如果没有通过参数名直接匹配（可能是对象的字段名），尝试从所有非基本类型参数中提取
+        for (int i = 0; i < parameterNames.length; i++) {
             if (args[i] != null && !isPrimitiveOrWrapper(args[i].getClass())) {
                 try {
                     Object value = extractFieldValue(args[i], normalizedKey);
@@ -81,7 +102,7 @@ public class ParameterExtractor {
                         return value.toString();
                     }
                 } catch (Exception e) {
-                    log.debug("Failed to extract field {} from parameter {}", normalizedKey, paramName);
+                    log.debug("Failed to extract field {} from parameter {}", normalizedKey, parameterNames[i]);
                 }
             }
         }
@@ -100,13 +121,31 @@ public class ParameterExtractor {
         errorMsg.append("Requested key: ").append(normalizedKey).append("\n\n");
         errorMsg.append("Common solutions:\n");
         errorMsg.append("1. Check parameter name spelling (case-sensitive)\n");
-        errorMsg.append("2. If using SpEL syntax, ensure format is correct: @RetryableTask(idempotentKey = \"#paramName\")\n");
+        errorMsg.append("2. SpEL supports nested fields: @RetryableTask(idempotentKey = \"#req.user.id\")\n");
         errorMsg.append("3. If extracting from object field, ensure the field/getter exists\n");
         errorMsg.append("4. Verify Maven compiler plugin has <parameters>true</parameters> enabled\n");
         
         throw new IllegalArgumentException(errorMsg.toString());
     }
     
+    /**
+     * 解析多级嵌套字段路径（如 "user.address.city"）
+     */
+    private static Object resolveNestedField(Object root, String path) {
+        Object current = root;
+        String[] parts = path.split("\\.");
+        for (String part : parts) {
+            if (current == null) return null;
+            try {
+                current = extractFieldValue(current, part);
+            } catch (Exception e) {
+                log.debug("Failed to resolve field '{}' in nested path '{}'", part, path);
+                return null;
+            }
+        }
+        return current;
+    }
+
     /**
      * 从对象中提取字段值
      */
