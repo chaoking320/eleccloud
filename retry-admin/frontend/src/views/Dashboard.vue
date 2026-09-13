@@ -82,6 +82,7 @@ import {
 } from 'echarts/components'
 import VChart from 'vue-echarts'
 import { Document, SuccessFilled, CircleCloseFilled, Loading } from '@element-plus/icons-vue'
+import { taskApi } from '@/api'
 
 use([
   CanvasRenderer,
@@ -146,12 +147,19 @@ const chartOption = ref({
 })
 
 const loadStatistics = async () => {
-  // TODO: 调用API获取统计数据
-  statistics.value = {
-    totalTasks: 1250,
-    successTasks: 1180,
-    failedTasks: 45,
-    runningTasks: 25
+  try {
+    const res = await taskApi.getStatistics()
+    if (res && res.data) {
+      const data = res.data
+      statistics.value = {
+        totalTasks: data.total || 0,
+        successTasks: data.success || 0,
+        failedTasks: data.failed || 0,
+        runningTasks: (data.init || 0) + (data.wait || 0)
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load dashboard stats', e)
   }
 }
 

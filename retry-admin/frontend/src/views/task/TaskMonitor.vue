@@ -53,12 +53,7 @@
       <el-form :inline="true" :model="filters" class="demo-form-inline">
         <el-form-item label="场景类型">
           <el-select v-model="filters.sceneType" placeholder="选择场景" clearable style="width: 180px">
-            <el-option label="[Demo] 电商退款 (10)" :value="10" />
-            <el-option label="[Demo] 酒店结算 (11)" :value="11" />
-            <el-option label="[Demo] 库存同步 (12)" :value="12" />
-            <el-option label="退款场景 (1)" :value="1" />
-            <el-option label="结算场景 (2)" :value="2" />
-            <el-option label="库存场景 (3)" :value="3" />
+            <el-option v-for="item in sceneOptions" :key="item.sceneType" :label="`${item.sceneName} (${item.sceneType})`" :value="item.sceneType" />
           </el-select>
         </el-form-item>
         <el-form-item label="任务状态">
@@ -252,6 +247,7 @@ const getTaskDetail = (taskId) => request({ url: `/task/${taskId}`, method: 'get
 const getTaskHistory = (taskId) => request({ url: `/task/${taskId}/history`, method: 'get' })
 const getDashboardStats = () => request({ url: '/task/stats', method: 'get' })
 const triggerManualRetry = (taskId) => request({ url: `/task/${taskId}/retry`, method: 'post' })
+const getSceneList = () => request({ url: '/scene/list', method: 'get' })
 
 // State Variables
 const loading = ref(false)
@@ -259,6 +255,8 @@ const tableData = ref([])
 const historyList = ref([])
 const selectedTask = ref(null)
 const detailVisible = ref(false)
+const sceneOptions = ref([])
+const sceneMap = ref({})
 
 const stats = reactive({
   total: 0,
@@ -280,28 +278,29 @@ const pagination = reactive({
 })
 
 // Methods
-const getSceneName = (sceneType) => {
-  const map = {
-    1: '退款场景 (1)',
-    2: '结算场景 (2)',
-    3: '库存场景 (3)',
-    10: '电商退款 (10)',
-    11: '酒店结算 (11)',
-    12: '库存同步 (12)'
+const loadScenes = async () => {
+  try {
+    const res = await getSceneList()
+    if (res && res.data) {
+      sceneOptions.value = res.data
+      const map = {}
+      res.data.forEach(scene => {
+        map[scene.sceneType] = scene.sceneName
+      })
+      sceneMap.value = map
+    }
+  } catch (e) {
+    console.error('Failed to load scenes', e)
   }
-  return map[sceneType] || `场景 (${sceneType})`
+}
+
+const getSceneName = (sceneType) => {
+  return sceneMap.value[sceneType] ? `${sceneMap.value[sceneType]} (${sceneType})` : `场景 (${sceneType})`
 }
 
 const getSceneTagType = (sceneType) => {
-  const map = {
-    1: 'primary',
-    2: 'success',
-    3: 'warning',
-    10: 'primary',
-    11: 'success',
-    12: 'warning'
-  }
-  return map[sceneType] || 'info'
+  const types = ['primary', 'success', 'warning', 'danger', 'info']
+  return types[sceneType % types.length] || 'info'
 }
 
 const getStatusType = (status) => {
@@ -473,6 +472,7 @@ const triggerRetry = (row) => {
 }
 
 onMounted(() => {
+  loadScenes()
   loadAllData()
 })
 </script>

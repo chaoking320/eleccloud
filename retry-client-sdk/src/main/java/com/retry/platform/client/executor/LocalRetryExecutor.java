@@ -1,6 +1,7 @@
 package com.retry.platform.client.executor;
 
 import com.retry.platform.client.api.RetryClient;
+import com.retry.platform.client.api.RetryInternalClient;
 import com.retry.platform.client.dto.RetryTaskDTO;
 import com.retry.platform.client.hook.QueryResult;
 import com.retry.platform.client.hook.RetryContext;
@@ -43,7 +44,7 @@ public class LocalRetryExecutor {
     private ApplicationContext applicationContext;
 
     @Autowired
-    private RetryClient retryClient;
+    private RetryInternalClient retryClient;
 
     @Autowired
     private RetryMessageProducer retryMessageProducer;
@@ -57,7 +58,7 @@ public class LocalRetryExecutor {
         log.info("[LocalRetryExecutor] Processing slim message: taskId={}", taskId);
         try {
             // 1. 从 server 获取任务最新状态（瘦消息路径的唯一一次 HTTP 查询）
-            RetryTaskDTO task = retryClient.queryTask(taskId);
+            RetryTaskDTO task = ((RetryClient) retryClient).queryTask(taskId);
             if (task == null) {
                 log.warn("[LocalRetryExecutor] Task not found or deleted on server. taskId={}", taskId);
                 return;
@@ -152,7 +153,7 @@ public class LocalRetryExecutor {
     private void handleSuccess(String taskId, RetryContext context, RetryHook hook) {
         log.info("[LocalRetryExecutor] Task already SUCCESS. taskId={}", taskId);
         hook.doCallback(context, QueryResult.success("Already confirmed SUCCESS by checkStatus"));
-        retryClient.markSuccess(taskId);
+        ((RetryClient) retryClient).markSuccess(taskId);
     }
 
     private void handleWait(String taskId, RetryContext context, RetryHook hook, RetryMessagePayload payload) {

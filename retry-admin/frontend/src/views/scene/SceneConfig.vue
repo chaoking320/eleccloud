@@ -96,8 +96,27 @@
             show-word-limit
           />
         </el-form-item>
+
+        <el-form-item label="退避策略" prop="backoffStrategy">
+          <el-select v-model="form.backoffStrategy" placeholder="请选择退避策略" style="width: 100%">
+            <el-option label="自定义间隔 (CUSTOM)" value="CUSTOM" />
+            <el-option label="固定间隔 (FIXED)" value="FIXED" />
+            <el-option label="线性递增 (LINEAR)" value="LINEAR" />
+            <el-option label="指数递增 (EXPONENTIAL)" value="EXPONENTIAL" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="退避基数" prop="backoffBase" v-if="form.backoffStrategy !== 'CUSTOM'">
+          <el-input-number 
+            v-model="form.backoffBase" 
+            :min="1" 
+            placeholder="单位：分钟"
+            style="width: 100%"
+          />
+          <div class="form-tip" style="width: 100%; margin-top: 5px;">单位：分钟。用于计算退避间隔。</div>
+        </el-form-item>
         
-        <el-form-item label="重试间隔" prop="retryIntervals">
+        <el-form-item label="重试间隔" prop="retryIntervals" v-if="form.backoffStrategy === 'CUSTOM'">
           <retry-interval-config v-model="form.retryIntervals" />
         </el-form-item>
         
@@ -148,7 +167,9 @@ const form = reactive({
   sceneName: '',
   retryIntervals: '',
   hookClass: '',
-  enabled: true
+  enabled: true,
+  backoffStrategy: 'CUSTOM',
+  backoffBase: 1
 })
 
 // 表单验证规则
@@ -162,7 +183,16 @@ const rules = {
     { min: 2, max: 50, message: '场景名称长度在2-50个字符', trigger: 'blur' }
   ],
   retryIntervals: [
-    { required: true, message: '请配置重试间隔', trigger: 'blur' }
+    { 
+      validator: (rule, value, callback) => {
+        if (form.backoffStrategy === 'CUSTOM' && !value) {
+          callback(new Error('请配置重试间隔'))
+        } else {
+          callback()
+        }
+      }, 
+      trigger: 'blur' 
+    }
   ],
   hookClass: [
     { 
@@ -307,7 +337,9 @@ const resetForm = () => {
     sceneName: '',
     retryIntervals: '',
     hookClass: '',
-    enabled: true
+    enabled: true,
+    backoffStrategy: 'CUSTOM',
+    backoffBase: 1
   })
   
   if (formRef.value) {
