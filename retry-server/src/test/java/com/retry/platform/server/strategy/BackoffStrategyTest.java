@@ -43,6 +43,7 @@ class BackoffStrategyTest {
     void fixedIgnoresRetryCountAndBase() {
         assertEquals(5 * MIN, BackoffStrategy.FIXED.calculateIntervalMs(0, 5, null));
         assertEquals(5 * MIN, BackoffStrategy.FIXED.calculateIntervalMs(100, 5, null));
+        assertEquals(1 * MIN, BackoffStrategy.FIXED.calculateIntervalMs(0, 1, null));
     }
 
     @Test
@@ -56,6 +57,9 @@ class BackoffStrategyTest {
         assertEquals(2 * MIN, BackoffStrategy.LINEAR.calculateIntervalMs(0, 2, null));
         assertEquals(4 * MIN, BackoffStrategy.LINEAR.calculateIntervalMs(1, 2, null));
         assertEquals(6 * MIN, BackoffStrategy.LINEAR.calculateIntervalMs(2, 2, null));
+        assertEquals(8 * MIN, BackoffStrategy.LINEAR.calculateIntervalMs(3, 2, null));
+        assertEquals(10 * MIN, BackoffStrategy.LINEAR.calculateIntervalMs(4, 2, null));
+        assertEquals(12 * MIN, BackoffStrategy.LINEAR.calculateIntervalMs(5, 2, null));
     }
 
     @Test
@@ -69,6 +73,13 @@ class BackoffStrategyTest {
         assertEquals(2 * MIN, BackoffStrategy.EXPONENTIAL.calculateIntervalMs(1, 1, null));
         assertEquals(4 * MIN, BackoffStrategy.EXPONENTIAL.calculateIntervalMs(2, 1, null));
         assertEquals(8 * MIN, BackoffStrategy.EXPONENTIAL.calculateIntervalMs(3, 1, null));
+        assertEquals(16 * MIN, BackoffStrategy.EXPONENTIAL.calculateIntervalMs(4, 1, null));
+        assertEquals(32 * MIN, BackoffStrategy.EXPONENTIAL.calculateIntervalMs(5, 1, null));
+        assertEquals(64 * MIN, BackoffStrategy.EXPONENTIAL.calculateIntervalMs(6, 1, null));
+        assertEquals(128 * MIN, BackoffStrategy.EXPONENTIAL.calculateIntervalMs(7, 1, null));
+        assertEquals(256 * MIN, BackoffStrategy.EXPONENTIAL.calculateIntervalMs(8, 1, null));
+        assertEquals(512 * MIN, BackoffStrategy.EXPONENTIAL.calculateIntervalMs(9, 1, null));
+        assertEquals(1024 * MIN, BackoffStrategy.EXPONENTIAL.calculateIntervalMs(10, 1, null));
     }
 
     @Test

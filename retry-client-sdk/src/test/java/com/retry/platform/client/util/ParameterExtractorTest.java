@@ -44,18 +44,40 @@ class ParameterExtractorTest {
     }
 
     @Test
-    void throwsWhenKeyNotFoundAmongParameters() {
+    void throwsWhenKeyNotFoundAmongParameters() throws NoSuchMethodException {
         MethodSignature sig = mock(MethodSignature.class);
         when(sig.getParameterNames()).thenReturn(new String[]{"orderId"});
+        when(sig.getMethod()).thenReturn(ParameterExtractorTest.class.getMethod("toString"));
         assertThrows(IllegalArgumentException.class,
                 () -> ParameterExtractor.extractIdempotentKey(sig, new Object[]{"ORD-1"}, "missingKey"));
     }
 
     @Test
-    void throwsWhenArgsEmpty() {
+    void throwsWhenArgsEmpty() throws NoSuchMethodException {
         MethodSignature sig = mock(MethodSignature.class);
+        when(sig.getMethod()).thenReturn(ParameterExtractorTest.class.getMethod("toString"));
         assertThrows(IllegalArgumentException.class,
                 () -> ParameterExtractor.extractIdempotentKey(sig, new Object[]{}, "orderId"));
+    }
+
+    @Test
+    void extractsIdempotentKeyWithNestedSpel() {
+        MethodSignature sig = mock(MethodSignature.class);
+        when(sig.getParameterNames()).thenReturn(new String[]{"req"});
+        NestedParamObject req = new NestedParamObject();
+        req.user = new UserObject();
+        req.user.id = "U-777";
+        String key = ParameterExtractor.extractIdempotentKey(sig, new Object[]{req}, "#req.user.id");
+        assertEquals("U-777", key);
+    }
+
+    @Test
+    void extractsIdempotentKeyFromGetterMethod() {
+        MethodSignature sig = mock(MethodSignature.class);
+        when(sig.getParameterNames()).thenReturn(new String[]{"req"});
+        GetterObject req = new GetterObject("G-888");
+        String key = ParameterExtractor.extractIdempotentKey(sig, new Object[]{req}, "transId");
+        assertEquals("G-888", key);
     }
 
     @Test
@@ -71,5 +93,23 @@ class ParameterExtractorTest {
     /** 简单 POJO，用于验证从对象字段提取幂等键。 */
     public static class ParamObject {
         public String transId;
+    }
+
+    public static class NestedParamObject {
+        public UserObject user;
+    }
+
+    public static class UserObject {
+        public String id;
+    }
+
+    public static class GetterObject {
+        private String transId;
+        public GetterObject(String transId) {
+            this.transId = transId;
+        }
+        public String getTransId() {
+            return transId;
+        }
     }
 }
