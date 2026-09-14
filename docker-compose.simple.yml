@@ -1,0 +1,132 @@
+# ElecCloud 简化部署配置
+# 适用场景：Server + Admin 部署到 Docker，本地业务系统通过 SDK 接入
+# 使用方式：docker compose -f docker-compose.simple.yml up -d --build
+
+version: '3.8'
+
+services:
+  # MySQL 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: retry-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: retry_platform
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-ppassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - retry-network
+
+  # Redis 缓存
+  redis:
+    image: redis:6-alpine
+    container_name: retry-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - retry-network
+
+  # 重试服务端（核心调度和存储）
+  retry-server:
+    build:
+      context: ./retry-server
+      dockerfile: Dockerfile
+    container_name: retry-server
+    ports:
+      - "8080:8080"
+    environment:
+      # 数据库配置
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/retry_platform?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=password
+      
+      # Redis 配置
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
+      - SPRING_REDIS_DATABASE=2
+      
+      # Redisson 配置（用于分布式锁）
+      - SPRING_REDIS_REDISSON_CONFIG=singleServerConfig:\n  address: "redis://redis:6379"\n  database: 2
+      
+      # 时区
+      - TZ=Asia/Shanghai
+      
+      # JVM 参数（可根据实际情况调整）
+      - JAVA_OPTS=-Xms512m -Xmx1g -XX:+UseG1GC
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - retry-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # 管理后台（Web UI）
+  retry-admin:
+    build:
+      context: ./retry-admin
+      dockerfile: Dockerfile
+    container_name: retry-admin
+    ports:
+      - "8081:8081"
+    environment:
+      # 数据库配置
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/retry_platform?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=password
+      
+      # 时区
+      - TZ=Asia/Shanghai
+      
+      # JVM 参数
+      - JAVA_OPTS=-Xms256m -Xmx512m
+    depends_on:
+      mysql:
+        condition: service_healthy
+      retry-server:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - retry-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8081 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+# 持久化卷
+volumes:
+  mysql-data:
+    driver: local
+  redis-data:
+    driver: local
+
+# 网络配置
+networks:
+  retry-network:
+    driver: bridge
