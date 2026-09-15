@@ -17,6 +17,8 @@ services:
     volumes:
       - ./retry-server-shared.yml:/app/config/retry-server-shared.yml:ro
     command: ["--spring.config.additional-location=file:/app/config/retry-server-shared.yml", "--server.port=8080"]
+    environment:
+      - RETRY_SECURITY_ENABLED=false
     restart: unless-stopped
     networks:
       - shared-network
@@ -45,10 +47,13 @@ services:
     depends_on:
       - retry-server
     environment:
+      - RETRY_CLIENT_MODE=remote
       - RETRY_CLIENT_SERVER_URL=http://retry-server:8080
+      - RETRY_CLIENT_API_KEY=demo-key-12345678
       - SPRING_REDIS_HOST=redis
       - SPRING_REDIS_PORT=6379
-      - SPRING_REDIS_PASSWORD=ChangeMe2026
+      - SPRING_REDIS_PASSWORD=123456
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/retry_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
     restart: unless-stopped
     networks:
       - shared-network
