@@ -58,7 +58,22 @@ public class RetryTaskServiceImpl implements RetryTaskService {
         // 2. 获取场景配置
         SceneConfig sceneConfig = sceneConfigService.getSceneConfigByType(request.getSceneType());
         if (sceneConfig == null) {
-            throw new IllegalArgumentException("Scene config not found for sceneType: " + request.getSceneType());
+            // 优雅降级：若服务端库中尚未录入场景，但客户端通过 @RetryableTask 注解携带了策略字段，
+            // 则自动构建临时场景策略，实现客户端“自包含策略”无缝接入
+            if (request.getMaxRetryCount() != null || request.getRetryIntervals() != null || request.getHookClass() != null) {
+                sceneConfig = new SceneConfig();
+                sceneConfig.setSceneType(request.getSceneType());
+                sceneConfig.setSceneName("Auto-derived Scene " + request.getSceneType());
+                sceneConfig.setMaxRetryCount(request.getMaxRetryCount() != null ? request.getMaxRetryCount() : 3);
+                sceneConfig.setRetryIntervals(request.getRetryIntervals() != null ? request.getRetryIntervals() : "1,3,5");
+                sceneConfig.setBackoffStrategy(request.getBackoffStrategy() != null ? request.getBackoffStrategy() : "CUSTOM");
+                sceneConfig.setBackoffBase(request.getBackoffBase() != null ? request.getBackoffBase() : 1);
+                sceneConfig.setHookClass(request.getHookClass());
+                sceneConfig.setEnabled(1);
+                log.info("[Server] SceneConfig auto-derived from request for sceneType={}", request.getSceneType());
+            } else {
+                throw new IllegalArgumentException("Scene config not found for sceneType: " + request.getSceneType());
+            }
         }
         
         if (!sceneConfig.checkEnabled()) {
@@ -86,7 +101,8 @@ public class RetryTaskServiceImpl implements RetryTaskService {
         retryTask.setMethodClass(request.getMethodClass());
         retryTask.setMethodName(request.getMethodName());
         retryTask.setMethodParams(request.getMethodParams());
-        retryTask.setHookClass(sceneConfig.getHookClass());
+        retryTask.setHookClass(request.getHookClass() != null && !request.getHookClass().trim().isEmpty() 
+                ? request.getHookClass() : sceneConfig.getHookClass());
         retryTask.setMethodParamTypes(request.getMethodParamTypes());
         retryTask.setTaskStatus("INIT");
         retryTask.setSubmitMode(request.getSubmitMode() != null ? request.getSubmitMode() : "POST_FAIL");
@@ -165,13 +181,15 @@ public class RetryTaskServiceImpl implements RetryTaskService {
         // 补齐场景策略信息，使客户端 SDK 本地重试可以免去单独查配置的开销
         SceneConfig sceneConfig = sceneConfigService.getSceneConfigByType(retryTask.getSceneType());
         if (sceneConfig != null) {
-            dto.setHookClass(sceneConfig.getHookClass());
+            dto.setHookClass(retryTask.getHookClass() != null ? retryTask.getHookClass() : sceneConfig.getHookClass());
             dto.setBackoffStrategy(sceneConfig.getBackoffStrategy());
             dto.setBackoffBase(sceneConfig.getBackoffBase());
             dto.setRetryIntervals(sceneConfig.getRetryIntervals());
         } else {
-            // 防御性编程：场景配置可能已被删除，记录警告但不抛异常
-            log.warn("Scene config not found for taskId={}, sceneType={}. Task will use default retry strategy.", 
+            dto.setHookClass(retryTask.getHookClass());
+            dto.setBackoffStrategy("CUSTOM");
+            dto.setRetryIntervals("1,2,3,5,10");
+            log.warn("Scene config not found for taskId={}, sceneType={}. Task will use default/task retry strategy.", 
                     taskId, retryTask.getSceneType());
         }
         
