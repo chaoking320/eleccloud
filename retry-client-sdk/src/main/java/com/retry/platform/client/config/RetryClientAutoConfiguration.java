@@ -287,43 +287,22 @@ public class RetryClientAutoConfiguration {
         return new LocalRetryExecutor();
     }
 
-    // ==================== MQ 双模式条件装配 ====================
-
-    /**
-     * 1. 装配 REDIS 生产者
-     */
-    @Bean
-    @ConditionalOnMissingBean(RetryMessageProducer.class)
+    // ==================== REDIS MQ 条件装配（静态内部类 + 类加载自省隔离） ====================
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnClass(name = "org.springframework.data.redis.core.StringRedisTemplate")
     @ConditionalOnProperty(prefix = "retry.client", name = "mq-type", havingValue = "REDIS", matchIfMissing = true)
-    @ConditionalOnClass(StringRedisTemplate.class)
-    public RetryMessageProducer redisRetryMessageProducer(StringRedisTemplate stringRedisTemplate,
-                                                           RetryClientProperties properties) {
-        log.info("[Config] Initializing REDIS-based ZSET RetryMessageProducer");
-        return new RedisRetryMessageProducer(stringRedisTemplate, properties.getQueueName());
-    }
-
-    /**
-     * 2. 装配 RABBITMQ 生产者
-     */
-    @Bean
-    @ConditionalOnProperty(prefix = "retry.client", name = "mq-type", havingValue = "RABBITMQ")
-    @ConditionalOnClass(RabbitTemplate.class)
-    public RetryMessageProducer rabbitRetryMessageProducer(RabbitTemplate rabbitTemplate,
-                                                           RetryClientProperties properties) {
-        log.info("[Config] Initializing RABBITMQ-based RetryMessageProducer");
-        return new RabbitRetryMessageProducer(rabbitTemplate, properties.getQueueName());
-    }
-
-    /**
-     * MQ 消费者配置（仅 consumer-enabled=true 时激活）
-     */
-    @Configuration
-    @ConditionalOnProperty(prefix = "retry.client", name = "consumer-enabled", havingValue = "true", matchIfMissing = true)
-    public static class ConsumerConfiguration {
+    public static class RedisMqConfiguration {
 
         @Bean
-        @ConditionalOnProperty(prefix = "retry.client", name = "mq-type", havingValue = "REDIS", matchIfMissing = true)
-        @ConditionalOnClass(StringRedisTemplate.class)
+        @ConditionalOnMissingBean(RetryMessageProducer.class)
+        public RetryMessageProducer redisRetryMessageProducer(StringRedisTemplate stringRedisTemplate,
+                                                               RetryClientProperties properties) {
+            log.info("[Config] Initializing REDIS-based ZSET RetryMessageProducer");
+            return new RedisRetryMessageProducer(stringRedisTemplate, properties.getQueueName());
+        }
+
+        @Bean
+        @ConditionalOnProperty(prefix = "retry.client", name = "consumer-enabled", havingValue = "true", matchIfMissing = true)
         public RedisRetryMessageConsumer redisRetryMessageConsumer(StringRedisTemplate stringRedisTemplate,
                                                                    LocalRetryExecutor localRetryExecutor,
                                                                    RetryClientProperties properties) {
@@ -332,10 +311,24 @@ public class RetryClientAutoConfiguration {
             return new RedisRetryMessageConsumer(stringRedisTemplate, localRetryExecutor,
                     properties.getConsumerConcurrency(), properties.getQueueName(), properties.getConsumerBatchSize());
         }
+    }
+
+    // ==================== RABBITMQ 条件装配（静态内部类 + 类加载自省隔离） ====================
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnClass(name = "org.springframework.amqp.rabbit.core.RabbitTemplate")
+    @ConditionalOnProperty(prefix = "retry.client", name = "mq-type", havingValue = "RABBITMQ")
+    public static class RabbitMqConfiguration {
 
         @Bean
-        @ConditionalOnProperty(prefix = "retry.client", name = "mq-type", havingValue = "RABBITMQ")
-        @ConditionalOnClass(RabbitTemplate.class)
+        @ConditionalOnMissingBean(RetryMessageProducer.class)
+        public RetryMessageProducer rabbitRetryMessageProducer(RabbitTemplate rabbitTemplate,
+                                                               RetryClientProperties properties) {
+            log.info("[Config] Initializing RABBITMQ-based RetryMessageProducer");
+            return new RabbitRetryMessageProducer(rabbitTemplate, properties.getQueueName());
+        }
+
+        @Bean
+        @ConditionalOnProperty(prefix = "retry.client", name = "consumer-enabled", havingValue = "true", matchIfMissing = true)
         public RabbitRetryMessageConsumer rabbitRetryMessageConsumer(LocalRetryExecutor localRetryExecutor,
                                                                     RetryClientProperties properties) {
             log.info("[Config] Initializing RABBITMQ-based RabbitRetryMessageConsumer");

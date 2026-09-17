@@ -37,7 +37,7 @@ public class RetryableTaskAspect {
     @Autowired
     private RetryClient retryClient;
 
-    @Autowired
+    @Autowired(required = false)
     private com.retry.platform.client.mq.RetryMessageProducer retryMessageProducer;
 
     @Around("@annotation(retryableTask)")
@@ -69,7 +69,7 @@ public class RetryableTaskAspect {
                     taskId, retryableTask.sceneType(), request.getIdempotentKey());
 
             // 预提交模式：首次延时从注解/request 配置的间隔第一个值读取，而非硬编码 60s
-            if (taskId != null) {
+            if (taskId != null && retryMessageProducer != null) {
                 long initialDelayMs = resolveInitialDelayMs(request);
                 retryMessageProducer.sendDelayMessage(taskId, initialDelayMs, retryableTask.sceneType());
             }
@@ -134,7 +134,7 @@ public class RetryableTaskAspect {
                 log.info("[POST_FAIL] Retry task submitted. taskId={}, sceneType={}, idempotentKey={}",
                         taskId, retryableTask.sceneType(), request.getIdempotentKey());
 
-                if (taskId != null) {
+                if (taskId != null && retryMessageProducer != null) {
                     // 首次延时从注解/request 配置的间隔第一个值读取，而非硬编码 60s
                     long initialDelayMs = resolveInitialDelayMs(request);
                     retryMessageProducer.sendDelayMessage(taskId, initialDelayMs, retryableTask.sceneType());
