@@ -200,20 +200,24 @@ public class RetryClientAutoConfiguration {
     // ==================== Standalone 模式：本地 DB Mapper + StandaloneRetryClientImpl ====================
 
     /**
-     * Standalone 模式下注册 SqlSessionFactory（指向业务方主 DataSource）
-     * 不走 @MapperScan，避免与业务方的 MapperScan 冲突
+     * Standalone 模式内部专用的 SqlSessionFactory（指向业务方主 DataSource）
+     * 注意：绝不向 Spring 容器注册为公共 @Bean，彻底消除与宿主应用（MyBatis-Plus、Jeecg、多数据源）
+     * 的 SqlSessionFactory 产生多候选 Bean（NoUniqueBeanDefinitionException）冲突！
      */
-    @Bean("standaloneRetrySqlSessionFactory")
-    @ConditionalOnProperty(prefix = "retry.client", name = "mode", havingValue = "standalone")
-    public SqlSessionFactory standaloneRetrySqlSessionFactory(DataSource dataSource) throws Exception {
-        SqlSessionFactoryBean factoryBean = new SqlSessionFactoryBean();
-        factoryBean.setDataSource(dataSource);
-        // 加载 SDK 内置的 Mapper XML
-        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
-        factoryBean.setMapperLocations(
-                resolver.getResources("classpath:mapper/standalone/*.xml"));
-        log.info("[Standalone] SqlSessionFactory initialized with mapper: classpath:mapper/standalone/*.xml");
-        return factoryBean.getObject();
+    private volatile SqlSessionFactory standaloneInternalSqlSessionFactory;
+
+    private synchronized SqlSessionFactory getOrCreateStandaloneSqlSessionFactory(DataSource dataSource) throws Exception {
+        if (standaloneInternalSqlSessionFactory == null) {
+            SqlSessionFactoryBean factoryBean = new SqlSessionFactoryBean();
+            factoryBean.setDataSource(dataSource);
+            // 加载 SDK 内置的 Mapper XML
+            PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+            factoryBean.setMapperLocations(
+                    resolver.getResources("classpath:mapper/standalone/*.xml"));
+            standaloneInternalSqlSessionFactory = factoryBean.getObject();
+            log.info("[Standalone] Isolated SqlSessionFactory initialized with mapper: classpath:mapper/standalone/*.xml");
+        }
+        return standaloneInternalSqlSessionFactory;
     }
 
     /**
@@ -221,10 +225,9 @@ public class RetryClientAutoConfiguration {
      */
     @Bean
     @ConditionalOnProperty(prefix = "retry.client", name = "mode", havingValue = "standalone")
-    public StandaloneRetryTaskMapper standaloneRetryTaskMapper(
-            SqlSessionFactory standaloneRetrySqlSessionFactory) throws Exception {
+    public StandaloneRetryTaskMapper standaloneRetryTaskMapper(DataSource dataSource) throws Exception {
         MapperFactoryBean<StandaloneRetryTaskMapper> factoryBean = new MapperFactoryBean<>(StandaloneRetryTaskMapper.class);
-        factoryBean.setSqlSessionFactory(standaloneRetrySqlSessionFactory);
+        factoryBean.setSqlSessionFactory(getOrCreateStandaloneSqlSessionFactory(dataSource));
         return factoryBean.getObject();
     }
 
@@ -233,10 +236,9 @@ public class RetryClientAutoConfiguration {
      */
     @Bean
     @ConditionalOnProperty(prefix = "retry.client", name = "mode", havingValue = "standalone")
-    public StandaloneRetryHistoryMapper standaloneRetryHistoryMapper(
-            SqlSessionFactory standaloneRetrySqlSessionFactory) throws Exception {
+    public StandaloneRetryHistoryMapper standaloneRetryHistoryMapper(DataSource dataSource) throws Exception {
         MapperFactoryBean<StandaloneRetryHistoryMapper> factoryBean = new MapperFactoryBean<>(StandaloneRetryHistoryMapper.class);
-        factoryBean.setSqlSessionFactory(standaloneRetrySqlSessionFactory);
+        factoryBean.setSqlSessionFactory(getOrCreateStandaloneSqlSessionFactory(dataSource));
         return factoryBean.getObject();
     }
 

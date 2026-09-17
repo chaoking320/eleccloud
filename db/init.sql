@@ -170,3 +170,18 @@ ON DUPLICATE KEY UPDATE
     backoff_strategy=VALUES(backoff_strategy), backoff_base=VALUES(backoff_base),
     max_retry_duration=VALUES(max_retry_duration), client_app_url=VALUES(client_app_url);
 
+-- =====================================================
+-- 场景100：知识库文档删除（推拉结合 + EXPONENTIAL退避策略）
+-- =====================================================
+INSERT INTO scene_config (scene_type, scene_name, retry_intervals, max_retry_count,
+    backoff_strategy, backoff_base, max_retry_duration,
+    hook_class, client_app_url, enabled)
+VALUES (100, '知识库文档删除场景', NULL, 5,
+    'EXPONENTIAL', 1, 3600,
+    'org.jeecg.modules.airag.llm.retry.DocDeleteRetryHook', 'http://jk-kms-backend:8080', 1)
+ON DUPLICATE KEY UPDATE
+    scene_name=VALUES(scene_name), retry_intervals=VALUES(retry_intervals),
+    backoff_strategy=VALUES(backoff_strategy), backoff_base=VALUES(backoff_base),
+    max_retry_duration=VALUES(max_retry_duration), client_app_url=VALUES(client_app_url);
+
+

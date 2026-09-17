@@ -60,12 +60,14 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
+            <optional>true</optional>
         </dependency>
 
         <!-- AMQP RabbitMQ Starter -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-amqp</artifactId>
+            <optional>true</optional>
         </dependency>
 
         <!-- Spring Boot Starter Test -->
