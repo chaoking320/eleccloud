@@ -16,7 +16,9 @@ CREATE TABLE IF NOT EXISTS retry_task (
     method_class VARCHAR(256) NOT NULL COMMENT '方法类名',
     method_name VARCHAR(128) NOT NULL COMMENT '方法名',
     method_params TEXT COMMENT '方法参数JSON',
-    task_status VARCHAR(20) NOT NULL COMMENT '任务状态: INIT/WAIT/SUCCESS/FAILED',
+    hook_class VARCHAR(256) COMMENT 'Hook类全限定名（用于回查与幂等回调）',
+    method_param_types VARCHAR(512) COMMENT '方法参数类型列表（逗号分隔，用于精确反射匹配重载方法）',
+    task_status VARCHAR(20) NOT NULL COMMENT '任务状态: INIT/WAIT/EXECUTING/SUCCESS/FAILED',
     submit_mode VARCHAR(20) DEFAULT 'POST_FAIL' COMMENT '提交模式: POST_FAIL-失败后提交(默认), PRE_SUBMIT-执行前预注册',
     retry_count INT DEFAULT 0 COMMENT '重试次数',
     max_retry_count INT NOT NULL COMMENT '最大重试次数',
@@ -171,17 +173,25 @@ ON DUPLICATE KEY UPDATE
     max_retry_duration=VALUES(max_retry_duration), client_app_url=VALUES(client_app_url);
 
 -- =====================================================
--- 场景100：知识库文档删除（推拉结合 + EXPONENTIAL退避策略）
+-- 场景100：知识库文档删除（推拉结合 + CUSTOM 退避策略 1,2,3,5,10 分钟）
 -- =====================================================
 INSERT INTO scene_config (scene_type, scene_name, retry_intervals, max_retry_count,
     backoff_strategy, backoff_base, max_retry_duration,
     hook_class, client_app_url, enabled)
-VALUES (100, '知识库文档删除场景', NULL, 5,
-    'EXPONENTIAL', 1, 3600,
-    'org.jeecg.modules.airag.llm.retry.DocDeleteRetryHook', 'http://jk-kms-backend:8080', 1)
+VALUES (100, '知识库文档删除场景', '1,2,3,5,10', 5,
+    'CUSTOM', 1, 3600,
+    'org.jeecg.modules.airag.llm.retry.DocDeleteRetryHook', '', 1)
 ON DUPLICATE KEY UPDATE
     scene_name=VALUES(scene_name), retry_intervals=VALUES(retry_intervals),
     backoff_strategy=VALUES(backoff_strategy), backoff_base=VALUES(backoff_base),
-    max_retry_duration=VALUES(max_retry_duration), client_app_url=VALUES(client_app_url);
+    max_retry_count=VALUES(max_retry_count),
+    hook_class=VALUES(hook_class);
+
+-- =====================================================
+-- 存量库兼容升级补丁（若旧环境已存在 retry_task 表，执行以下 DDL 补齐新字段）
+-- =====================================================
+-- ALTER TABLE retry_task ADD COLUMN hook_class VARCHAR(256) COMMENT 'Hook类全限定名' AFTER method_params;
+-- ALTER TABLE retry_task ADD COLUMN method_param_types VARCHAR(512) COMMENT '方法参数类型列表' AFTER hook_class;
+
 
 

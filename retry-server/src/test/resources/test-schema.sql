@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS retry_task (
     method_class VARCHAR(256) NOT NULL COMMENT '方法类名',
     method_name VARCHAR(128) NOT NULL COMMENT '方法名',
     method_params TEXT COMMENT '方法参数JSON',
+    hook_class VARCHAR(256) COMMENT 'Hook类名',
+    method_param_types VARCHAR(512) COMMENT '方法参数类型列表',
     task_status VARCHAR(20) NOT NULL COMMENT '任务状态',
     submit_mode VARCHAR(20) DEFAULT 'POST_FAIL' COMMENT '提交模式',
     retry_count INT DEFAULT 0 COMMENT '重试次数',
