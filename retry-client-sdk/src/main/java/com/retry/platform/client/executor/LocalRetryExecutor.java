@@ -193,10 +193,16 @@ public class LocalRetryExecutor {
         log.info("[LocalRetryExecutor] Task in INIT state. Invoking local method. taskId={}", taskId);
         long startTime = System.currentTimeMillis();
         
-        java.util.concurrent.ScheduledExecutorService watchdog = java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
+        java.util.concurrent.ScheduledExecutorService watchdog =
+                java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                    Thread t = new Thread(r, "retry-watchdog-" + taskId);
+                    t.setDaemon(true); // 守护线程：不阻止 JVM 正常/强制关闭
+                    return t;
+                });
         watchdog.scheduleAtFixedRate(() -> {
             try {
-                retryClient.markExecuting(taskId);
+                // touchHeartbeat 刷新 update_time，防止被 FallbackScheduler 误判为卡死并回收
+                retryClient.touchHeartbeat(taskId);
             } catch (Exception e) {
                 log.warn("[LocalRetryExecutor] Failed to update heartbeat for taskId={}", taskId);
             }
@@ -556,7 +562,6 @@ public class LocalRetryExecutor {
     }
 
     private long calculateDelayMsFromPayload(RetryMessagePayload payload, int retryCount) {
-        // 自定义或回退支持
         String strategy = payload.getBackoffStrategy() != null ? payload.getBackoffStrategy() : "CUSTOM";
         com.retry.platform.client.strategy.BackoffType type;
         try {
@@ -565,28 +570,41 @@ public class LocalRetryExecutor {
             type = com.retry.platform.client.strategy.BackoffType.CUSTOM;
         }
         int baseMins = payload.getBackoffBase() != null ? payload.getBackoffBase() : 1;
-        
+
+        long delayMs;
         if (com.retry.platform.client.strategy.BackoffType.FIXED == type) {
-            return baseMins * 60L * 1000L;
+            delayMs = baseMins * 60_000L;
         } else if (com.retry.platform.client.strategy.BackoffType.LINEAR == type) {
-            return (long) retryCount * baseMins * 60L * 1000L;
+            delayMs = (long) retryCount * baseMins * 60_000L;
         } else if (com.retry.platform.client.strategy.BackoffType.EXPONENTIAL == type) {
             int exp = Math.min(retryCount - 1, 30);
-            return baseMins * (1L << exp) * 60L * 1000L;
+            delayMs = baseMins * (1L << exp) * 60_000L;
         } else {
-            // CUSTOM 自定义列表间隔解析，默认 1 分钟
+            // CUSTOM：retryIntervals 为逗号分隔的整数（分钟）
             String intervals = payload.getRetryIntervals();
             if (intervals == null || intervals.trim().isEmpty()) {
-                return 60L * 1000L;
-            }
-            String[] split = intervals.split(",");
-            int idx = Math.min(Math.max(0, retryCount - 1), split.length - 1);
-            try {
-                return Integer.parseInt(split[idx].trim()) * 60L * 1000L;
-            } catch (Exception e) {
-                return 60L * 1000L;
+                log.warn("[LocalRetryExecutor] retryIntervals not configured, using default 1 min. taskId={}",
+                        payload.getTaskId());
+                delayMs = 60_000L;
+            } else {
+                String[] split = intervals.split(",");
+                int idx = Math.min(Math.max(0, retryCount - 1), split.length - 1);
+                try {
+                    int minutes = Integer.parseInt(split[idx].trim());
+                    delayMs = minutes * 60_000L;
+                } catch (NumberFormatException e) {
+                    log.error("[LocalRetryExecutor] Invalid retryIntervals value '{}' at index {}, must be integer minutes. " +
+                            "Falling back to 1 min. taskId={}", split[idx].trim(), idx, payload.getTaskId());
+                    delayMs = 60_000L;
+                }
             }
         }
+
+        // 最小延迟保护：至少 200ms，防止 0 分钟配置导致无保护的高频重试风暴
+        if (delayMs < 200L) {
+            delayMs = 200L;
+        }
+        return delayMs;
     }
 
     private RetryContext buildContextFromPayload(RetryMessagePayload payload) {

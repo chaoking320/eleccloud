@@ -56,4 +56,15 @@ public interface RetryInternalClient {
      * @param costTimeMs    本次执行耗时（毫秒）
      */
     void recordHistory(String taskId, int retryCount, String executeResult, String errorMessage, long costTimeMs);
+
+    /**
+     * Watchdog 心跳刷新：刷新 EXECUTING 状态任务的 update_time，
+     * 防止长时间运行的任务被 StandaloneDatabaseFallbackScheduler 误判为卡死并回收。
+     * <p>默认空实现（Remote 模式下 Server 有独立心跳机制，无需此调用）。
+     *
+     * @param taskId 任务ID
+     */
+    default void touchHeartbeat(String taskId) {
+        // Remote 模式默认不实现（Server 自身管理心跳）
+    }
 }

@@ -4,31 +4,32 @@
 <mapper namespace="com.retry.platform.client.standalone.StandaloneRetryTaskMapper">
 
     <resultMap id="BaseResultMap" type="com.retry.platform.client.dto.RetryTaskDTO">
-        <result column="task_id"           property="taskId"           jdbcType="VARCHAR"/>
-        <result column="scene_type"        property="sceneType"        jdbcType="INTEGER"/>
-        <result column="idempotent_key"    property="idempotentKey"    jdbcType="VARCHAR"/>
-        <result column="method_class"      property="methodClass"      jdbcType="VARCHAR"/>
-        <result column="method_name"       property="methodName"       jdbcType="VARCHAR"/>
-        <result column="method_params"     property="methodParams"     jdbcType="VARCHAR"/>
-        <result column="hook_class"        property="hookClass"        jdbcType="VARCHAR"/>
+        <result column="task_id"            property="taskId"           jdbcType="VARCHAR"/>
+        <result column="scene_type"         property="sceneType"        jdbcType="INTEGER"/>
+        <result column="idempotent_key"     property="idempotentKey"    jdbcType="VARCHAR"/>
+        <result column="method_class"       property="methodClass"      jdbcType="VARCHAR"/>
+        <result column="method_name"        property="methodName"       jdbcType="VARCHAR"/>
+        <result column="method_params"      property="methodParams"     jdbcType="VARCHAR"/>
+        <result column="hook_class"         property="hookClass"        jdbcType="VARCHAR"/>
         <result column="method_param_types" property="methodParamTypes" jdbcType="VARCHAR"/>
-        <result column="backoff_strategy"  property="backoffStrategy"  jdbcType="VARCHAR"/>
-        <result column="backoff_base"      property="backoffBase"      jdbcType="INTEGER"/>
-        <result column="retry_intervals"   property="retryIntervals"   jdbcType="VARCHAR"/>
-        <result column="task_status"       property="taskStatus"       jdbcType="VARCHAR"/>
-        <result column="submit_mode"       property="submitMode"       jdbcType="VARCHAR"/>
-        <result column="retry_count"       property="retryCount"       jdbcType="INTEGER"/>
-        <result column="max_retry_count"   property="maxRetryCount"    jdbcType="INTEGER"/>
-        <result column="next_retry_time"   property="nextRetryTime"    jdbcType="BIGINT"/>
-        <result column="create_time"       property="createTime"       jdbcType="TIMESTAMP"/>
-        <result column="update_time"       property="updateTime"       jdbcType="TIMESTAMP"/>
+        <result column="backoff_strategy"   property="backoffStrategy"  jdbcType="VARCHAR"/>
+        <result column="backoff_base"       property="backoffBase"      jdbcType="INTEGER"/>
+        <result column="retry_intervals"    property="retryIntervals"   jdbcType="VARCHAR"/>
+        <result column="task_status"        property="taskStatus"       jdbcType="VARCHAR"/>
+        <result column="submit_mode"        property="submitMode"       jdbcType="VARCHAR"/>
+        <result column="retry_count"        property="retryCount"       jdbcType="INTEGER"/>
+        <result column="max_retry_count"    property="maxRetryCount"    jdbcType="INTEGER"/>
+        <result column="next_retry_time"    property="nextRetryTime"    jdbcType="BIGINT"/>
+        <result column="error_msg"          property="errorMsg"         jdbcType="VARCHAR"/>
+        <result column="create_time"        property="createTime"       jdbcType="TIMESTAMP"/>
+        <result column="update_time"        property="updateTime"       jdbcType="TIMESTAMP"/>
     </resultMap>
 
     <sql id="Base_Column_List">
         task_id, scene_type, idempotent_key, method_class, method_name,
         method_params, hook_class, method_param_types, backoff_strategy, backoff_base,
         retry_intervals, task_status, submit_mode, retry_count, max_retry_count,
-        next_retry_time, create_time, update_time
+        next_retry_time, error_msg, create_time, update_time
     </sql>
 
     <!-- 插入任务 -->
@@ -93,10 +94,22 @@
         WHERE task_id = #{taskId}
     </update>
 
-    <!-- 执行异常时回滚为 INIT，记录 error_msg -->
+    <!--
+        Watchdog 心跳刷新：仅更新 update_time，确保 EXECUTING 超时检测以最新心跳为准。
+        防止长时间运行的任务被 StandaloneDatabaseFallbackScheduler 误判为卡死并回收。
+    -->
+    <update id="touchHeartbeat">
+        UPDATE retry_task
+        SET update_time = NOW()
+        WHERE task_id = #{taskId}
+          AND task_status = 'EXECUTING'
+    </update>
+
+    <!-- 执行异常时回滚为 INIT，记录 error_msg 供问题排查 -->
     <update id="rollbackToPending">
         UPDATE retry_task
         SET task_status = 'INIT',
+            error_msg   = #{errorMsg},
             update_time = NOW()
         WHERE task_id = #{taskId}
     </update>

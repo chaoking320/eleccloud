@@ -1,6 +1,7 @@
 package com.retry.platform.example.service;
 
 import com.retry.platform.client.annotation.RetryableTask;
+import com.retry.platform.example.hook.DemoRefundHook;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,10 +27,9 @@ import java.util.Map;
  *   → Admin 后台可见完整重试历史
  * </pre>
  *
- * <p><b>接入要点（3步接入）：</b>
+ * <p><b>接入要点（2步接入，无需 YAML scenes 配置）：</b>
  * <ol>
- *   <li>方法上加 {@code @RetryableTask(sceneType=10, idempotentKey="#transId")}</li>
- *   <li>在 scene_config 表配置场景（或通过 Admin 后台配置）</li>
+ *   <li>方法上加 {@code @RetryableTask}，在注解中声明全部策略（maxRetryCount/retryIntervals/hookClass）</li>
  *   <li>实现 {@link com.retry.platform.client.hook.RetryHook} 定义幂等检查逻辑</li>
  * </ol>
  */
@@ -48,8 +48,11 @@ public class RefundBusinessService {
      *
      * <p>注解说明：
      * <ul>
-     *   <li>{@code sceneType = 10}：对应 Demo 快速场景（间隔 ~5秒，方便演示）</li>
+     *   <li>{@code sceneType = 10}：对应退款场景（不再需要 YAML scenes 配置）</li>
      *   <li>{@code idempotentKey = "#transId"}：以交易流水号作为全局唯一幂等键</li>
+     *   <li>{@code maxRetryCount = 3}：最多重试 3 次（直接在注解声明，零 YAML）</li>
+     *   <li>{@code retryIntervals = "1,3,5"}：第1次等1分钟、第2次等3分钟、第3次等5分钟（整数，单位：分钟）</li>
+     *   <li>{@code hookClass = DemoRefundHook.class}：IDE 可以直接跳转/重构，不是字符串！</li>
      *   <li>方法抛出异常时，AOP 自动将任务注册到 ElecCloud 平台</li>
      * </ul>
      *
@@ -57,7 +60,14 @@ public class RefundBusinessService {
      * @param orderId 订单号
      * @param amount  退款金额
      */
-    @RetryableTask(sceneType = 10, idempotentKey = "#transId", throwException = true)
+    @RetryableTask(
+            sceneType      = 10,
+            idempotentKey  = "#transId",
+            maxRetryCount  = 3,
+            retryIntervals = "1,3,5",       // 单位：分钟，逗号分隔整数
+            hookClass      = DemoRefundHook.class,   // 直接写 Class，IDE 可跳转重构
+            throwException = true
+    )
     public void refund(String transId, String orderId, Double amount) {
         log.info("[RefundBusiness] 调用支付宝退款接口: transId={}, orderId={}, amount={}", transId, orderId, amount);
 

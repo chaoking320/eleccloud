@@ -3,6 +3,8 @@ package com.retry.platform.client.aspect;
 import com.retry.platform.client.annotation.RetryableTask;
 import com.retry.platform.client.api.RetryClient;
 import com.retry.platform.client.dto.RetryTaskRequest;
+import com.retry.platform.client.hook.RetryHook;
+import com.retry.platform.client.strategy.BackoffType;
 import com.retry.platform.client.util.JsonUtil;
 import com.retry.platform.client.util.ParameterExtractor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +37,9 @@ public class RetryableTaskAspect {
     @Autowired
     private RetryClient retryClient;
 
+    @Autowired
+    private com.retry.platform.client.mq.RetryMessageProducer retryMessageProducer;
+
     @Around("@annotation(retryableTask)")
     public Object around(ProceedingJoinPoint pjp, RetryableTask retryableTask) throws Throwable {
         if (Boolean.TRUE.equals(IN_RETRY_CONTEXT.get())) {
@@ -62,12 +67,10 @@ public class RetryableTaskAspect {
             taskId = retryClient.submit(request);
             log.info("[PRE_SUBMIT] Pre-registered retry task before method execution. taskId={}, sceneType={}, idempotentKey={}",
                     taskId, retryableTask.sceneType(), request.getIdempotentKey());
-            
-            // 预提交模式也需要防进程瞬间崩溃，先往本地 MQ 丢一条延时消息
-            // 延时可以设定得长一些（例如 5 分钟），即使真的崩溃了也可以在此时间后触发本地 doQuery 重试
+
+            // 预提交模式：首次延时从注解/request 配置的间隔第一个值读取，而非硬编码 60s
             if (taskId != null) {
-                // 读取首次重试延时（从 1 分钟开始，或者是 30 秒）
-                long initialDelayMs = 60 * 1000L; 
+                long initialDelayMs = resolveInitialDelayMs(request);
                 retryMessageProducer.sendDelayMessage(taskId, initialDelayMs, retryableTask.sceneType());
             }
         } catch (Exception e) {
@@ -79,17 +82,24 @@ public class RetryableTaskAspect {
         try {
             Object result = pjp.proceed();
 
-            // Step 3: 方法执行成功，通知平台标记 SUCCESS
+            // Step 3: 方法执行成功
             if (taskId != null) {
-                try {
-                    boolean marked = retryClient.markSuccess(taskId);
-                    if (marked) {
-                        log.info("[PRE_SUBMIT] Method succeeded, marked task as SUCCESS. taskId={}", taskId);
-                    } else {
-                        log.warn("[PRE_SUBMIT] Method succeeded but failed to mark task SUCCESS. taskId={}", taskId);
+                if (retryableTask.hookClass() == RetryHook.class) {
+                    // 无自定义 Hook：方法执行成功即代表业务成功，标记 SUCCESS
+                    try {
+                        boolean marked = retryClient.markSuccess(taskId);
+                        if (marked) {
+                            log.info("[PRE_SUBMIT] Method succeeded, marked task as SUCCESS. taskId={}", taskId);
+                        } else {
+                            log.warn("[PRE_SUBMIT] Method succeeded but failed to mark task SUCCESS. taskId={}", taskId);
+                        }
+                    } catch (Exception e) {
+                        log.error("[PRE_SUBMIT] Exception marking task SUCCESS. taskId={}, error={}", taskId, e.getMessage());
                     }
-                } catch (Exception e) {
-                    log.error("[PRE_SUBMIT] Exception marking task SUCCESS. taskId={}, error={}", taskId, e.getMessage());
+                } else {
+                    // 配置了 Hook：方法执行成功仅代表异步动作已发起，任务保留供 Hook 异步反查闭环
+                    log.info("[PRE_SUBMIT] Method executed. Task has Hook [{}], retained for async lifecycle verification. taskId={}",
+                            retryableTask.hookClass().getSimpleName(), taskId);
                 }
             }
             return result;
@@ -107,9 +117,6 @@ public class RetryableTaskAspect {
 
     // ==================== POST_FAIL 模式 ====================
 
-    @Autowired
-    private com.retry.platform.client.mq.RetryMessageProducer retryMessageProducer;
-
     /**
      * 失败后提交模式：执行方法 → 失败后提交重试任务
      */
@@ -126,10 +133,10 @@ public class RetryableTaskAspect {
                 String taskId = retryClient.submit(request);
                 log.info("[POST_FAIL] Retry task submitted. taskId={}, sceneType={}, idempotentKey={}",
                         taskId, retryableTask.sceneType(), request.getIdempotentKey());
-                
+
                 if (taskId != null) {
-                    // 方法失败后，立刻开始第一轮投递，延时默认为 1 分钟（后续由场景策略精确推进）
-                    long initialDelayMs = 60 * 1000L; 
+                    // 首次延时从注解/request 配置的间隔第一个值读取，而非硬编码 60s
+                    long initialDelayMs = resolveInitialDelayMs(request);
                     retryMessageProducer.sendDelayMessage(taskId, initialDelayMs, retryableTask.sceneType());
                 }
             } catch (Exception ex) {
@@ -148,7 +155,29 @@ public class RetryableTaskAspect {
     // ==================== 公共工具方法 ====================
 
     /**
-     * 构建重试任务请求
+     * 从 request 的 retryIntervals 中解析首次延时（分钟，取第一个值转毫秒）
+     * 若未配置则回退 SDK 默认值 1 分钟（60000ms）
+     */
+    private long resolveInitialDelayMs(RetryTaskRequest request) {
+        String intervals = request.getRetryIntervals();
+        if (intervals != null && !intervals.trim().isEmpty()) {
+            String[] parts = intervals.split(",");
+            try {
+                int firstMinutes = Integer.parseInt(parts[0].trim());
+                if (firstMinutes > 0) {
+                    return firstMinutes * 60_000L;
+                }
+                // 0 分钟间隔（Demo 用）：至少等 200ms，防止 Redis ZSET 立即触发风暴
+                return 200L;
+            } catch (NumberFormatException ignore) {
+                // 解析失败降级
+            }
+        }
+        return 60_000L; // 默认 1 分钟
+    }
+
+    /**
+     * 构建重试任务请求（含注解策略字段）
      */
     private RetryTaskRequest buildRetryTaskRequest(ProceedingJoinPoint pjp,
                                                     RetryableTask retryableTask,
@@ -168,7 +197,7 @@ public class RetryableTaskAspect {
         request.setAsync(retryableTask.async());
         request.setSubmitMode(submitMode);
 
-        // 提取参数类型列表，供 LocalRetryExecutor 精确定位重载方法（修复: 原来仅按参数数量匹配导致重载歧义）
+        // 提取参数类型列表，供 LocalRetryExecutor 精确定位重载方法
         Class<?>[] paramTypes = signature.getParameterTypes();
         if (paramTypes != null && paramTypes.length > 0) {
             StringBuilder sb = new StringBuilder();
@@ -177,6 +206,33 @@ public class RetryableTaskAspect {
                 sb.append(paramTypes[i].getName());
             }
             request.setMethodParamTypes(sb.toString());
+        }
+
+        // ===== 注解策略字段写入 Request（三级优先级第一层：注解直接声明）=====
+
+        // maxRetryCount：注解 > 0 时取注解值，否则留 null 给 Standalone 走 YAML/默认值
+        if (retryableTask.maxRetryCount() > 0) {
+            request.setMaxRetryCount(retryableTask.maxRetryCount());
+        }
+
+        // retryIntervals：注解非空时取注解值
+        if (!retryableTask.retryIntervals().isEmpty()) {
+            request.setRetryIntervals(retryableTask.retryIntervals());
+        }
+
+        // backoffStrategy：仅当注解非 CUSTOM 时显式设置（CUSTOM 是注解默认，和 SDK 默认相同，留 null 由下层决定）
+        if (retryableTask.backoffStrategy() != BackoffType.CUSTOM) {
+            request.setBackoffStrategy(retryableTask.backoffStrategy().name());
+        }
+
+        // backoffBase：注解 > 0 时取注解值
+        if (retryableTask.backoffBase() > 0) {
+            request.setBackoffBase(retryableTask.backoffBase());
+        }
+
+        // hookClass：注解不是 RetryHook.class 哨兵时，转为全限定名写入
+        if (retryableTask.hookClass() != RetryHook.class) {
+            request.setHookClass(retryableTask.hookClass().getName());
         }
 
         return request;

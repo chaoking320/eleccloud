@@ -73,8 +73,7 @@ public class RetryClientAutoConfiguration {
             // Standalone 模式：不需要 serverUrl，但需要至少配置一个场景
             log.info("Running in STANDALONE mode (local DB, no retry-server required)");
             if (properties.getScenes() == null || properties.getScenes().isEmpty()) {
-                log.warn("⚠️  retry.client.scenes is empty in standalone mode. " +
-                         "No retryable scenes configured. All @RetryableTask submissions will fail.");
+                log.info("  - No YAML scenes configured. Strategies will be derived from @RetryableTask annotations or SDK defaults.");
             } else {
                 log.info("  - Standalone scenes configured: {}", properties.getScenes().size());
                 properties.getScenes().forEach(s ->
@@ -304,24 +303,7 @@ public class RetryClientAutoConfiguration {
     }
 
     /**
-     * 2. 装配 REDIS 消费者
-     */
-    @Bean
-    @ConditionalOnProperty(prefix = "retry.client", name = "consumer-enabled", havingValue = "true", matchIfMissing = true)
-    @ConditionalOnClass(StringRedisTemplate.class)
-    public RedisRetryMessageConsumer redisRetryMessageConsumer(StringRedisTemplate stringRedisTemplate,
-                                                               LocalRetryExecutor localRetryExecutor,
-                                                               RetryClientProperties properties) {
-        if (!"REDIS".equalsIgnoreCase(properties.getMqType())) {
-            return null;
-        }
-        log.info("[Config] Initializing REDIS-based ZSET RedisRetryMessageConsumer with concurrency: {}, queueName: {}", 
-                properties.getConsumerConcurrency(), properties.getQueueName());
-        return new RedisRetryMessageConsumer(stringRedisTemplate, localRetryExecutor, properties.getConsumerConcurrency(), properties.getQueueName());
-    }
-
-    /**
-     * 3. 装配 RABBITMQ 生产者
+     * 2. 装配 RABBITMQ 生产者
      */
     @Bean
     @ConditionalOnProperty(prefix = "retry.client", name = "mq-type", havingValue = "RABBITMQ")
@@ -333,17 +315,31 @@ public class RetryClientAutoConfiguration {
     }
 
     /**
-     * 4. 装配 RABBITMQ 消费者
+     * MQ 消费者配置（仅 consumer-enabled=true 时激活）
      */
-    @Bean
+    @Configuration
     @ConditionalOnProperty(prefix = "retry.client", name = "consumer-enabled", havingValue = "true", matchIfMissing = true)
-    @ConditionalOnClass(RabbitTemplate.class)
-    public RabbitRetryMessageConsumer rabbitRetryMessageConsumer(LocalRetryExecutor localRetryExecutor,
-                                                                RetryClientProperties properties) {
-        if (!"RABBITMQ".equalsIgnoreCase(properties.getMqType())) {
-            return null;
+    public static class ConsumerConfiguration {
+
+        @Bean
+        @ConditionalOnProperty(prefix = "retry.client", name = "mq-type", havingValue = "REDIS", matchIfMissing = true)
+        @ConditionalOnClass(StringRedisTemplate.class)
+        public RedisRetryMessageConsumer redisRetryMessageConsumer(StringRedisTemplate stringRedisTemplate,
+                                                                   LocalRetryExecutor localRetryExecutor,
+                                                                   RetryClientProperties properties) {
+            log.info("[Config] Initializing REDIS-based ZSET RedisRetryMessageConsumer: concurrency={}, queueName={}, batchSize={}",
+                    properties.getConsumerConcurrency(), properties.getQueueName(), properties.getConsumerBatchSize());
+            return new RedisRetryMessageConsumer(stringRedisTemplate, localRetryExecutor,
+                    properties.getConsumerConcurrency(), properties.getQueueName(), properties.getConsumerBatchSize());
         }
-        log.info("[Config] Initializing RABBITMQ-based RabbitRetryMessageConsumer");
-        return new RabbitRetryMessageConsumer(localRetryExecutor);
+
+        @Bean
+        @ConditionalOnProperty(prefix = "retry.client", name = "mq-type", havingValue = "RABBITMQ")
+        @ConditionalOnClass(RabbitTemplate.class)
+        public RabbitRetryMessageConsumer rabbitRetryMessageConsumer(LocalRetryExecutor localRetryExecutor,
+                                                                    RetryClientProperties properties) {
+            log.info("[Config] Initializing RABBITMQ-based RabbitRetryMessageConsumer");
+            return new RabbitRetryMessageConsumer(localRetryExecutor);
+        }
     }
 }

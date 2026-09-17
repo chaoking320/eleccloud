@@ -7,7 +7,6 @@ import com.retry.platform.client.dto.RetryTaskDTO;
 import com.retry.platform.client.dto.RetryTaskRequest;
 import lombok.extern.slf4j.Slf4j;
 
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
@@ -16,26 +15,35 @@ import java.util.UUID;
  * <p>与 {@link com.retry.platform.client.api.impl.RetryClientImpl}（远程 HTTP 实现）的区别：
  * <ul>
  *   <li>本类直接操作本地数据库（通过 MyBatis Mapper），无需依赖 retry-server</li>
- *   <li>场景配置从 application.yml 中读取（{@link StandaloneSceneConfig}），无需查 scene_config 表</li>
+ *   <li>场景策略采用<b>三级优先级</b>：Request 字段 > application.yml scenes > SDK 内置默认值</li>
  *   <li>表结构与 retry-server 保持一致，方便未来升级到 Remote 模式时无缝迁移</li>
  * </ul>
  *
- * <p>接入方只需在 application.yml 配置：
+ * <p><b>最简接入（零 YAML 配置）：</b>
+ * <pre>
+ * // 注解直接声明策略，无需 application.yml 中的 scenes 配置
+ * {@code @RetryableTask(sceneType=100, idempotentKey="#id", maxRetryCount=5,
+ *     retryIntervals="1,2,5,10,30", hookClass=MyHook.class)}
+ * public void myMethod(String id) { ... }
+ * </pre>
+ *
+ * <p>只需在 application.yml 配置基本项：
  * <pre>
  * retry:
  *   client:
  *     mode: standalone
- *     scenes:
- *       - scene-type: 1001
- *         scene-name: 退款重试
- *         retry-intervals: "1,3,6,9"
- *         max-retry-count: 4
- *         hook-class: com.example.RefundRetryHook
+ *     enabled: true
+ *     mq-type: REDIS
  * </pre>
- * 以及在自己的 DB 中执行 {@code standalone-retry-schema.sql} 建表即可。
  */
 @Slf4j
 public class StandaloneRetryClientImpl implements RetryClient {
+
+    /** SDK 内置默认值（第三级，兜底使用） */
+    private static final int DEFAULT_MAX_RETRY_COUNT = 3;
+    private static final String DEFAULT_RETRY_INTERVALS = "1,3,5";
+    private static final String DEFAULT_BACKOFF_STRATEGY = "CUSTOM";
+    private static final int DEFAULT_BACKOFF_BASE = 1;
 
     private final StandaloneRetryTaskMapper taskMapper;
     private final StandaloneRetryHistoryMapper historyMapper;
@@ -53,7 +61,7 @@ public class StandaloneRetryClientImpl implements RetryClient {
 
     @Override
     public String submit(RetryTaskRequest request) {
-        // 1. 幂等检查：同一 (sceneType, idempotentKey) 若已有 INIT/WAIT 任务，直接复用
+        // 1. 幂等检查：同一 (sceneType, idempotentKey) 若已有 INIT/WAIT/EXECUTING 任务，直接复用
         RetryTaskDTO existing = taskMapper.selectBySceneAndIdempotentKey(
                 request.getSceneType(), request.getIdempotentKey());
         if (existing != null) {
@@ -66,14 +74,16 @@ public class StandaloneRetryClientImpl implements RetryClient {
             // SUCCESS/FAILED 任务不复用，重新创建（如业务方再次触发失败）
         }
 
-        // 2. 从 yml 场景配置中读取策略信息
+        // 2. 三级策略合并：Request > YAML scenes > SDK 默认值
         StandaloneSceneConfig sceneConfig = findSceneConfig(request.getSceneType());
-        if (sceneConfig == null) {
-            throw new IllegalStateException(
-                    "[Standalone] No scene config found for sceneType=" + request.getSceneType() +
-                    ". Please configure it in application.yml under retry.client.scenes[]"
-            );
-        }
+        String resolvedHookClass   = resolveHookClass(request, sceneConfig);
+        int resolvedMaxRetry       = resolveMaxRetryCount(request, sceneConfig);
+        String resolvedIntervals   = resolveRetryIntervals(request, sceneConfig);
+        String resolvedStrategy    = resolveBackoffStrategy(request, sceneConfig);
+        int resolvedBase           = resolveBackoffBase(request, sceneConfig);
+
+        log.info("[Standalone] Resolved strategy for sceneType={}: maxRetry={}, intervals=[{}], hookClass={}",
+                request.getSceneType(), resolvedMaxRetry, resolvedIntervals, resolvedHookClass);
 
         // 3. 生成 taskId 并构造 DTO
         String taskId = generateTaskId();
@@ -88,13 +98,12 @@ public class StandaloneRetryClientImpl implements RetryClient {
         task.setTaskStatus("INIT");
         task.setSubmitMode(request.getSubmitMode() != null ? request.getSubmitMode() : "POST_FAIL");
         task.setRetryCount(0);
-        // 从 yml 场景配置读取策略
-        task.setMaxRetryCount(sceneConfig.getMaxRetryCount());
-        task.setHookClass(sceneConfig.getHookClass());
-        task.setBackoffStrategy(sceneConfig.getBackoffStrategy());
-        task.setBackoffBase(sceneConfig.getBackoffBase());
-        task.setRetryIntervals(sceneConfig.getRetryIntervals());
-        task.setNextRetryTime(System.currentTimeMillis() + 60_000L); // 初始下次执行时间 +1分钟
+        task.setMaxRetryCount(resolvedMaxRetry);
+        task.setHookClass(resolvedHookClass);
+        task.setBackoffStrategy(resolvedStrategy);
+        task.setBackoffBase(resolvedBase);
+        task.setRetryIntervals(resolvedIntervals);
+        task.setNextRetryTime(System.currentTimeMillis() + 60_000L);
 
         // 4. 写入本地 DB
         taskMapper.insert(task);
@@ -118,6 +127,16 @@ public class StandaloneRetryClientImpl implements RetryClient {
         int rows = taskMapper.casUpdateToExecuting(taskId);
         log.debug("[Standalone] markExecuting CAS: taskId={}, acquired={}", taskId, rows > 0);
         return rows > 0;
+    }
+
+    @Override
+    public void touchHeartbeat(String taskId) {
+        try {
+            taskMapper.touchHeartbeat(taskId);
+            log.debug("[Standalone] touchHeartbeat: taskId={}", taskId);
+        } catch (Exception e) {
+            log.warn("[Standalone] Failed to touchHeartbeat: taskId={}, error={}", taskId, e.getMessage());
+        }
     }
 
     @Override
@@ -198,7 +217,7 @@ public class StandaloneRetryClientImpl implements RetryClient {
     @Override
     public boolean cancel(String taskId) {
         try {
-            int rows = taskMapper.updateStatus(taskId, "FAILED");
+            int rows = taskMapper.updateStatus(taskId, "CANCELLED");
             log.info("[Standalone] cancel: taskId={}, affected={}", taskId, rows);
             return rows > 0;
         } catch (Exception e) {
@@ -207,10 +226,10 @@ public class StandaloneRetryClientImpl implements RetryClient {
         }
     }
 
-    // ==================== 工具方法 ====================
+    // ==================== 三级策略合并工具方法 ====================
 
     /**
-     * 根据 sceneType 从 yml 场景配置中查找对应配置
+     * 根据 sceneType 从 yml 场景配置中查找对应配置（可能为 null）
      */
     private StandaloneSceneConfig findSceneConfig(Integer sceneType) {
         if (sceneType == null || properties.getScenes() == null) {
@@ -220,6 +239,64 @@ public class StandaloneRetryClientImpl implements RetryClient {
                 .filter(s -> sceneType.equals(s.getSceneType()))
                 .findFirst()
                 .orElse(null);
+    }
+
+    /** 三级合并：hookClass = Request > YAML > null */
+    private String resolveHookClass(RetryTaskRequest req, StandaloneSceneConfig yml) {
+        // 第一级：Request 字段（注解/编程式）
+        if (req.getHookClass() != null && !req.getHookClass().trim().isEmpty()) {
+            return req.getHookClass();
+        }
+        // 第二级：YAML scenes
+        if (yml != null && yml.getHookClass() != null && !yml.getHookClass().trim().isEmpty()) {
+            return yml.getHookClass();
+        }
+        // 第三级：无 Hook（降级为直接反射重试）
+        return null;
+    }
+
+    /** 三级合并：maxRetryCount = Request > YAML > SDK默认(3) */
+    private int resolveMaxRetryCount(RetryTaskRequest req, StandaloneSceneConfig yml) {
+        if (req.getMaxRetryCount() != null && req.getMaxRetryCount() > 0) {
+            return req.getMaxRetryCount();
+        }
+        if (yml != null && yml.getMaxRetryCount() != null && yml.getMaxRetryCount() > 0) {
+            return yml.getMaxRetryCount();
+        }
+        return DEFAULT_MAX_RETRY_COUNT;
+    }
+
+    /** 三级合并：retryIntervals = Request > YAML > SDK默认("1,3,5") */
+    private String resolveRetryIntervals(RetryTaskRequest req, StandaloneSceneConfig yml) {
+        if (req.getRetryIntervals() != null && !req.getRetryIntervals().trim().isEmpty()) {
+            return req.getRetryIntervals();
+        }
+        if (yml != null && yml.getRetryIntervals() != null && !yml.getRetryIntervals().trim().isEmpty()) {
+            return yml.getRetryIntervals();
+        }
+        return DEFAULT_RETRY_INTERVALS;
+    }
+
+    /** 三级合并：backoffStrategy = Request > YAML > SDK默认("CUSTOM") */
+    private String resolveBackoffStrategy(RetryTaskRequest req, StandaloneSceneConfig yml) {
+        if (req.getBackoffStrategy() != null && !req.getBackoffStrategy().trim().isEmpty()) {
+            return req.getBackoffStrategy();
+        }
+        if (yml != null && yml.getBackoffStrategy() != null && !yml.getBackoffStrategy().trim().isEmpty()) {
+            return yml.getBackoffStrategy();
+        }
+        return DEFAULT_BACKOFF_STRATEGY;
+    }
+
+    /** 三级合并：backoffBase = Request > YAML > SDK默认(1) */
+    private int resolveBackoffBase(RetryTaskRequest req, StandaloneSceneConfig yml) {
+        if (req.getBackoffBase() != null && req.getBackoffBase() > 0) {
+            return req.getBackoffBase();
+        }
+        if (yml != null && yml.getBackoffBase() != null && yml.getBackoffBase() > 0) {
+            return yml.getBackoffBase();
+        }
+        return DEFAULT_BACKOFF_BASE;
     }
 
     /**

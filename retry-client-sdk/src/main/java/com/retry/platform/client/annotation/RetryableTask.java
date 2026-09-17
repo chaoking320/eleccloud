@@ -1,5 +1,8 @@
 package com.retry.platform.client.annotation;
 
+import com.retry.platform.client.hook.RetryHook;
+import com.retry.platform.client.strategy.BackoffType;
+
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -23,15 +26,29 @@ import java.lang.annotation.Target;
  *   </li>
  * </ul>
  *
- * <p><b>使用示例：</b>
- * <pre>{@code
- * // 模式1：POST_FAIL（默认，失败后提交）
- * @RetryableTask(sceneType = 1, idempotentKey = "#orderId")
- * public boolean refund(String orderId, Double amount) { ... }
+ * <p><b>三级配置优先级（Convention over Configuration）：</b>
+ * <ol>
+ *   <li><b>代码注解（最高优先级）</b>：直接在 {@code @RetryableTask} 上声明策略，零 YAML，即插即用</li>
+ *   <li><b>application.yml scenes 配置（覆盖层）</b>：同一 sceneType 如有 YAML 配置则覆盖注解值，
+ *       适用于生产运维时动态调整重试策略无需重打包</li>
+ *   <li><b>SDK 内置默认值（兜底）</b>：maxRetryCount=3, retryIntervals="1,3,5"</li>
+ * </ol>
  *
- * // 模式2：PRE_SUBMIT（预提交，执行前注册）
- * @RetryableTask(sceneType = 3, idempotentKey = "#skuId", preSubmit = true)
- * public void syncInventory(String skuId, Integer delta) { ... }
+ * <p><b>使用示例（零 YAML 配置）：</b>
+ * <pre>{@code
+ * // 最简用法：只用 SDK 默认值（3次，间隔 1/3/5 分钟）
+ * @RetryableTask(sceneType = 100, idempotentKey = "#docId")
+ * public void deleteDoc(String docId) { ... }
+ *
+ * // 完整用法：注解直接声明策略，无需任何 YAML
+ * @RetryableTask(
+ *     sceneType     = 100,
+ *     idempotentKey = "#docId",
+ *     maxRetryCount = 5,
+ *     retryIntervals = "1,2,5,10,30",   // 分钟，逗号分隔
+ *     hookClass     = DocDeleteRetryHook.class
+ * )
+ * public void deleteDoc(String docId) { ... }
  * }</pre>
  */
 @Target(ElementType.METHOD)
@@ -50,6 +67,47 @@ public @interface RetryableTask {
      * 示例：{@code "#orderId"}、{@code "#request.userId"}
      */
     String idempotentKey();
+
+    /**
+     * 最大重试次数（含首次执行失败后的第一次重试）
+     * <p>0 表示使用默认值（3次）或 YAML 配置覆盖值。
+     * <p><b>优先级：</b>YAML scenes[sceneType].maxRetryCount > 此值 > SDK 默认(3)
+     */
+    int maxRetryCount() default 0;
+
+    /**
+     * 自定义重试间隔（分钟，逗号分隔的整数列表）
+     * <p>格式：{@code "1,3,5,10,30"} 表示第1次等1分钟、第2次等3分钟、以此类推，超出范围取最后一个值
+     * <p>空字符串（默认）表示使用 YAML scenes 配置或 SDK 默认值（"1,3,5"）
+     * <p><b>优先级：</b>YAML scenes[sceneType].retryIntervals > 此值 > SDK 默认("1,3,5")
+     */
+    String retryIntervals() default "";
+
+    /**
+     * 退避策略（仅在 retryIntervals 为空时生效）
+     * <ul>
+     *   <li>{@link BackoffType#CUSTOM}（默认）：使用 {@link #retryIntervals()} 中的自定义间隔列表</li>
+     *   <li>{@link BackoffType#FIXED}：固定间隔，间隔 = {@link #backoffBase()} 分钟</li>
+     *   <li>{@link BackoffType#LINEAR}：线性递增，间隔 = retryCount * {@link #backoffBase()} 分钟</li>
+     *   <li>{@link BackoffType#EXPONENTIAL}：指数递增，间隔 = 2^(retryCount-1) * {@link #backoffBase()} 分钟</li>
+     * </ul>
+     */
+    BackoffType backoffStrategy() default BackoffType.CUSTOM;
+
+    /**
+     * 退避基数（分钟），仅 FIXED/LINEAR/EXPONENTIAL 策略使用
+     * <p>0 表示使用 YAML 配置或 SDK 默认值（1分钟）
+     */
+    int backoffBase() default 0;
+
+    /**
+     * 重试钩子类（实现 {@link RetryHook} 接口的类）
+     * <p>提供三步幂等保护：checkStatus → doQuery → doCallback
+     * <p>{@link RetryHook}.class（默认）表示未指定，退化为直接反射重试原始方法（无幂等保护）
+     * <p><b>优先级：</b>YAML scenes[sceneType].hookClass > 此值
+     * <p><b>IDE 友好</b>：直接写 {@code hookClass = DocDeleteRetryHook.class}，支持重构跳转，不再是字符串！
+     */
+    Class<? extends RetryHook> hookClass() default RetryHook.class;
 
     /**
      * 是否使用预提交模式
@@ -78,10 +136,12 @@ public @interface RetryableTask {
     /**
      * 是否使用默认重试钩子（DefaultRetryHook）
      * <ul>
-     *   <li>{@code false}（默认）：使用 scene_config 中配置的 hookClass</li>
+     *   <li>{@code false}（默认）：使用 hookClass 中配置的钩子</li>
      *   <li>{@code true}：跳过 Hook 三步检查（checkStatus/doQuery/doCallback），
      *       直接反射调用业务方法执行重试。适用于简单场景，无需编写 Hook 类。</li>
      * </ul>
+     * @deprecated 请直接使用 {@link #hookClass()} 默认值（RetryHook.class），效果等价
      */
+    @Deprecated
     boolean useDefaultHook() default false;
 }

@@ -71,6 +71,13 @@ public class RetryClientProperties {
     /**
      * Standalone 模式下的场景配置列表（替代 Server DB 中的 scene_config 表）
      * 每个场景对应一个 @RetryableTask 使用的 sceneType
+     * <p>注：使用注解注解直接声明策略后，此配置可完全省略（或只在需要运维覆盖时填写）
      */
     private List<StandaloneSceneConfig> scenes = new ArrayList<>();
+
+    /**
+     * 每轮从延时队列（Redis ZSET）批量拉取并处理的消息数量（默认 10）
+     * 高峰期任务积压时可适当调大（如 50），低负载时可调小
+     */
+    private int consumerBatchSize = 10;
 }

@@ -103,4 +103,9 @@ public class RetryTaskDTO implements Serializable {
      * 与 RetryTaskRequest.methodParamTypes 一一对应，从 DB 中读取后传递给 LocalRetryExecutor。
      */
     private String methodParamTypes;
+
+    /**
+     * 最近一次执行失败的错误信息（rollbackToPending 时写入，便于问题排查）
+     */
+    private String errorMsg;
 }

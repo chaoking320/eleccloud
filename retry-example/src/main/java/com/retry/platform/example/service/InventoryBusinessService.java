@@ -48,7 +48,10 @@ public class InventoryBusinessService {
      * <p>注解说明：
      * <ul>
      *   <li>{@code preSubmit = true}：方法执行前先注册任务，进程崩溃也能恢复</li>
-     *   <li>{@code sceneType = 12}：Demo 快速场景12（间隔 ~5秒）</li>
+     *   <li>{@code sceneType = 12}：库存场景</li>
+     *   <li>{@code maxRetryCount = 3}：最多重试 3 次</li>
+     *   <li>{@code retryIntervals = "1,2,5"}：第1次等1分钟、第2次等2分钟、第3次等5分钟（整数，单位：分钟）</li>
+     *   <li>{@code hookClass = InventoryRetryHook.class}：IDE 可跳转重构</li>
      *   <li>{@code throwException = true}：失败时向调用方抛出异常（默认不抛）</li>
      * </ul>
      *
@@ -56,7 +59,15 @@ public class InventoryBusinessService {
      * @param skuId   商品SKU
      * @param delta   库存变化量（正=入库，负=出库）
      */
-    @RetryableTask(sceneType = 12, idempotentKey = "#transId", preSubmit = true, throwException = true)
+    @RetryableTask(
+            sceneType      = 12,
+            idempotentKey  = "#transId",
+            preSubmit      = true,
+            maxRetryCount  = 3,
+            retryIntervals = "1,2,5",       // 单位：分钟，逗号分隔整数
+            hookClass      = com.retry.platform.example.hook.InventoryRetryHook.class,
+            throwException = true
+    )
     public void syncInventory(String transId, String skuId, Integer delta) {
         log.info("[InventoryBusiness] 调用WMS库存同步接口: transId={}, sku={}, delta={}", transId, skuId, delta);
 

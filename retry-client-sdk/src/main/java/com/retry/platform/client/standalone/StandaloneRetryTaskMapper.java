@@ -68,4 +68,12 @@ public interface StandaloneRetryTaskMapper {
      * @param timeoutMillis update_time 在此时间戳（毫秒）之前的 EXECUTING 任务视为卡死
      */
     int recoverStuckExecutingTasks(@Param("timeoutMillis") long timeoutMillis);
+
+    /**
+     * Watchdog 心跳刷新：更新 EXECUTING 状态任务的 update_time，
+     * 防止长时间执行（>5分钟）被 StandaloneDatabaseFallbackScheduler 误判为卡死并回收。
+     *
+     * @param taskId 任务ID
+     */
+    int touchHeartbeat(@Param("taskId") String taskId);
 }

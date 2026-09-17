@@ -43,15 +43,25 @@ public class RedisRetryMessageConsumer {
     private final StringRedisTemplate redisTemplate;
     private final LocalRetryExecutor localRetryExecutor;
     private final ExecutorService executorService;
+    private final int batchSize;
     private volatile boolean running = true;
 
     public RedisRetryMessageConsumer(StringRedisTemplate redisTemplate,
                                      LocalRetryExecutor localRetryExecutor,
                                      int concurrency,
                                      String queueName) {
+        this(redisTemplate, localRetryExecutor, concurrency, queueName, 10);
+    }
+
+    public RedisRetryMessageConsumer(StringRedisTemplate redisTemplate,
+                                     LocalRetryExecutor localRetryExecutor,
+                                     int concurrency,
+                                     String queueName,
+                                     int batchSize) {
         this.redisTemplate = redisTemplate;
         this.localRetryExecutor = localRetryExecutor;
         this.delayQueueKey = "retry:client:delay:queue:" + (queueName != null ? queueName : "default");
+        this.batchSize = batchSize > 0 ? batchSize : 10;
         int corePoolSize = concurrency > 0 ? concurrency : 5;
         this.executorService = new java.util.concurrent.ThreadPoolExecutor(
                 corePoolSize,
@@ -84,7 +94,7 @@ public class RedisRetryMessageConsumer {
                         LUA_SCRIPT,
                         Collections.singletonList(delayQueueKey),
                         String.valueOf(currentTime),
-                        "10"
+                        String.valueOf(batchSize)
                 );
 
                 boolean hasMessages = false;
