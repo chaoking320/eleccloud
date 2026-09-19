@@ -23,8 +23,7 @@ public class RabbitRetryMessageConsumer {
             value = @Queue(value = "${retry.client.queue-name:retry.delayed.queue}", durable = "true"),
             exchange = @Exchange(
                     value = RabbitRetryMessageProducer.DELAYED_EXCHANGE,
-                    delayed = "true", 
-                    type = "x-delayed-message"
+                    delayed = "true"
             ),
             key = "${retry.client.queue-name:retry.delayed.queue}"
     ))
