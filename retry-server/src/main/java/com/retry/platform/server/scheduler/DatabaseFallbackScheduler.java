@@ -110,16 +110,48 @@ public class DatabaseFallbackScheduler {
     }
     
     /**
-     * 检查任务是否在Redis延时队列中
+     * 检查任务是否在Redis延时队列中。
+     *
+     * <p>两种消息格式均需覆盖：
+     * <ul>
+     *   <li>瘦消息（slim）：member = taskId，直接用 ZSCORE O(1) 检查</li>
+     *   <li>胖消息（fat）：member = JSON(RetryMessagePayload)，需扫描后解析 taskId 字段</li>
+     * </ul>
+     *
+     * <p>Bug 修复：原实现仅检查 slim 消息，导致胖消息路径下兜底调度器重复投递所有任务。
+     * 现增加有界 fat 消息扫描（上限 1000 条），兼顾正确性与性能。
      */
     private boolean isTaskInRedis(String taskId) {
         try {
-            // O(1) 检查瘦消息（member=taskId）是否存在
-            // 胖消息（member=JSON）无法精确判断，但幂等性由 CAS 保证安全
+            // 1. O(1) 检查瘦消息（member = taskId）
             Double score = redisTemplate.opsForZSet().score(DELAY_QUEUE_KEY, taskId);
-            return score != null;
+            if (score != null) {
+                return true;
+            }
+
+            // 2. 有界扫描胖消息（member = JSON，上限 1000 条防止全量拉取）
+            // 胖消息是当前主路径，必须覆盖否则 FallbackScheduler 会无效重投所有任务
+            Set<String> members = redisTemplate.opsForZSet().range(DELAY_QUEUE_KEY, 0, 999);
+            if (members != null) {
+                for (String member : members) {
+                    // 快速字符串包含检查，命中后再做 JSON 解析，避免无谓解析开销
+                    if (member.startsWith("{") && member.contains(taskId)) {
+                        try {
+                            com.retry.platform.client.mq.RetryMessagePayload payload =
+                                    com.retry.platform.client.util.JsonUtil.fromJson(
+                                            member, com.retry.platform.client.mq.RetryMessagePayload.class);
+                            if (payload != null && taskId.equals(payload.getTaskId())) {
+                                return true;
+                            }
+                        } catch (Exception ignored) {
+                            // JSON 解析失败跳过，继续扫描下一条
+                        }
+                    }
+                }
+            }
+            return false;
         } catch (Exception e) {
-            log.warn("Failed to check task in Redis: taskId={}", taskId, e);
+            log.warn("[FallbackScheduler] Failed to check task in Redis, assuming not present: taskId={}", taskId, e);
             return false;
         }
     }

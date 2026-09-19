@@ -108,7 +108,11 @@ public class RedisRetryMessageConsumer {
                             try {
                                 dispatch(memberCopy);
                             } catch (Exception e) {
-                                log.error("[Redis MQ] Error dispatching member", e);
+                                log.error("[Redis MQ] Error dispatching member, will re-enqueue after 30s", e);
+                                // Bug 修复：dispatch 失败时将消息重入 ZSET，避免消息静默丢失。
+                                // 延迟 30s 重试，防止因持续异常（如类找不到）导致紧密循环。
+                                // DatabaseFallbackScheduler 作为最后兜底仍然存在。
+                                reEnqueue(memberCopy, 30_000L);
                             }
                         });
                     }
@@ -131,6 +135,22 @@ public class RedisRetryMessageConsumer {
                     running = false;
                 }
             }
+        }
+    }
+
+    /**
+     * 将消息重新入队，延迟 delayMs 毫秒后重试。
+     * 用于 dispatch 异常时的安全保底，避免消息静默丢失。
+     */
+    private void reEnqueue(String member, long delayMs) {
+        try {
+            long retryScore = System.currentTimeMillis() + delayMs;
+            redisTemplate.opsForZSet().add(delayQueueKey, member, retryScore);
+            log.warn("[Redis MQ] Re-enqueued failed message to delay queue (delay={}ms): {}",
+                    delayMs, member.length() > 60 ? member.substring(0, 60) + "..." : member);
+        } catch (Exception ex) {
+            log.error("[Redis MQ] CRITICAL: Failed to re-enqueue message, message may be lost! member={}",
+                    member.length() > 60 ? member.substring(0, 60) + "..." : member, ex);
         }
     }
 
