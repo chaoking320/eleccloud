@@ -22,6 +22,9 @@
 #     * bucket: ragflow, bucket: eleccloud, bucket: jkkms 等
 #   - Elasticsearch (9200)：
 #     * 供 RAGFlow 知识库文档向量与全文检索
+#   - RabbitMQ (AMQP: 5672, Console: 15672)：
+#     * 用户名: admin，密码: 123456
+#     * 内置 x-delayed-message 延迟交换机插件，供 ElecCloud 重试消息投递
 #
 version: "3.8"
 
@@ -132,13 +135,31 @@ services:
     networks:
       - shared-network
 
+  rabbitmq:
+    image: heidiks/rabbitmq-delayed-message-exchange:latest
+    container_name: shared-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: "123456"
+      TZ: Asia/Shanghai
+    ports:
+      - "5672:5672"     # AMQP 通信端口
+      - "15672:15672"   # Management Web 控制台管理界面
+    volumes:
+      - shared-rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - shared-network
+
 volumes:
   shared-mysql-data:
   shared-redis-data:
   shared-minio-data:
   shared-es-data:
   shared-postgres-data:
+  shared-rabbitmq-data:
 
 networks:
   shared-network:
     name: shared-network
+
