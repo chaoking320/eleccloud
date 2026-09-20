@@ -1,7 +1,7 @@
 # 公共基础设施：MySQL + Redis + MinIO + Elasticsearch + PostgreSQL（独立 Compose 项目，供所有项目共用）
 #
 # 启动：
-#   docker compose -p infra -f D:\workspace\mine\eleccloud\infra\docker-compose.yml up -d
+#   docker compose -p infra -f ./infra/docker-compose.yml up -d
 #
 # 隔离方式：
 #   - MySQL (3306)：每个项目建一个 database（schema）区分

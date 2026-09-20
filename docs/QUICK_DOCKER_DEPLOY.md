@@ -65,7 +65,7 @@ lsof -i :3306 -i :6379 -i :8080 -i :8081
 
 ```bash
 # Windows PowerShell
-cd d:\workspace\mine\eleccloud
+cd <eleccloud 项目目录>
 mvn clean package -DskipTests
 
 # Linux/macOS

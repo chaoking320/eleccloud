@@ -196,7 +196,7 @@ mvn dependency-check:check
 
 ### 3. 推送代码
 ```bash
-cd d:\workspace\mine\eleccloud
+cd <eleccloud 项目目录>
 
 # 初始化Git（如果还没有）
 git init

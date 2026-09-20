@@ -15,7 +15,7 @@
 
 ### 1.1 `method_param_types` 是怎么来的？需要人工配置吗？
 * **完全不需要人工配置**。
-* 当业务方法被打上 `@RetryableTask` 注解并被调用时，SDK 的 Spring AOP 切面（[`RetryableTaskAspect`](file:///d:/workspace/mine/eleccloud/retry-client-sdk/src/main/java/com/retry/platform/client/aspect/RetryableTaskAspect.java)）会通过 `MethodSignature.getParameterTypes()` **在运行时动态提取入参类型全类名**（例如 `java.lang.String,java.lang.String,java.lang.Double`），并自动随任务提交给服务端入库。
+* 当业务方法被打上 `@RetryableTask` 注解并被调用时，SDK 的 Spring AOP 切面（[`RetryableTaskAspect`](../retry-client-sdk/src/main/java/com/retry/platform/client/aspect/RetryableTaskAspect.java)）会通过 `MethodSignature.getParameterTypes()` **在运行时动态提取入参类型全类名**（例如 `java.lang.String,java.lang.String,java.lang.Double`），并自动随任务提交给服务端入库。
 
 ### 1.2 为什么要存 `method_param_types`？
 * Java 允许**方法重载（Overload）**（即同名方法，但入参类型不同，如 `refund(String, Double)` 和 `refund(RefundRequestDTO)`）。
@@ -23,7 +23,7 @@
 
 ### 1.3 是否支持复杂自定义类型（POJO / DTO）？
 * **完全支持**！
-* SDK 的 [`LocalRetryExecutor.java`](file:///d:/workspace/mine/eleccloud/retry-client-sdk/src/main/java/com/retry/platform/client/executor/LocalRetryExecutor.java) 中内置了基于 Jackson 的类型转换引擎：
+* SDK 的 [`LocalRetryExecutor.java`](../retry-client-sdk/src/main/java/com/retry/platform/client/executor/LocalRetryExecutor.java) 中内置了基于 Jackson 的类型转换引擎：
   * **基础类型及包装类**：`int/Integer`, `long/Long`, `double/Double`, `String`, `boolean/Boolean` 等自动安全强转。
   * **自定义复合对象**：如果业务方法入参是自定义类 `public void refund(RefundDTO req)`，AOP 会将 DTO 序列化为 JSON 存入 `method_params`。在本地重试还原入参时，SDK 会通过 `objectMapper.readValue(json, targetType)` 自动反序列化为真实的 `RefundDTO` 实例传入方法。
 
@@ -37,7 +37,7 @@
 1. **为什么抛出 `InvocationTargetException`？**
    * 在 Java 中，使用反射 `Method.invoke(targetBean, args)` 调用一个方法时，**只要被调用的业务方法内部抛出了任何异常（例如 RuntimeException、网络超时、HTTP 500 等），反射框架都会统一将其包装成 `InvocationTargetException` 抛出**。
 2. **为什么业务方法会抛出异常？**
-   * 演示代码中的下游第三方接口 [`MockExternalApiController.java`](file:///d:/workspace/mine/eleccloud/retry-example/src/main/java/com/retry/platform/example/controller/MockExternalApiController.java) 默认配置了 `failTimes = 2`（前 2 次调用模拟支付宝网络超时，抛出 500 异常）。
+   * 演示代码中的下游第三方接口 [`MockExternalApiController.java`](../retry-example/src/main/java/com/retry/platform/example/controller/MockExternalApiController.java) 默认配置了 `failTimes = 2`（前 2 次调用模拟支付宝网络超时，抛出 500 异常）。
    * 第 1 次（首次调用）：业务方抛出超时异常，AOP 捕获，向重试平台注册任务（状态 `INIT`）。
    * 第 2 次（第 1 次重试，即附件3断点处）：SDK 反射再次调用支付宝，由于模拟未达到 3 次，支付宝接口依然抛出异常，反射捕获到 `InvocationTargetException`，将本次重试历史记录为 `FAILED`（错误信息为 `e.getCause().getMessage()` 即“支付宝网关连接超时”），并计算下一次延时再次调度！
    * 第 3 次（第 2 次重试）：支付宝接口达到恢复阈值返回 HTTP 200 成功，方法正常返回，任务状态推进为 `WAIT` -> `SUCCESS`。
@@ -144,6 +144,6 @@ sequenceDiagram
    * `DemoPageController.java`（旧版重复的 demo-api 控制器，已删除）
    * `RefundController.java`（旧版独立的退款测试控制器，已删除）
 2. **职责清晰划分**：
-   * 业务演示入口统一收敛到 [`BusinessController.java`](file:///d:/workspace/mine/eleccloud/retry-example/src/main/java/com/retry/platform/example/controller/BusinessController.java) (`/business/**`)。
-   * 下游模拟接口统一收敛到 [`MockExternalApiController.java`](file:///d:/workspace/mine/eleccloud/retry-example/src/main/java/com/retry/platform/example/controller/MockExternalApiController.java) (`/mock-api/**`)。
+   * 业务演示入口统一收敛到 [`BusinessController.java`](../retry-example/src/main/java/com/retry/platform/example/controller/BusinessController.java) (`/business/**`)。
+   * 下游模拟接口统一收敛到 [`MockExternalApiController.java`](../retry-example/src/main/java/com/retry/platform/example/controller/MockExternalApiController.java) (`/mock-api/**`)。
    * 8080 服务端与 8081 控制台已配置 `retry.client.consumer-enabled: false`，彻底杜绝了服务端误抢消费的问题。

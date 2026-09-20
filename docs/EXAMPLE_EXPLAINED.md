@@ -160,12 +160,7 @@ retry-example 项目包含**两个控制器**，扮演不同角色：
 
 **答案**：Hook 在 `retry-example/src/main/java/com/retry/platform/example/hook/` 目录
 
-让我查看一个 Hook 示例：
-
-<function_calls>
-<invoke name="read_file">
-<parameter name="path">d:\workspace\mine\eleccloud\retry-example\src\main\java\com\retry\platform\example\hook\DemoRefundHook.java
-
+示例见：`retry-example/src/main/java/com/retry/platform/example/hook/DemoRefundHook.java`
 
 **Hook 示例**：
 

@@ -255,7 +255,6 @@ docker compose -f docker-compose.simple.yml up -d
 
 - **GitHub Issues**: [Bug reports and feature requests](../../issues)
 - **GitHub Discussions**: [Q&A and discussions](../../discussions)
-- **WeChat Group**: Scan QR code in [Community Guide](docs/COMMUNITY.md)
 
 ## 📄 License
 

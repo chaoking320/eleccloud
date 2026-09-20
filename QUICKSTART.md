@@ -15,7 +15,7 @@
 ## 第 1 步：编译项目（2 分钟）
 
 ```bash
-cd d:\workspace\mine\eleccloud
+cd <eleccloud 项目目录>
 mvn clean package -DskipTests
 ```
 
@@ -72,7 +72,7 @@ curl http://localhost:8080/actuator/health
 ### 5.1 安装 SDK 到本地仓库
 
 ```bash
-cd d:\workspace\mine\eleccloud
+cd <eleccloud 项目目录>
 mvn install -DskipTests
 ```
 
@@ -132,7 +132,6 @@ public class MyService {
 ## 📚 下一步
 
 - **完整部署指南**：[docs/QUICK_DOCKER_DEPLOY.md](docs/QUICK_DOCKER_DEPLOY.md)
-- **复杂度评估**：[docs/COMPLEXITY_ASSESSMENT.md](docs/COMPLEXITY_ASSESSMENT.md)
 - **SDK 接入指南**：[docs/SDK_GUIDE.md](docs/SDK_GUIDE.md)
 - **架构设计**：[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
