@@ -1,33 +1,174 @@
-name: Feature Request
-description: 提出一个新特性或改进建议
-title: "[Feature] "
-labels: ["enhancement"]
+name: 🚀 Feature Request
+description: Suggest a new feature or enhancement
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature! Please provide as much detail as possible.
+
   - type: textarea
     id: problem
     attributes:
-      label: 问题 / 场景
-      description: 你遇到了什么场景，现有能力无法满足？
+      label: Problem Statement
+      description: |
+        Is your feature request related to a problem? Please describe.
+        
+        A clear and concise description of what the problem is.
+      placeholder: |
+        I'm always frustrated when [...]
+        
+        Currently, there's no way to [...]
     validations:
       required: true
+
   - type: textarea
-    id: proposal
+    id: solution
     attributes:
-      label: 建议方案
-      description: 你希望如何解决这个问题？可以描述期望的 API / 配置 / 行为。
+      label: Proposed Solution
+      description: |
+        Describe the solution you'd like.
+        
+        A clear and concise description of what you want to happen.
+      placeholder: |
+        Add a new configuration option `retry.client.auto-cancel-on-success` that automatically cancels pending retry tasks when the original operation succeeds.
+        
+        Example usage:
+        ```yaml
+        retry:
+          client:
+            auto-cancel-on-success: true
+        ```
     validations:
       required: true
+
   - type: textarea
     id: alternatives
     attributes:
-      label: 备选方案
-      description: 是否考虑过其他实现方式？
-    validations:
-      required: false
-  - type: textarea
-    id: context
+      label: Alternatives Considered
+      description: |
+        Describe alternatives you've considered.
+        
+        What other solutions or workarounds have you thought about?
+      placeholder: |
+        1. Manually call retryClient.cancel() in code (too verbose)
+        2. Use a database trigger (not portable)
+        3. Configure very short retry intervals (not ideal)
+
+  - type: dropdown
+    id: user-type
     attributes:
-      label: 补充信息
-      description: 任何有助于理解该需求的背景或参考资料。
+      label: Who will benefit?
+      description: Who would benefit from this feature?
+      multiple: true
+      options:
+        - SDK Users (Java developers)
+        - Server Operators
+        - Admin Dashboard Users
+        - All Users
     validations:
-      required: false
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this feature to you?
+      options:
+        - Critical (blocking my work)
+        - High (would significantly improve my workflow)
+        - Medium (nice to have)
+        - Low (minor improvement)
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case / User Story
+      description: |
+        Describe a specific use case or user story.
+        
+        This helps us understand the context and real-world application.
+      placeholder: |
+        As a payment service developer,
+        I want to automatically cancel pending retry tasks when payment succeeds,
+        So that I don't waste resources retrying operations that are no longer needed.
+        
+        Scenario:
+        1. Submit payment request (with retry enabled)
+        2. Payment succeeds on first attempt
+        3. Pending retry tasks should be auto-cancelled
+    validations:
+      required: true
+
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Implementation Ideas (Optional)
+      description: |
+        If you have ideas about how to implement this feature, share them here.
+        
+        - Architecture considerations
+        - API design
+        - Configuration options
+        - Backward compatibility concerns
+      placeholder: |
+        Possible implementation:
+        
+        1. Add a new field `auto_cancel` to `scene_config` table
+        2. When task is marked SUCCESS via `/api/retry/success/{taskId}`, check if scene has auto_cancel enabled
+        3. If yes, find all INIT/WAIT tasks with same idempotentKey and mark them as CANCELLED
+        
+        Concerns:
+        - Need to ensure idempotentKey uniqueness
+        - What about tasks already in EXECUTING status?
+
+  - type: textarea
+    id: documentation
+    attributes:
+      label: Documentation Needs
+      description: |
+        What documentation would be needed for this feature?
+      placeholder: |
+        - Update SDK Guide with auto-cancel configuration
+        - Add example in QUICKSTART.md
+        - Update Admin Dashboard user guide
+
+  - type: textarea
+    id: breaking-changes
+    attributes:
+      label: Breaking Changes
+      description: |
+        Would this feature introduce any breaking changes?
+        
+        If yes, describe them and suggest migration paths.
+      placeholder: |
+        No breaking changes expected. This is an opt-in feature via configuration.
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: |
+        Add any other context, screenshots, or examples about the feature request here.
+      placeholder: |
+        - Related issue: #123
+        - Similar feature in XXL-JOB: [link]
+        - Community discussion: [link]
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      description: Please confirm the following
+      options:
+        - label: I have searched existing issues to ensure this is not a duplicate
+          required: true
+        - label: I have considered backward compatibility
+          required: true
+        - label: I am willing to help implement this feature (if accepted)
+          required: false
+        - label: I am willing to help write documentation for this feature
+          required: false

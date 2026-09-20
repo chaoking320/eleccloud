@@ -1,0 +1,74 @@
+name: ❓ Question
+description: Ask a question about ElecCloud
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a question? We're here to help! 
+        
+        **Before asking**, please check:
+        - [Documentation](https://github.com/chaoking320/eleccloud/tree/main/docs)
+        - [Existing Q&A Discussions](https://github.com/chaoking320/eleccloud/discussions/categories/q-a)
+        - [FAQ](https://github.com/chaoking320/eleccloud/wiki/FAQ)
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: What would you like to know?
+      placeholder: |
+        How do I configure exponential backoff strategy for a specific scene?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Question Category
+      options:
+        - Installation / Setup
+        - Configuration
+        - Usage / How-to
+        - Architecture / Design
+        - Performance / Optimization
+        - Troubleshooting
+        - Best Practices
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-tried
+    attributes:
+      label: What Have You Tried?
+      description: |
+        What have you already tried to solve this problem?
+      placeholder: |
+        I tried:
+        1. Setting backoff-strategy to EXPONENTIAL in application.yml
+        2. Looking at the documentation but couldn't find clear examples
+        3. Checking the example project
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: |
+        Provide any relevant context about your setup or use case.
+      placeholder: |
+        - ElecCloud version: 1.0.0
+        - Use case: E-commerce order processing
+        - Current retry intervals: 1,5,10,30 minutes
+        - Want to change to exponential for certain high-priority scenes
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched the documentation
+          required: true
+        - label: I have searched existing issues and discussions
+          required: true

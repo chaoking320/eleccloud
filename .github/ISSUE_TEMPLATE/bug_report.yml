@@ -1,54 +1,186 @@
-name: Bug Report
-description: 报告一个缺陷或异常行为
-title: "[Bug] "
-labels: ["bug"]
+name: 🐛 Bug Report
+description: Report a bug or unexpected behavior
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
 body:
   - type: markdown
     attributes:
       value: |
-        感谢反馈问题！请尽量提供可复现的信息，便于我们快速定位。
+        Thanks for taking the time to report this issue! Please fill out the form below to help us understand and fix the problem.
+
   - type: textarea
     id: description
     attributes:
-      label: 问题描述
-      description: 清晰、简洁地描述出现了什么异常。
-    validations:
-      required: true
-  - type: textarea
-    id: reproduce
-    attributes:
-      label: 复现步骤
-      description: 一步步说明如何复现该问题。
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
       placeholder: |
-        1. 配置 ...
-        2. 调用 ...
-        3. 观察到 ...
+        Example: Task stuck in EXECUTING status and never recovers even after 10 minutes.
     validations:
       required: true
+
   - type: textarea
-    id: expected
+    id: steps-to-reproduce
     attributes:
-      label: 预期行为
-      description: 你期望发生什么？
-    validations:
-      required: true
-  - type: textarea
-    id: environment
-    attributes:
-      label: 环境信息
-      description: 版本、JDK、MQ 类型（Redis/RabbitMQ）、部署方式等。
+      label: Steps to Reproduce
+      description: Detailed steps to reproduce the behavior.
       placeholder: |
-        - ElecCloud 版本：1.0.0
-        - JDK：8
-        - MQ：Redis 6.x
-        - 部署：docker-compose
+        1. Start ElecCloud server with docker-compose
+        2. Submit a retry task with sceneType=1001
+        3. Kill the process with `kill -9` while task is executing
+        4. Wait for 10 minutes
+        5. Task remains in EXECUTING status
+      value: |
+        1. 
+        2. 
+        3. 
     validations:
-      required: false
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: |
+        ExecutingTimeoutScanner should detect the stuck task and rollback it to INIT status within 5 minutes.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+      placeholder: |
+        Task remains stuck in EXECUTING status indefinitely.
+    validations:
+      required: true
+
+  - type: input
+    id: eleccloud-version
+    attributes:
+      label: ElecCloud Version
+      description: Which version of ElecCloud are you using?
+      placeholder: "e.g., 1.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: java-version
+    attributes:
+      label: Java Version
+      description: Output of `java -version`
+      placeholder: "e.g., Java 17.0.8"
+    validations:
+      required: true
+
+  - type: input
+    id: spring-boot-version
+    attributes:
+      label: Spring Boot Version
+      placeholder: "e.g., 2.7.18"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment-mode
+    attributes:
+      label: Deployment Mode
+      description: How are you running ElecCloud?
+      options:
+        - Docker Compose
+        - Kubernetes
+        - Standalone (JAR)
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: database
+    attributes:
+      label: Database
+      options:
+        - MySQL 8.0
+        - MySQL 5.7
+        - PostgreSQL
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mq-type
+    attributes:
+      label: Message Queue Type
+      options:
+        - Redis
+        - RabbitMQ
+        - None (Standalone mode)
+    validations:
+      required: true
+
+  - type: input
+    id: operating-system
+    attributes:
+      label: Operating System
+      placeholder: "e.g., Ubuntu 22.04, Windows 11, macOS 13"
+    validations:
+      required: true
+
   - type: textarea
     id: logs
     attributes:
-      label: 日志 / 堆栈
-      description: 粘贴相关日志或异常堆栈（请脱敏）。
+      label: Relevant Logs
+      description: |
+        Please copy and paste any relevant log output. This will be automatically formatted into code.
+        
+        **Important**: Remove any sensitive information (passwords, API keys, etc.)
       render: shell
-    validations:
-      required: false
+      placeholder: |
+        2024-01-01 10:00:00 ERROR [...] Task execution failed: Connection timeout
+        2024-01-01 10:00:01 WARN  [...] Rollback failed, will retry later
+
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Configuration
+      description: |
+        Please share your relevant configuration (application.yml or docker-compose.yml).
+        
+        **Important**: Remove any sensitive information!
+      render: yaml
+      placeholder: |
+        retry:
+          client:
+            server-url: http://localhost:8080
+            enabled: true
+            mq-type: REDIS
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: |
+        Add any other context about the problem here, such as:
+        - Screenshots
+        - Network topology
+        - Related issues
+        - Workarounds you've tried
+      placeholder: |
+        - This issue started after upgrading from 0.9.0 to 1.0.0
+        - Happens only in production environment
+        - Workaround: Manually update task status in database
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      description: Please confirm the following
+      options:
+        - label: I have searched existing issues to ensure this is not a duplicate
+          required: true
+        - label: I have removed all sensitive information from logs and configuration
+          required: true
+        - label: I am using a supported version of ElecCloud
+          required: true
+        - label: I am willing to help test fixes for this issue
+          required: false
