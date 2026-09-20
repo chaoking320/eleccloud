@@ -21,6 +21,6 @@ jobs:
           cache: maven
 
       - name: Build and run unit tests
-        # RetryPlatformIntegrationTest 依赖 Redis / MySQL，本地/CI 无中间件时跳过；
-        # 其余纯单元测试（退避策略、参数提取、状态机守卫）照常执行。
-        run: mvn -B test -Dtest='!RetryPlatformIntegrationTest'
+        # Skip integration tests that require Docker/MySQL/Redis infrastructure
+        # Integration tests: *IntegrationTest, *RecoveryTest
+        run: mvn -B clean test -Dtest='!*IntegrationTest,!*RecoveryTest'

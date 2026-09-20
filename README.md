@@ -18,7 +18,7 @@
 
 ---
 
-## � The Origin Story
+## 🌌 The Origin Story
 
 > **ElecCloud — The Electron Cloud**
 >
@@ -38,7 +38,7 @@ These "force majeure" failures typically require **human intervention**, leading
 
 ---
 
-## �🎯 Why ElecCloud?
+## 🎯 Why ElecCloud?
 
 A production-ready distributed retry platform for Java microservices. **5 minutes to integrate, 80% scenarios covered with zero code.**
 
