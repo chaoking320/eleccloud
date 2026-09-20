@@ -18,7 +18,6 @@ import org.springframework.web.util.UriComponentsBuilder;
  * 重试客户端实现类
  */
 @Slf4j
-@Component
 public class RetryClientImpl implements RetryClient {
     
     @Autowired

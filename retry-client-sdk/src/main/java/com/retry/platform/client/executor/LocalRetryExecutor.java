@@ -66,7 +66,6 @@ import java.util.Map;
  * </ol>
  */
 @Slf4j
-@Component
 public class LocalRetryExecutor {
 
     @Autowired
@@ -743,7 +742,7 @@ public class LocalRetryExecutor {
 
     /**
      * 无 Hook 时的默认实现：checkStatus 始终返回 INIT，触发直接反射重试原始方法。
-     * doQuery / doCallback 不做任何事。
+     * doQuery 默认返回 success（业务方法执行无异常即视为成功），doCallback 不做任何事。
      */
     private static class NoOpRetryHook implements RetryHook {
         @Override
@@ -752,7 +751,8 @@ public class LocalRetryExecutor {
         }
         @Override
         public QueryResult doQuery(RetryContext context) {
-            return QueryResult.failure("NoOpRetryHook: no query logic");
+            // 无 Hook 场景下，业务方法执行成功（无异常）即视为任务成功
+            return QueryResult.success("NoOpRetryHook: method executed successfully, no query needed");
         }
         @Override
         public void doCallback(RetryContext context, QueryResult result) {

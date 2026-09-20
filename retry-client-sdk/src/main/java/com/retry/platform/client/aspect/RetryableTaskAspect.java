@@ -29,7 +29,6 @@ import java.util.Map;
  */
 @Slf4j
 @Aspect
-@Component
 public class RetryableTaskAspect {
 
     public static final ThreadLocal<Boolean> IN_RETRY_CONTEXT = ThreadLocal.withInitial(() -> Boolean.FALSE);

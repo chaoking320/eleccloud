@@ -284,7 +284,7 @@ class LocalRetryExecutorComprehensiveTest {
         assertDoesNotThrow(() -> executor.executeWithPayload(payload));
 
         // Then: 应该继续执行（使用NoOpHook）
-        verify(retryClient, times(1)).markExecuting("TASK010"));
+        verify(retryClient, times(1)).markExecuting("TASK010");
     }
 
     @Test

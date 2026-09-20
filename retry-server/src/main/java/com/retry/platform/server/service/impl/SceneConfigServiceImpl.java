@@ -54,38 +54,46 @@ public class SceneConfigServiceImpl implements SceneConfigService {
     
     @Override
     public Long createSceneConfig(SceneConfig sceneConfig) {
-        // 验证重试间隔配置
-        String validationError = validateRetryIntervalsWithMessage(sceneConfig.getRetryIntervals());
-        if (validationError != null) {
-            throw new IllegalArgumentException(
-                "Invalid retry intervals configuration.\n" +
-                "Error: " + validationError + "\n" +
-                "Expected format: Comma-separated positive integers (in minutes).\n" +
-                "Valid examples:\n" +
-                "  - \"1,5,10,30\" (retry after 1min, 5min, 10min, 30min)\n" +
-                "  - \"2,4,8,16\" (exponential-like pattern)\n" +
-                "  - \"5,5,5\" (fixed 5-minute intervals)\n" +
-                "Invalid examples:\n" +
-                "  - \"1, 5, 10\" (spaces are OK but not required)\n" +
-                "  - \"0,5,10\" (zero is not allowed)\n" +
-                "  - \"-1,5,10\" (negative values not allowed)\n" +
-                "  - \"1.5,2.5\" (decimal values not supported)\n" +
-                "Current value: " + sceneConfig.getRetryIntervals()
-            );
-        }
-        
-        // 验证最大重试次数与间隔数量一致
-        List<Integer> intervals = sceneConfig.getRetryIntervalList();
-        if (sceneConfig.getMaxRetryCount() != null && 
-            sceneConfig.getMaxRetryCount() != intervals.size()) {
-            throw new IllegalArgumentException(
-                "Configuration mismatch: maxRetryCount does not match retry intervals count.\n" +
-                "Max retry count: " + sceneConfig.getMaxRetryCount() + "\n" +
-                "Retry intervals count: " + intervals.size() + "\n" +
-                "Retry intervals: " + sceneConfig.getRetryIntervals() + "\n" +
-                "Solution: Either adjust maxRetryCount to " + intervals.size() + 
-                " or modify retry intervals to have exactly " + sceneConfig.getMaxRetryCount() + " values."
-            );
+        // 按退避策略分别校验
+        String strategy = sceneConfig.getBackoffStrategy();
+        boolean isCustom = strategy == null || strategy.isEmpty() || "CUSTOM".equalsIgnoreCase(strategy);
+
+        if (isCustom) {
+            // CUSTOM 策略：校验 retryIntervals 合法性
+            String validationError = validateRetryIntervalsWithMessage(sceneConfig.getRetryIntervals());
+            if (validationError != null) {
+                throw new IllegalArgumentException(
+                    "Invalid retry intervals configuration.\n" +
+                    "Error: " + validationError + "\n" +
+                    "Expected format: Comma-separated positive integers (in minutes).\n" +
+                    "Valid examples:\n" +
+                    "  - \"1,5,10,30\" (retry after 1min, 5min, 10min, 30min)\n" +
+                    "  - \"2,4,8,16\" (exponential-like pattern)\n" +
+                    "  - \"5,5,5\" (fixed 5-minute intervals)\n" +
+                    "Current value: " + sceneConfig.getRetryIntervals()
+                );
+            }
+
+            // CUSTOM 策略：校验最大重试次数与间隔数量一致
+            List<Integer> intervals = sceneConfig.getRetryIntervalList();
+            if (sceneConfig.getMaxRetryCount() != null &&
+                sceneConfig.getMaxRetryCount() != intervals.size()) {
+                throw new IllegalArgumentException(
+                    "Configuration mismatch: maxRetryCount does not match retry intervals count.\n" +
+                    "Max retry count: " + sceneConfig.getMaxRetryCount() + "\n" +
+                    "Retry intervals count: " + intervals.size() + "\n" +
+                    "Retry intervals: " + sceneConfig.getRetryIntervals() + "\n" +
+                    "Solution: Either adjust maxRetryCount to " + intervals.size() +
+                    " or modify retry intervals to have exactly " + sceneConfig.getMaxRetryCount() + " values."
+                );
+            }
+        } else {
+            // FIXED/LINEAR/EXPONENTIAL 策略：校验 maxRetryCount 必须大于 0
+            if (sceneConfig.getMaxRetryCount() == null || sceneConfig.getMaxRetryCount() <= 0) {
+                throw new IllegalArgumentException(
+                    "非自定义策略（" + strategy + "）下，最大重试次数 maxRetryCount 必须大于 0。"
+                );
+            }
         }
         
         // 设置创建时间和更新时间

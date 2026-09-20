@@ -116,6 +116,17 @@
           <div class="form-tip" style="width: 100%; margin-top: 5px;">单位：分钟。用于计算退避间隔。</div>
         </el-form-item>
         
+        <el-form-item label="最大重试次数" prop="maxRetryCount" v-if="form.backoffStrategy !== 'CUSTOM'">
+          <el-input-number 
+            v-model="form.maxRetryCount" 
+            :min="1" 
+            :max="100"
+            placeholder="最大重试次数"
+            style="width: 100%"
+          />
+          <div class="form-tip" style="width: 100%; margin-top: 5px;">非自定义策略下必须指定最大重试次数。</div>
+        </el-form-item>
+        
         <el-form-item label="重试间隔" prop="retryIntervals" v-if="form.backoffStrategy === 'CUSTOM'">
           <retry-interval-config v-model="form.retryIntervals" />
         </el-form-item>

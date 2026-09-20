@@ -106,7 +106,17 @@ public class StandaloneRetryClientImpl implements RetryClient {
         task.setNextRetryTime(System.currentTimeMillis() + 60_000L);
 
         // 4. 写入本地 DB
-        taskMapper.insert(task);
+        if (existing != null) {
+            // 已有终态记录（SUCCESS/FAILED），重置为 INIT 复用该行，避免唯一索引冲突
+            task.setTaskId(existing.getTaskId()); // 保留原 taskId 避免 UK 冲突
+            taskMapper.updateStatusAndRetryInfo(existing.getTaskId(), "INIT", 0,
+                    task.getNextRetryTime());
+            taskId = existing.getTaskId();
+            log.info("[Standalone] Reset terminated task to INIT. taskId={}, previousStatus={}",
+                    taskId, existing.getTaskStatus());
+        } else {
+            taskMapper.insert(task);
+        }
         log.info("[Standalone] Task submitted. taskId={}, sceneType={}, idempotentKey={}",
                 taskId, request.getSceneType(), request.getIdempotentKey());
         return taskId;

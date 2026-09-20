@@ -8,7 +8,9 @@ import com.retry.platform.server.service.RetryTaskService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.HashMap;
 import java.util.List;
@@ -25,6 +27,9 @@ public class RetryTaskAdminController {
 
     @Value("${retry.server.url:http://localhost:8080}")
     private String retryServerUrl;
+
+    @Value("${retry.server.api-key:}")
+    private String apiKey;
 
     @Autowired
     private RetryTaskMapper retryTaskMapper;
@@ -161,7 +166,12 @@ public class RetryTaskAdminController {
             
             // 向 retry-server 投递 /trigger 触发请求，间接向 MQ 发送 delay=0 消息
             String triggerUrl = retryServerUrl + "/api/retry/trigger/" + taskId;
-            restTemplate.postForObject(triggerUrl, null, com.retry.platform.client.dto.Result.class);
+            HttpHeaders headers = new HttpHeaders();
+            if (apiKey != null && !apiKey.isEmpty()) {
+                headers.set("X-API-Key", apiKey);
+            }
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+            restTemplate.exchange(triggerUrl, HttpMethod.POST, entity, com.retry.platform.client.dto.Result.class);
             
             return Result.success();
         } catch (Exception e) {
