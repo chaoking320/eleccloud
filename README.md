@@ -18,7 +18,27 @@
 
 ---
 
-## 🎯 Why ElecCloud?
+## � The Origin Story
+
+> **ElecCloud — The Electron Cloud**
+>
+> In quantum physics, electrons don't orbit the nucleus in fixed paths. Instead, they form a **probability cloud** around the nucleus — constantly in motion, tirelessly guarding the core from external interference.
+>
+> This is the philosophy behind ElecCloud: **When your critical services fail due to network jitters, downstream timeouts, or third-party unavailability, you shouldn't need manual intervention. Like an electron cloud, ElecCloud silently and persistently guards your business processes, ensuring tasks eventually succeed — no matter what.**
+
+In distributed systems, cross-service failures are inevitable:
+
+- 💳 Payment callback timeout → Fund status unknown, manual reconciliation needed
+- 🌐 Third-party API rate limit → Batch requests lost, manual data entry required  
+- 📨 Message delivery failure → Data inconsistency, tedious troubleshooting
+
+These "force majeure" failures typically require **human intervention**, leading to high operational costs and delayed responses.
+
+**ElecCloud's mission: Let failed tasks automatically retry until success, freeing engineers from repetitive firefighting.**
+
+---
+
+## �🎯 Why ElecCloud?
 
 A production-ready distributed retry platform for Java microservices. **5 minutes to integrate, 80% scenarios covered with zero code.**
 
@@ -125,12 +145,12 @@ Visit http://localhost:8081 to see your retry tasks!
 
 ```mermaid
 graph TB
-    A[Business Application] -->|@RetryableTask| B[SDK AOP]
-    B -->|Submit Task| C[Retry Server]
+    A[Business Application] -->|SDK AOP| B[RetryableTask]
+    B[SDK AOP] -->|Submit Task| C[Retry Server]
     C -->|Store| D[(MySQL)]
     C -->|Delay Queue| E[Redis/RabbitMQ]
     E -->|Pull Expired| F[Local Executor]
-    F -->|Execute + Hook| G{Result}
+    F -->|Execute Hook| G{Result}
     G -->|Success| H[Mark Success]
     G -->|Pending| I[Reschedule]
     G -->|Failed| J[Retry/Failed]
