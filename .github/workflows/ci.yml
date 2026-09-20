@@ -9,6 +9,7 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,7 +21,5 @@ jobs:
           java-version: '17'
           cache: maven
 
-      - name: Build and run unit tests
-        # RetryPlatformIntegrationTest 依赖 Redis / MySQL，本地/CI 无中间件时跳过；
-        # 其余纯单元测试（退避策略、参数提取、状态机守卫）照常执行。
-        run: mvn -B test -Dtest='!RetryPlatformIntegrationTest'
+      - name: Build and run all tests
+        run: mvn -B clean test
