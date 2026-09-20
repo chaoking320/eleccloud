@@ -747,11 +747,11 @@ public class LocalRetryExecutor {
     private static class NoOpRetryHook implements RetryHook {
         @Override
         public com.retry.platform.client.hook.RetryStatus checkStatus(RetryContext context) {
-            return com.retry.platform.client.hook.RetryStatus.INIT; // 直接走 handleInit → 反射调用原始业务方法
+            return com.retry.platform.client.hook.RetryStatus.INIT;
         }
         @Override
         public QueryResult doQuery(RetryContext context) {
-            // 无 Hook 场景下，业务方法执行成功（无异常）即视为任务成功
+            // 无Hook场景下，业务方法执行成功（无异常）即视为任务成功
             return QueryResult.success("NoOpRetryHook: method executed successfully, no query needed");
         }
         @Override
