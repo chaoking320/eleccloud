@@ -34,6 +34,11 @@ Thumbs.db
 application-local.yml
 application-dev.yml
 
+# Environment variables (should use .env.example as template)
+.env
+.env.local
+.env.*.local
+
 # AI Agent workspace
 .kiro/
 .workbuddy/
@@ -49,3 +54,12 @@ debug.log
 retry-admin/src/main/resources/static/assets/
 retry-admin/frontend/node_modules/
 retry-admin/frontend/dist/
+
+# Test and deployment artifacts (not for open source)
+deploy/eleccloud-test-release.zip
+deploy/test-release/
+deploy/*-test.yml
+deploy/init-tables-for-jkkms.sql
+package-for-test.ps1
+*-test.yml
+docker-compose.test-server.yml
