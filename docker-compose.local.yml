@@ -1,5 +1,5 @@
-# 本地演示用 Compose（项目名 retry-platform，Portainer 中归为一组）
-# 启动: docker compose -p retry-platform -f docker-compose.local.yml up -d --build
+# Local standalone demo environment (project name: retry-platform)
+# Start: docker compose -p retry-platform -f docker-compose.local.yml up -d --build
 version: "3.8"
 
 services:

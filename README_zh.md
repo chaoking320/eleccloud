@@ -6,7 +6,7 @@
 
 [![Java](https://img.shields.io/badge/Java-17%2B-orange?logo=openjdk)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-2.7.18-brightgreen?logo=springboot)](https://spring.io/projects/spring-boot)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/chaoking320/eleccloud)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
@@ -279,7 +279,7 @@ ElecCloud v3.0 采用**去中心化 MQ-SDK 驱动**架构 — 调度权完全移
 
 ## 📄 License
 
-本项目采用 [MIT License](LICENSE) 开源协议，欢迎 Star、Fork 与 Contribution。
+本项目采用 [Apache License 2.0](LICENSE) 开源协议，欢迎 Star、Fork 与 Contribution。
 
 ---
 

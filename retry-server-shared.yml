@@ -1,8 +1,7 @@
-# 应用容器连接配置（接入公共 MySQL/Redis 时使用）
-# 通过 spring.config.additional-location 注入，优先级高于 jar 内 application.yml
+# Container runtime configuration for shared MySQL / Redis deployment
+# Injected via spring.config.additional-location with higher priority than application.yml
 #
-# 依赖公共基础设施（infra/docker-compose.yml）已启动，且共享网络 shared-network 已创建。
-# 密码需与 infra 里 MYSQL_ROOT_PASSWORD / redis requirepass 保持一致。
+# Requires shared infrastructure (infra/docker-compose.yml) and shared-network.
 spring:
   datasource:
     url: jdbc:mysql://mysql:3306/retry_platform?useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&rewriteBatchedStatements=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8

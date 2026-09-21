@@ -1,7 +1,6 @@
-# 容器化运行配置（由 docker-compose 挂载，不修改仓库 application.yml）
-# 通过 spring.config.additional-location 注入，优先级高于 application.yml
-# admin 引入了整个 retry-server 包，与 server 共享同一 MySQL / Redis / Redisson 延时队列，
-# 作为分布式集群的第二个消费者协同工作。
+# Container runtime configuration mounted by docker-compose
+# Injected via spring.config.additional-location with higher priority than application.yml
+# Shares MySQL / Redis delay queue with retry-server.
 spring:
   datasource:
     url: jdbc:mysql://mysql:3306/retry_platform?useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&rewriteBatchedStatements=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8

@@ -1,9 +1,8 @@
-# eleccloud 应用（接入公共 MySQL/Redis 的版本）
-# 前置：先启动公共基础设施  docker compose -p infra -f infra/docker-compose.yml up -d
-# 启动：docker compose -p retry-platform -f docker-compose.shared.yml up -d --build
+# ElecCloud deployment for shared middleware (MySQL & Redis)
+# Prerequisite: start shared infra via `docker compose -p infra -f infra/docker-compose.yml up -d`
+# Start: docker compose -p retry-platform -f docker-compose.shared.yml up -d --build
 #
-# 本文件不再包含 mysql/redis 服务，应用容器直接 join 公共的 shared-network，
-# 通过服务名 mysql / redis 连接（见 retry-server-shared.yml / retry-admin-shared.yml）。
+# Connects directly to shared-network using services mysql and redis.
 version: "3.8"
 
 services:

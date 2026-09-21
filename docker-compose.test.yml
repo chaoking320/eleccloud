@@ -1,15 +1,13 @@
-# 测试环境用 Compose（离线镜像版，无 build 段）
-# 用途：本地打包好镜像并 docker save 导出后，拷贝到测试环境，直接 docker load + up -d 启动，
-#       无需源码、无需 Maven/Node 编译，省去部署动作。
+# Offline testing environment using pre-built images (no build steps required)
 #
-# 前置：测试环境已执行 `docker load -i retry-images.tar` 导入了以下镜像：
+# Prerequisite: import images via `docker load -i retry-images.tar`:
 #   - eleccloud/retry-server:1.0.0
 #   - eleccloud/retry-admin:1.0.0
 #   - eleccloud/retry-example:1.0.0
 #   - mysql:8.0
 #   - redis:6-alpine
 #
-# 启动命令：
+# Start:
 #   docker compose -p retry-platform -f docker-compose.test.yml up -d
 version: "3.8"
 
