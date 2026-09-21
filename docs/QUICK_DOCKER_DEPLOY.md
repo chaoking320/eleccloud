@@ -814,3 +814,130 @@ networks:
 - 检查管理后台任务详情
 
 祝你使用愉快！🎉
+
+---
+
+## 🏭 生产环境：手动 Jar 部署
+
+生产环境通常将数据库和 Redis 独立部署，将 jar 包直接运行在宿主机或内网服务器上。
+
+### 前置要求
+
+- JDK 17+
+- Maven 3.6+（编译阶段）
+- MySQL 8.0+
+- Redis 6+
+
+### Step 1：初始化数据库
+
+```sql
+CREATE DATABASE IF NOT EXISTS retry_platform
+    DEFAULT CHARACTER SET utf8mb4
+    COLLATE utf8mb4_unicode_ci;
+```
+
+然后导入初始化脚本：
+
+```bash
+mysql -u root -p retry_platform < db/init.sql
+```
+
+### Step 2：编译打包
+
+```bash
+mvn clean install -DskipTests
+```
+
+生成的 jar 包位于：
+- `retry-server/target/retry-server-1.0.0.jar`
+- `retry-admin/target/retry-admin-1.0.0.jar`
+
+### Step 3：运行服务
+
+**启动 retry-server：**
+
+```bash
+nohup java -jar retry-server-1.0.0.jar \
+  --spring.datasource.url="jdbc:mysql://DB_IP:3306/retry_platform?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8" \
+  --spring.datasource.username="your_user" \
+  --spring.datasource.password="your_password" \
+  --spring.redis.host="REDIS_IP" \
+  --spring.redis.password="your_redis_pwd" \
+  > retry-server.log 2>&1 &
+```
+
+**启动 retry-admin：**
+
+```bash
+nohup java -jar retry-admin-1.0.0.jar \
+  --spring.datasource.url="jdbc:mysql://DB_IP:3306/retry_platform?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8" \
+  --spring.datasource.username="your_user" \
+  --spring.datasource.password="your_password" \
+  --retry.server.url="http://RETRY_SERVER_IP:8080" \
+  --retry.server.api-key="YOUR_API_KEY" \
+  > retry-admin.log 2>&1 &
+```
+
+---
+
+## ⚙️ 生产调优参数
+
+在 `retry-server` 的 `application.yml` 中，根据集群规模调整：
+
+```yaml
+retry:
+  scheduler:
+    scan-interval: 5000           # 扫描间隔（毫秒），默认 10s，高并发可调为 5s
+    batch-size: 500               # 每批处理任务数，默认 100
+    fallback-scan-interval: 60000 # DB 兜底扫描间隔（建议保持 1 分钟）
+  executor:
+    core-pool-size: 30            # 核心执行线程数
+    max-pool-size: 150            # 最大执行线程数
+    queue-capacity: 5000          # 缓冲队列容量
+```
+
+---
+
+## 📈 监控集成（Prometheus + Grafana）
+
+### Prometheus 配置
+
+`retry-server` 通过 Micrometer 暴露指标，地址为：
+
+```
+http://retry-server:8080/actuator/prometheus
+```
+
+在 `prometheus.yml` 中添加抓取任务：
+
+```yaml
+scrape_configs:
+  - job_name: 'retry-platform'
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['retry-server:8080']
+```
+
+### Grafana Dashboard 导入
+
+项目提供了配套 Grafana Dashboard：`deploy/grafana/dashboard.json`
+
+**导入方式：**
+1. Grafana → Dashboards → Import → 上传 `dashboard.json`
+2. 在弹窗中选择你的 Prometheus 数据源
+
+**主要监控面板：**
+
+| 面板 | 指标名 | 说明 |
+|------|--------|------|
+| 活跃重试任务数 | `retry_active_tasks_count` | 当前待处理任务总量 |
+| 死信/失败任务数 | `retry_failed_tasks_count` | 超出最大重试次数的任务量 |
+| 任务提交速率 | `retry_tasks_submitted_total` | 按 sceneType 统计的提交 QPS |
+| 任务执行结果 | `retry_tasks_executed_total` | 按 sceneType/result 统计执行结果 |
+| 平均执行耗时 | `retry_tasks_execution_duration_seconds` | 任务执行平均耗时 |
+
+**运维建议：**
+- **活跃任务持续上升** → 消费能力不足，增加 `retry-server` 实例或调大线程池
+- **死信任务暴增** → 下游系统发生故障，检查下游服务可用性
+- **执行耗时 P99 异常** → 网络延迟或下游响应慢，检查网络链路

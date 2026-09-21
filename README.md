@@ -195,14 +195,12 @@ ElecCloud v3.0 uses a **decentralized MQ-SDK-driven** design — scheduling auth
 
 | Document | Description |
 |----------|-------------|
-| [Quick Start](QUICKSTART.md) | 5-minute integration guide |
-| [Zero-Hook Mode](docs/QUICK_START_ZERO_HOOK.md) | 80% scenarios with zero extra code |
-| [Hook Explained](docs/HOOK_EXPLAINED.md) | Custom Hook lifecycle guide |
-| [SDK Guide](docs/SDK_GUIDE.md) | Complete SDK reference & configuration |
 | [Architecture](docs/ARCHITECTURE.md) | System design, state machine, ER diagram |
-| [Docker Deployment](docs/QUICK_DOCKER_DEPLOY.md) | Production deployment guide |
+| [SDK Guide](docs/SDK_GUIDE.md) | Complete SDK reference & all configuration options |
+| [Hook Explained](docs/HOOK_EXPLAINED.md) | Custom Hook lifecycle guide (checkStatus → doQuery → doCallback) |
+| [Deployment Guide](docs/QUICK_DOCKER_DEPLOY.md) | Docker Compose, bare-metal JAR deployment, Prometheus + Grafana |
 | [Security](docs/SECURITY.md) | API Key auth, best practices |
-| [Alert Guide](docs/ALERT_GUIDE.md) | Monitoring and alerting setup |
+| [Alert Guide](docs/ALERT_GUIDE.md) | Email, DingTalk, WeChat Work alerting setup |
 | [Contributing](CONTRIBUTING.md) | How to contribute |
 
 ---

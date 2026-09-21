@@ -221,11 +221,9 @@ ElecCloud v3.0 采用**去中心化 MQ-SDK 驱动**架构 — 调度权完全移
 | 文档 | 内容 |
 |------|------|
 | [架构设计](docs/ARCHITECTURE.md) | 整体架构图、状态机流转、数据库 ER 图 |
-| [SDK 接入指南](docs/SDK_GUIDE.md) | 5 分钟上手、三种接入模式、配置详解、RetryHook 开发规范 |
-| [零 Hook 快速入门](docs/QUICK_START_ZERO_HOOK.md) | 零代码覆盖 80% 场景 |
+| [SDK 接入指南](docs/SDK_GUIDE.md) | 5 分钟上手、三种接入模式、完整配置参数说明 |
 | [Hook 机制详解](docs/HOOK_EXPLAINED.md) | 自定义 Hook 生命周期开发指南 |
-| [Docker 部署指南](docs/QUICK_DOCKER_DEPLOY.md) | 生产环境 Docker Compose 部署 |
-| [部署运维手册](docs/DEPLOYMENT.md) | 手动部署、环境变量、运维操作 |
+| [部署运维手册](docs/QUICK_DOCKER_DEPLOY.md) | Docker Compose + 手动 Jar 部署 + Prometheus/Grafana 监控 |
 | [安全配置指南](docs/SECURITY.md) | API Key 鉴权、密钥管理、安全最佳实践 |
 | [告警配置指南](docs/ALERT_GUIDE.md) | 邮件/钉钉/企业微信告警、阈值配置 |
 | [参与贡献](CONTRIBUTING.md) | 贡献指南 |
