@@ -21,3 +21,6 @@ spring:
           database: 2
           connectionPoolSize: 64
           connectionMinimumIdleSize: 10
+retry:
+  server:
+    url: http://retry-platform-server:8080

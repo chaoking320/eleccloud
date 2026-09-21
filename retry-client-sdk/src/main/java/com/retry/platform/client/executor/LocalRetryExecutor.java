@@ -74,7 +74,7 @@ public class LocalRetryExecutor {
     @Autowired
     private RetryInternalClient retryClient;
 
-    @Autowired
+    @Autowired(required = false)
     private RetryMessageProducer retryMessageProducer;
 
     // =========================================================================================
@@ -406,9 +406,14 @@ public class LocalRetryExecutor {
 
         // 4. 打包胖消息重新投递到延时队列
         RetryMessagePayload nextPayload = clonePayloadWithNewCount(payload, newRetryCount);
-        retryMessageProducer.sendDelayMessageWithPayload(nextPayload, delayMs);
-        log.info("[LocalRetryExecutor] Scheduled next retry: taskId={}, nextRetryCount={}, targetStatus={}, delayMs={}", 
-                taskId, newRetryCount, targetStatus, delayMs);
+        if (retryMessageProducer != null) {
+            retryMessageProducer.sendDelayMessageWithPayload(nextPayload, delayMs);
+            log.info("[LocalRetryExecutor] Scheduled next retry: taskId={}, nextRetryCount={}, targetStatus={}, delayMs={}", 
+                    taskId, newRetryCount, targetStatus, delayMs);
+        } else {
+            log.warn("[LocalRetryExecutor] RetryMessageProducer 未配置或未启用，跳过胖消息队列投递: taskId={}, nextRetryCount={}, targetStatus={}", 
+                    taskId, newRetryCount, targetStatus);
+        }
     }
 
     /**
