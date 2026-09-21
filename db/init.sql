@@ -1,5 +1,6 @@
 -- =====================================================
--- 分布式重试平台 数据库初始化脚本
+-- ElecCloud Distributed Retry Platform — DB Init Script
+-- Compatible with: MySQL 8.0+
 -- =====================================================
 CREATE DATABASE IF NOT EXISTS retry_platform DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 

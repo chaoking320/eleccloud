@@ -3,7 +3,7 @@
     {
       "name": "DS_PROMETHEUS",
       "label": "Prometheus",
-      "description": "Prometheus 数据源",
+      "description": "Prometheus data source",
       "type": "datasource",
       "pluginId": "prometheus",
       "pluginName": "Prometheus"

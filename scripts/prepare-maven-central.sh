@@ -1,94 +1,94 @@
 #!/bin/bash
 
-# ElecCloud Maven Central 发布准备脚本
-# 此脚本帮助你快速配置发布到 Maven Central 的环境
+# ElecCloud — Maven Central Publishing Preparation Script
+# Helps you quickly configure the environment for publishing to Maven Central.
 
 set -e
 
 echo "======================================"
-echo "ElecCloud Maven Central 发布准备向导"
+echo "  ElecCloud Maven Central Setup Wizard"
 echo "======================================"
 echo ""
 
-# 颜色输出
+# Color output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# 1. 检查 GPG
-echo "Step 1: 检查 GPG..."
+# Step 1: Check GPG
+echo "Step 1: Checking GPG installation..."
 if ! command -v gpg &> /dev/null; then
-    echo -e "${RED}✗ GPG 未安装${NC}"
-    echo "请安装 GPG:"
+    echo -e "${RED}✗ GPG is not installed${NC}"
+    echo "Install GPG:"
     echo "  Windows: https://www.gpg4win.org/download.html"
-    echo "  Mac: brew install gnupg"
-    echo "  Linux: sudo apt-get install gnupg"
+    echo "  Mac:     brew install gnupg"
+    echo "  Linux:   sudo apt-get install gnupg"
     exit 1
 else
-    echo -e "${GREEN}✓ GPG 已安装${NC}"
+    echo -e "${GREEN}✓ GPG is installed${NC}"
     gpg --version | head -n 1
 fi
 
-# 2. 检查 GPG 密钥
+# Step 2: Check GPG keys
 echo ""
-echo "Step 2: 检查 GPG 密钥..."
+echo "Step 2: Checking GPG keys..."
 if gpg --list-keys | grep -q "uid"; then
-    echo -e "${GREEN}✓ GPG 密钥已存在${NC}"
+    echo -e "${GREEN}✓ GPG key(s) found${NC}"
     gpg --list-keys
     echo ""
-    read -p "是否使用现有密钥？(y/n): " use_existing
+    read -p "Use existing key? (y/n): " use_existing
     if [ "$use_existing" != "y" ]; then
-        echo "生成新密钥..."
+        echo "Generating a new key..."
         gpg --gen-key
     fi
 else
-    echo -e "${YELLOW}! 未找到 GPG 密钥，开始生成...${NC}"
+    echo -e "${YELLOW}! No GPG key found — generating one now...${NC}"
     gpg --gen-key
 fi
 
-# 3. 获取密钥ID
+# Step 3: Get key ID
 echo ""
-echo "Step 3: 获取密钥ID..."
+echo "Step 3: Retrieving key ID..."
 KEY_ID=$(gpg --list-keys --keyid-format=long | grep "pub" | awk '{print $2}' | cut -d'/' -f2 | head -n 1)
-echo -e "${GREEN}密钥ID: $KEY_ID${NC}"
+echo -e "${GREEN}Key ID: $KEY_ID${NC}"
 
-# 4. 上传公钥
+# Step 4: Upload public key
 echo ""
-echo "Step 4: 上传公钥到密钥服务器..."
-read -p "是否上传公钥到 keyserver.ubuntu.com？(y/n): " upload_key
+echo "Step 4: Uploading public key to key server..."
+read -p "Upload public key to keyserver.ubuntu.com? (y/n): " upload_key
 if [ "$upload_key" = "y" ]; then
     gpg --keyserver keyserver.ubuntu.com --send-keys $KEY_ID
-    echo -e "${GREEN}✓ 公钥已上传${NC}"
+    echo -e "${GREEN}✓ Public key uploaded${NC}"
 fi
 
-# 5. 配置 settings.xml
+# Step 5: Configure settings.xml
 echo ""
-echo "Step 5: 配置 Maven settings.xml..."
+echo "Step 5: Configuring Maven settings.xml..."
 SETTINGS_FILE="$HOME/.m2/settings.xml"
 
 if [ -f "$SETTINGS_FILE" ]; then
-    echo -e "${YELLOW}! settings.xml 已存在${NC}"
-    read -p "是否备份并更新？(y/n): " backup_settings
+    echo -e "${YELLOW}! settings.xml already exists${NC}"
+    read -p "Backup and overwrite? (y/n): " backup_settings
     if [ "$backup_settings" = "y" ]; then
         cp "$SETTINGS_FILE" "$SETTINGS_FILE.backup"
-        echo "已备份到 $SETTINGS_FILE.backup"
+        echo "Backed up to $SETTINGS_FILE.backup"
     else
-        echo "跳过 settings.xml 配置"
+        echo "Skipping settings.xml configuration."
         exit 0
     fi
 fi
 
-# 获取用户输入
+# Gather credentials
 echo ""
-echo "请输入 Sonatype OSSRH 账号信息:"
+echo "Enter your Sonatype OSSRH credentials:"
 read -p "Username: " OSSRH_USERNAME
 read -sp "Password: " OSSRH_PASSWORD
 echo ""
 read -sp "GPG Passphrase: " GPG_PASSPHRASE
 echo ""
 
-# 创建 settings.xml
+# Write settings.xml
 mkdir -p "$HOME/.m2"
 cat > "$SETTINGS_FILE" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -121,32 +121,32 @@ cat > "$SETTINGS_FILE" <<EOF
 </settings>
 EOF
 
-echo -e "${GREEN}✓ settings.xml 已创建${NC}"
-echo "位置: $SETTINGS_FILE"
+echo -e "${GREEN}✓ settings.xml created${NC}"
+echo "Location: $SETTINGS_FILE"
 
-# 6. 测试配置
+# Step 6: Test configuration
 echo ""
-echo "Step 6: 测试配置..."
-echo "测试 Sonatype 登录..."
+echo "Step 6: Testing configuration..."
+echo "Testing Sonatype login..."
 if curl -s -u "$OSSRH_USERNAME:$OSSRH_PASSWORD" https://s01.oss.sonatype.org/service/local/authentication/login | grep -q "username"; then
-    echo -e "${GREEN}✓ Sonatype 认证成功${NC}"
+    echo -e "${GREEN}✓ Sonatype authentication successful${NC}"
 else
-    echo -e "${RED}✗ Sonatype 认证失败，请检查用户名密码${NC}"
+    echo -e "${RED}✗ Sonatype authentication failed — check your credentials${NC}"
 fi
 
-# 7. 下一步提示
+# Step 7: Next steps
 echo ""
 echo "======================================"
-echo -e "${GREEN}✓ 配置完成！${NC}"
+echo -e "${GREEN}✓ Setup complete!${NC}"
 echo "======================================"
 echo ""
-echo "下一步操作:"
-echo "1. 确保你的 Sonatype Jira Issue 已通过审批"
-echo "2. 按 Sonatype 要求补全 pom.xml (groupId/name/description/url/licenses/developers/scm)"
-echo "3. 发布 SNAPSHOT 测试:"
+echo "Next steps:"
+echo "1. Ensure your Sonatype Jira Issue has been approved"
+echo "2. Verify pom.xml contains required fields: groupId, name, description, url, licenses, developers, scm"
+echo "3. Publish a SNAPSHOT to test:"
 echo "   mvn clean deploy"
-echo "4. 发布正式版本:"
+echo "4. Publish a release:"
 echo "   mvn clean deploy -P release"
 echo ""
-echo "参考文档: https://central.sonatype.org/publish/publish-guide/"
+echo "Reference: https://central.sonatype.org/publish/publish-guide/"
 echo ""

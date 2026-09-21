@@ -1,82 +1,85 @@
-# 🚀 ElecCloud 5 分钟快速开始
+# 🚀 ElecCloud — Quick Start (5 Minutes)
 
-> **最快路径**：从零到运行第一个重试任务
+> **Fastest path**: From zero to your first auto-retrying task
 
 ---
 
-## 前置要求
+## Prerequisites
 
-- ✅ Docker Desktop (Windows) 或 Docker Engine (Linux/macOS)
-- ✅ JDK 17 或 21
+- ✅ Docker Desktop (Windows) or Docker Engine (Linux/macOS)
+- ✅ JDK 17 or 21
 - ✅ Maven 3.6+
 
 ---
 
-## 第 1 步：编译项目（2 分钟）
+## Step 1: Build the Project (2 min)
 
 ```bash
-cd <eleccloud 项目目录>
+cd <eleccloud project directory>
 mvn clean package -DskipTests
 ```
 
-**成功标志**：看到 `BUILD SUCCESS`
+**Success indicator**: `BUILD SUCCESS`
 
 ---
 
-## 第 2 步：启动 Docker 服务（3 分钟）
+## Step 2: Start Docker Services (3 min)
 
 ```bash
 docker compose -f docker-compose.simple.yml up -d --build
 ```
 
-**成功标志**：
+**Verify all services are running:**
+
 ```bash
 docker compose -f docker-compose.simple.yml ps
-
-# 应该看到 4 个服务都是 Up 状态
+# All 4 services should show "Up"
 ```
+
+| Service | URL |
+|---------|-----|
+| Retry Server | http://localhost:8080 |
+| Admin Dashboard | http://localhost:8081 |
+| Demo App | http://localhost:8082 |
 
 ---
 
-## 第 3 步：验证部署
-
-### 检查 Server
+## Step 3: Verify the Deployment
 
 ```bash
+# Check server health
 curl http://localhost:8080/actuator/health
-# 返回: {"status":"UP"}
+# Expected: {"status":"UP"}
 ```
 
-### 访问管理后台
-
-浏览器打开：**http://localhost:8081**
+Open the Admin Dashboard at **http://localhost:8081**
 
 ---
 
-## 第 4 步：创建你的第一个场景
+## Step 4: Create Your First Scene
 
-1. 在管理后台点击"场景配置" → "新建场景"
-2. 填写：
-   - 场景类型：`1001`
-   - 场景名称：`我的第一个重试场景`
-   - 退避策略：`CUSTOM`
-   - 重试间隔：`1,5,10`（分钟）
-   - 最大重试次数：`3`
-   - Hook 类名：留空（使用零 Hook 模式）
-3. 点击"保存"
+1. In the Admin Dashboard, go to **Scene Config** → **New Scene**
+2. Fill in:
+   - Scene Type: `1001`
+   - Scene Name: `My First Retry Scene`
+   - Backoff Strategy: `CUSTOM`
+   - Retry Intervals: `1,5,10` (minutes)
+   - Max Retry Count: `3`
+   - Hook Class: *(leave empty — Zero-Hook mode)*
+3. Click **Save**
 
 ---
 
-## 第 5 步：本地项目接入
+## Step 5: Integrate the SDK into Your Project
 
-### 5.1 安装 SDK 到本地仓库
+### 5.1 Install SDK to local Maven repo
 
 ```bash
-cd <eleccloud 项目目录>
+cd <eleccloud project directory>
 mvn install -DskipTests
 ```
 
-### 5.2 在你的项目中添加依赖
+### 5.2 Add dependency to your project
 
 ```xml
 <dependency>
@@ -86,7 +89,7 @@ mvn install -DskipTests
 </dependency>
 ```
 
-### 5.3 配置 application.yml
+### 5.3 Configure application.yml
 
 ```yaml
 retry:
@@ -103,16 +106,16 @@ spring:
     database: 2
 ```
 
-### 5.4 使用注解
+### 5.4 Add one annotation
 
 ```java
 @Service
 public class MyService {
-    
+
     @RetryableTask(sceneType = 1001, idempotentKey = "#orderId")
     public void processOrder(String orderId) {
-        // 你的业务逻辑
-        // 如果抛出异常，会自动重试（1分钟、5分钟、10分钟）
+        // Your business logic here.
+        // If an exception is thrown, it will auto-retry at: 1min, 5min, 10min
         externalApi.call(orderId);
     }
 }
@@ -120,74 +123,75 @@ public class MyService {
 
 ---
 
-## 🎉 完成！
+## 🎉 Done!
 
-现在你可以：
-- 调用 `myService.processOrder("ORDER001")`
-- 在管理后台查看任务状态
-- 模拟失败，观察自动重试
-
----
-
-## 📚 下一步
-
-- **完整部署指南**：[docs/QUICK_DOCKER_DEPLOY.md](docs/QUICK_DOCKER_DEPLOY.md)
-- **SDK 接入指南**：[docs/SDK_GUIDE.md](docs/SDK_GUIDE.md)
-- **架构设计**：[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+You can now:
+- Call `myService.processOrder("ORDER001")`
+- Watch the task appear in the Admin Dashboard
+- Simulate a failure and observe automatic retries
 
 ---
 
-## ❓ 遇到问题？
+## 📚 Next Steps
 
-### Server 启动失败
+| Guide | Description |
+|-------|-------------|
+| [Deployment Guide](docs/QUICK_DOCKER_DEPLOY.md) | Full Docker + bare-metal + Prometheus setup |
+| [SDK Guide](docs/SDK_GUIDE.md) | All configuration options and advanced usage |
+| [Architecture](docs/ARCHITECTURE.md) | System design and state machine |
+| [Hook Explained](docs/HOOK_EXPLAINED.md) | Custom retry logic with hooks |
+
+---
+
+## ❓ Troubleshooting
+
+### Server fails to start
 
 ```bash
-# 查看日志
+# View server logs
 docker logs retry-server
 
-# 常见原因：MySQL 还在初始化
-# 解决：等待 30 秒后重启
+# Common cause: MySQL is still initializing
+# Fix: wait 30 seconds then restart
 docker compose -f docker-compose.simple.yml restart retry-server
 ```
 
-### 本地 SDK 连接不上
+### SDK cannot connect to server
 
 ```bash
-# 确认 Server 可访问
+# Verify server is reachable
 curl http://localhost:8080/actuator/health
 
-# 确认 Redis 可访问
+# Verify Redis is reachable
 redis-cli -h localhost -p 6379 PING
 ```
 
-### 任务不重试
+### Tasks are not being retried
 
-1. 检查管理后台场景是否已创建
-2. 检查 `sceneType` 是否匹配
-3. 检查方法是否抛出了异常
-4. 查看 SDK 日志确认消息已投递
+1. Check that the scene exists in the Admin Dashboard
+2. Verify `sceneType` in annotation matches the scene config
+3. Confirm the method is actually throwing an exception
+4. Check SDK logs to confirm the message was sent to the queue
 
 ---
 
-## 🛠️ 常用命令
+## 🛠️ Useful Commands
 
 ```bash
-# 停止所有服务
+# Stop all services
 docker compose -f docker-compose.simple.yml down
 
-# 重启服务
+# Restart services
 docker compose -f docker-compose.simple.yml restart
 
-# 查看日志
+# Follow logs
 docker logs -f retry-server
 docker logs -f retry-admin
 
-# 进入数据库
+# Access the database
 docker exec -it retry-mysql mysql -uroot -ppassword retry_platform
 ```
 
 ---
 
-**祝你使用愉快！** 🎉
-
-有问题查看 [完整部署文档](docs/QUICK_DOCKER_DEPLOY.md) 或提 Issue。
+Have fun! 🎉 If you run into issues, check [Deployment Guide](docs/QUICK_DOCKER_DEPLOY.md) or open an [Issue](../../issues).
