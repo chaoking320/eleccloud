@@ -134,6 +134,20 @@ public @interface RetryableTask {
     boolean throwException() default false;
 
     /**
+     * 本地快速重试次数（第 1 级本地轻量级重试）
+     * <p>在触发分布式持久化重试之前，先在当前线程本地快速重试若干次，主要用于抵御瞬时网络抖动等微短时故障。
+     * <p>若本地快重试成功，方法直接返回成功，零 DB/Redis/MQ 开销；若本地重试次数耗尽仍失败，再升级提交至分布式重试平台。
+     * <p>默认 0，表示不开启本地快重试，直接升级提交分布式重试。
+     */
+    int localRetryTimes() default 0;
+
+    /**
+     * 本地快速重试间隔时间（毫秒）
+     * <p>每次本地快速重试之间的休眠间隔，默认 200 毫秒。
+     */
+    long localIntervalMs() default 200L;
+
+    /**
      * 是否使用默认重试钩子（DefaultRetryHook）
      * <ul>
      *   <li>{@code false}（默认）：使用 hookClass 中配置的钩子</li>

@@ -78,9 +78,48 @@ public class RetryableTaskAspect {
         }
 
         // Step 2: 执行原方法
+        Throwable lastThrowable = null;
+        boolean executedSuccessfully = false;
+        Object result = null;
         try {
-            Object result = pjp.proceed();
+            result = pjp.proceed();
+            executedSuccessfully = true;
+        } catch (Throwable e) {
+            lastThrowable = e;
+        }
 
+        // 两级重试第 1 级：本地快重试
+        if (!executedSuccessfully) {
+            int localTimes = retryableTask.localRetryTimes();
+            long localInterval = retryableTask.localIntervalMs();
+            if (localTimes > 0) {
+                log.info("[PRE_SUBMIT][TwoTierRetry] Starting local fast retry (up to {} times, interval {}ms)...",
+                        localTimes, localInterval);
+                for (int attempt = 1; attempt <= localTimes; attempt++) {
+                    if (localInterval > 0) {
+                        try {
+                            Thread.sleep(localInterval);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            log.warn("[PRE_SUBMIT][TwoTierRetry] Local retry interrupted at attempt {}/{}", attempt, localTimes);
+                            break;
+                        }
+                    }
+                    try {
+                        result = pjp.proceed();
+                        executedSuccessfully = true;
+                        log.info("[PRE_SUBMIT][TwoTierRetry] Local fast retry succeeded at attempt {}/{}", attempt, localTimes);
+                        break;
+                    } catch (Throwable retryEx) {
+                        lastThrowable = retryEx;
+                        log.warn("[PRE_SUBMIT][TwoTierRetry] Local fast retry attempt {}/{} failed: {}",
+                                attempt, localTimes, retryEx.getMessage());
+                    }
+                }
+            }
+        }
+
+        if (executedSuccessfully) {
             // Step 3: 方法执行成功
             if (taskId != null) {
                 if (retryableTask.hookClass() == RetryHook.class) {
@@ -103,12 +142,12 @@ public class RetryableTaskAspect {
             }
             return result;
 
-        } catch (Throwable e) {
-            log.warn("[PRE_SUBMIT] Method execution failed. taskId={} will remain INIT for platform retry. Error: {}",
-                    taskId, e.getMessage());
+        } else {
+            log.warn("[PRE_SUBMIT] Method execution failed after local retries. taskId={} will remain INIT for platform retry. Error: {}",
+                    taskId, lastThrowable != null ? lastThrowable.getMessage() : "unknown");
 
             if (retryableTask.throwException()) {
-                throw e;
+                throw lastThrowable;
             }
             return getDefaultReturnValue((MethodSignature) pjp.getSignature());
         }
@@ -117,38 +156,72 @@ public class RetryableTaskAspect {
     // ==================== POST_FAIL 模式 ====================
 
     /**
-     * 失败后提交模式：执行方法 → 失败后提交重试任务
+     * 失败后提交模式：执行方法 → 失败后优先本地快重试 → 用尽后升级提交分布式重试任务
      */
     private Object handlePostFailMode(ProceedingJoinPoint pjp, RetryableTask retryableTask) throws Throwable {
+        Throwable lastThrowable = null;
         try {
             return pjp.proceed();
         } catch (Throwable e) {
-            log.warn("[POST_FAIL] Method execution failed, submitting retry task. Method: {}, Error: {}",
+            lastThrowable = e;
+            log.warn("[POST_FAIL] Initial method execution failed. Method: {}, Error: {}",
                     pjp.getSignature().toLongString(), e.getMessage());
-
-            RetryTaskRequest request = buildRetryTaskRequest(pjp, retryableTask, "POST_FAIL");
-
-            try {
-                String taskId = retryClient.submit(request);
-                log.info("[POST_FAIL] Retry task submitted. taskId={}, sceneType={}, idempotentKey={}",
-                        taskId, retryableTask.sceneType(), request.getIdempotentKey());
-
-                if (taskId != null && retryMessageProducer != null) {
-                    // 首次延时从注解/request 配置的间隔第一个值读取，而非硬编码 60s
-                    long initialDelayMs = resolveInitialDelayMs(request);
-                    retryMessageProducer.sendDelayMessage(taskId, initialDelayMs, retryableTask.sceneType());
-                }
-            } catch (Exception ex) {
-                log.error("[POST_FAIL] Failed to submit retry task", ex);
-                log.warn("[POST_FAIL] Retry submission failed. Rethrowing original business exception.");
-                throw e;
-            }
-
-            if (retryableTask.throwException()) {
-                throw e;
-            }
-            return getDefaultReturnValue((MethodSignature) pjp.getSignature());
         }
+
+        // 两级重试第 1 级：本地轻量级快速重试（针对毫秒级瞬时微抖动，零 DB/MQ 开销）
+        int localTimes = retryableTask.localRetryTimes();
+        long localInterval = retryableTask.localIntervalMs();
+        if (localTimes > 0) {
+            log.info("[TwoTierRetry] Starting local fast retry (up to {} times, interval {}ms) for method: {}",
+                    localTimes, localInterval, pjp.getSignature().toShortString());
+            for (int attempt = 1; attempt <= localTimes; attempt++) {
+                if (localInterval > 0) {
+                    try {
+                        Thread.sleep(localInterval);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        log.warn("[TwoTierRetry] Local fast retry sleep interrupted at attempt {}/{}", attempt, localTimes);
+                        break;
+                    }
+                }
+                try {
+                    Object result = pjp.proceed();
+                    log.info("[TwoTierRetry] Local fast retry succeeded at attempt {}/{}. Avoided distributed submission! Method: {}",
+                            attempt, localTimes, pjp.getSignature().toShortString());
+                    return result;
+                } catch (Throwable retryEx) {
+                    lastThrowable = retryEx;
+                    log.warn("[TwoTierRetry] Local fast retry attempt {}/{} failed: {}",
+                            attempt, localTimes, retryEx.getMessage());
+                }
+            }
+            log.warn("[TwoTierRetry] Local fast retries exhausted ({}/{}). Escalating to distributed retry platform...",
+                    localTimes, localTimes);
+        }
+
+        // 两级重试第 2 级：升级为分布式持久化延时重试
+        RetryTaskRequest request = buildRetryTaskRequest(pjp, retryableTask, "POST_FAIL");
+
+        try {
+            String taskId = retryClient.submit(request);
+            log.info("[POST_FAIL] Escalated to distributed retry. taskId={}, sceneType={}, idempotentKey={}",
+                    taskId, retryableTask.sceneType(), request.getIdempotentKey());
+
+            if (taskId != null && retryMessageProducer != null) {
+                // 首次延时从注解/request 配置的间隔第一个值读取，而非硬编码 60s
+                long initialDelayMs = resolveInitialDelayMs(request);
+                retryMessageProducer.sendDelayMessage(taskId, initialDelayMs, retryableTask.sceneType());
+            }
+        } catch (Exception ex) {
+            log.error("[POST_FAIL] Failed to submit retry task", ex);
+            log.warn("[POST_FAIL] Retry submission failed. Rethrowing original business exception.");
+            throw lastThrowable;
+        }
+
+        if (retryableTask.throwException()) {
+            throw lastThrowable;
+        }
+        return getDefaultReturnValue((MethodSignature) pjp.getSignature());
     }
 
     // ==================== 公共工具方法 ====================

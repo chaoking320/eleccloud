@@ -60,6 +60,12 @@ class RetryableTaskAspectTest {
 
         @RetryableTask(sceneType = 1004, idempotentKey = "#orderId", preSubmit = true, hookClass = DemoHook.class)
         public void preSubmitWithHook(String orderId) { }
+
+        @RetryableTask(sceneType = 1005, idempotentKey = "#orderId", localRetryTimes = 2, localIntervalMs = 5)
+        public void postFailWithLocalRetry(String orderId) { }
+
+        @RetryableTask(sceneType = 1006, idempotentKey = "#orderId", preSubmit = true, localRetryTimes = 2, localIntervalMs = 5)
+        public void preSubmitWithLocalRetry(String orderId) { }
     }
 
     static class DemoHook implements RetryHook {
@@ -247,5 +253,52 @@ class RetryableTaskAspectTest {
         // LocalRetryExecutor 反射重跑时设置的 ThreadLocal 标志必须让切面直接放行，防止重复提单
         verify(retryClient, never()).submit(any());
         verify(pjp).proceed();
+    }
+
+    // ==================== 两级协同重试（Two-Tier Hybrid Retry） ====================
+
+    @Test
+    void postFail_localRetrySucceeds_avoidsDistributedSubmission() throws Throwable {
+        RetryableTask anno = annotationOf("postFailWithLocalRetry");
+        ProceedingJoinPoint pjp = pjpOf("postFailWithLocalRetry", new Object[]{"ORD-L1"}, null);
+        // First proceed fails, second proceed succeeds
+        when(pjp.proceed())
+                .thenThrow(new RuntimeException("transient network error"))
+                .thenReturn(null);
+
+        aspect.around(pjp, anno);
+
+        // Assert: Local fast retry succeeded on 2nd attempt, so distributed submit should NEVER be called!
+        verify(retryClient, never()).submit(any());
+        verify(producer, never()).sendDelayMessage(anyString(), anyLong(), anyInt());
+    }
+
+    @Test
+    void postFail_localRetryExhausted_escalatesToDistributedTask() throws Throwable {
+        RetryableTask anno = annotationOf("postFailWithLocalRetry");
+        ProceedingJoinPoint pjp = pjpOf("postFailWithLocalRetry", new Object[]{"ORD-L2"}, new RuntimeException("persistent outage"));
+        when(retryClient.submit(any(RetryTaskRequest.class))).thenReturn("T-L2");
+
+        aspect.around(pjp, anno);
+
+        // Assert: Local retries failed, escalated to distributed task submit!
+        verify(retryClient).submit(any(RetryTaskRequest.class));
+        verify(producer).sendDelayMessage(eq("T-L2"), anyLong(), eq(1005));
+    }
+
+    @Test
+    void preSubmit_localRetrySucceeds_marksSuccess() throws Throwable {
+        RetryableTask anno = annotationOf("preSubmitWithLocalRetry");
+        ProceedingJoinPoint pjp = pjpOf("preSubmitWithLocalRetry", new Object[]{"ORD-L3"}, null);
+        when(retryClient.submit(any(RetryTaskRequest.class))).thenReturn("T-L3");
+        when(pjp.proceed())
+                .thenThrow(new RuntimeException("momentary glitch"))
+                .thenReturn(null);
+
+        aspect.around(pjp, anno);
+
+        // Pre-submit registered initially, then local retry recovered, task marked SUCCESS
+        verify(retryClient).submit(any(RetryTaskRequest.class));
+        verify(retryClient).markSuccess("T-L3");
     }
 }
