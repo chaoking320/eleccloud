@@ -14,7 +14,7 @@ import org.testcontainers.utility.DockerImageName;
  * 使用TestContainers启动真实的MySQL和Redis容器
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 public abstract class BaseIntegrationTest {
 
     // MySQL容器
@@ -30,12 +30,19 @@ public abstract class BaseIntegrationTest {
 
     @BeforeAll
     static void startContainers() {
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                org.testcontainers.DockerClientFactory.instance().isDockerAvailable(),
+                "Docker is not available, skipping integration test"
+        );
         MYSQL_CONTAINER.start();
         REDIS_CONTAINER.start();
     }
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
+        if (!org.testcontainers.DockerClientFactory.instance().isDockerAvailable()) {
+            return;
+        }
         // 配置MySQL连接
         registry.add("spring.datasource.url", MYSQL_CONTAINER::getJdbcUrl);
         registry.add("spring.datasource.username", MYSQL_CONTAINER::getUsername);
