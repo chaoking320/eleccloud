@@ -3,6 +3,12 @@ import Layout from '@/layout/Layout.vue'
 
 const routes = [
   {
+    path: '/login',
+    name: 'Login',
+    component: () => import('@/views/login/index.vue'),
+    meta: { title: '用户登录', hidden: true }
+  },
+  {
     path: '/',
     component: Layout,
     redirect: '/dashboard',
@@ -62,12 +68,34 @@ const routes = [
         meta: { title: '系统配置', icon: 'Tools' }
       }
     ]
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/dashboard'
   }
 ]
 
 const router = createRouter({
   history: createWebHistory(),
   routes
+})
+
+// 全局路由守卫
+router.beforeEach((to, from, next) => {
+  const token = localStorage.getItem('eleccloud_token')
+  if (to.path === '/login') {
+    if (token) {
+      next('/dashboard')
+    } else {
+      next()
+    }
+  } else {
+    if (token) {
+      next()
+    } else {
+      next(`/login?redirect=${encodeURIComponent(to.fullPath)}`)
+    }
+  }
 })
 
 export default router

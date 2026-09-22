@@ -6,13 +6,14 @@ import org.springframework.boot.web.servlet.server.ConfigurableServletWebServerF
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * 解决 Vue Router History 模式下，直接刷新页面或访问子路径返回 404 的问题。
- * 将所有的 404 错误转发到 index.html，交由前端 Vue Router 处理。
+ * 解决 Vue Router History 模式 404 跳转，并注册管理平台认证拦截器。
  */
 @Configuration
-public class SpaWebConfig {
+public class SpaWebConfig implements WebMvcConfigurer {
 
     @Bean
     public WebServerFactoryCustomizer<ConfigurableServletWebServerFactory> webServerFactoryCustomizer() {
@@ -20,5 +21,19 @@ public class SpaWebConfig {
             ErrorPage error404Page = new ErrorPage(HttpStatus.NOT_FOUND, "/index.html");
             factory.addErrorPages(error404Page);
         };
+    }
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(new AuthInterceptor())
+                .addPathPatterns("/api/**")
+                .excludePathPatterns(
+                        "/api/auth/login",
+                        "/actuator/**",
+                        "/error",
+                        "/static/**",
+                        "/assets/**",
+                        "/index.html"
+                );
     }
 }

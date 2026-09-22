@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
+import router from '@/router'
 
 // 创建axios实例
 const service = axios.create({
@@ -10,7 +11,10 @@ const service = axios.create({
 // 请求拦截器
 service.interceptors.request.use(
   config => {
-    // 可以在这里添加token等认证信息
+    const token = localStorage.getItem('eleccloud_token')
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`
+    }
     return config
   },
   error => {
@@ -25,8 +29,7 @@ service.interceptors.response.use(
     const res = response.data
     
     // 检查后端统一响应格式 Result { success, message, data }
-    // 如果响应中有 success 字段且为 false，说明业务处理失败
-    if (res.success !== undefined && res.success === false) {
+    if (res && res.success !== undefined && res.success === false) {
       ElMessage.error(res.message || '请求失败')
       return Promise.reject(new Error(res.message || '请求失败'))
     }
@@ -43,7 +46,12 @@ service.interceptors.response.use(
           message = '请求参数错误'
           break
         case 401:
-          message = '未授权，请重新登录'
+          message = '登录状态已失效，请重新登录'
+          localStorage.removeItem('eleccloud_token')
+          localStorage.removeItem('eleccloud_user')
+          if (router.currentRoute.value.path !== '/login') {
+            router.push(`/login?redirect=${encodeURIComponent(router.currentRoute.value.fullPath)}`)
+          }
           break
         case 403:
           message = '拒绝访问'
