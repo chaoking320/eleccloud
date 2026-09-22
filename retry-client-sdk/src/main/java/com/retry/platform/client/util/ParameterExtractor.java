@@ -147,24 +147,61 @@ public class ParameterExtractor {
     }
 
     /**
-     * 从对象中提取字段值
+     * 从对象中提取字段或属性值。
+     * 支持：
+     * 1. Map 实例直接按 key 获取
+     * 2. 当前类及其父类继承链中的字段反射读取
+     * 3. JavaBean 标准 Getter (getXxx / isXxx)
+     * 4. Java 14+ Record 同名访问器 (xxx())
      */
     private static Object extractFieldValue(Object obj, String fieldName) throws Exception {
+        if (obj == null || fieldName == null || fieldName.isEmpty()) {
+            return null;
+        }
+
+        // 1. 如果是 Map，直接通过 key 提取
+        if (obj instanceof Map) {
+            return ((Map<?, ?>) obj).get(fieldName);
+        }
+
         Class<?> clazz = obj.getClass();
+        String capitalized = Character.toUpperCase(fieldName.charAt(0)) + (fieldName.length() > 1 ? fieldName.substring(1) : "");
+
+        // 2. 尝试标准 Getter 方法 (优先遵循封装规范)
+        // 2.1 尝试 getXxx()
         try {
-            java.lang.reflect.Field field = clazz.getDeclaredField(fieldName);
-            field.setAccessible(true);
-            return field.get(obj);
-        } catch (NoSuchFieldException e) {
-            // 尝试通过getter方法获取
-            String getterName = "get" + fieldName.substring(0, 1).toUpperCase() + fieldName.substring(1);
+            Method getter = clazz.getMethod("get" + capitalized);
+            return getter.invoke(obj);
+        } catch (NoSuchMethodException ignored) {
+        }
+
+        // 2.2 尝试布尔型 isXxx()
+        try {
+            Method isGetter = clazz.getMethod("is" + capitalized);
+            return isGetter.invoke(obj);
+        } catch (NoSuchMethodException ignored) {
+        }
+
+        // 2.3 尝试 Record 同名访问器方法
+        try {
+            Method recordAccessor = clazz.getMethod(fieldName);
+            return recordAccessor.invoke(obj);
+        } catch (NoSuchMethodException ignored) {
+        }
+
+        // 3. 沿类的继承体系向上查找 declared field (支持继承自 BaseDTO/BaseEntity 的字段)
+        Class<?> searchType = clazz;
+        while (searchType != null && searchType != Object.class) {
             try {
-                java.lang.reflect.Method getter = clazz.getMethod(getterName);
-                return getter.invoke(obj);
-            } catch (NoSuchMethodException ex) {
-                throw new NoSuchFieldException("Field or getter not found: " + fieldName);
+                java.lang.reflect.Field field = searchType.getDeclaredField(fieldName);
+                field.setAccessible(true);
+                return field.get(obj);
+            } catch (NoSuchFieldException ignored) {
+                searchType = searchType.getSuperclass();
             }
         }
+
+        throw new NoSuchFieldException("Property or field '" + fieldName + "' not found on class " + clazz.getName());
     }
     
     /**
