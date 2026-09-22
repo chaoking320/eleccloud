@@ -51,15 +51,17 @@ public class RetryTaskAdminController {
             @RequestParam(defaultValue = "1") Integer pageNum,
             @RequestParam(defaultValue = "10") Integer pageSize) {
         try {
-            int offset = (pageNum - 1) * pageSize;
-            List<RetryTask> list = retryTaskMapper.selectByConditions(sceneType, idempotentKey, taskStatus, offset, pageSize);
+            int validPageNum = (pageNum == null || pageNum < 1) ? 1 : pageNum;
+            int validPageSize = (pageSize == null || pageSize < 1) ? 10 : Math.min(pageSize, 100);
+            int offset = (validPageNum - 1) * validPageSize;
+            List<RetryTask> list = retryTaskMapper.selectByConditions(sceneType, idempotentKey, taskStatus, offset, validPageSize);
             long total = retryTaskMapper.countByConditions(sceneType, idempotentKey, taskStatus);
 
             Map<String, Object> pageResult = new HashMap<>();
             pageResult.put("list", list);
             pageResult.put("total", total);
-            pageResult.put("pageNum", pageNum);
-            pageResult.put("pageSize", pageSize);
+            pageResult.put("pageNum", validPageNum);
+            pageResult.put("pageSize", validPageSize);
 
             return Result.success(pageResult);
         } catch (Exception e) {

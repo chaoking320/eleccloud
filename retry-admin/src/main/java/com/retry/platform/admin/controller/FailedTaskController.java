@@ -42,7 +42,9 @@ public class FailedTaskController {
             @RequestParam(defaultValue = "1") Integer pageNum,
             @RequestParam(defaultValue = "10") Integer pageSize) {
         try {
-            int offset = (pageNum - 1) * pageSize;
+            int validPageNum = (pageNum == null || pageNum < 1) ? 1 : pageNum;
+            int validPageSize = (pageSize == null || pageSize < 1) ? 10 : Math.min(pageSize, 100);
+            int offset = (validPageNum - 1) * validPageSize;
             
             LocalDateTime start = null;
             if (startTime != null) {
@@ -53,14 +55,14 @@ public class FailedTaskController {
                 end = new java.sql.Timestamp(endTime).toLocalDateTime();
             }
 
-            List<FailedTask> list = failedTaskMapper.selectByConditions(sceneType, idempotentKey, start, end, offset, pageSize);
+            List<FailedTask> list = failedTaskMapper.selectByConditions(sceneType, idempotentKey, start, end, offset, validPageSize);
             long total = failedTaskMapper.countByConditions(sceneType, idempotentKey, start, end);
 
             Map<String, Object> pageResult = new HashMap<>();
             pageResult.put("list", list);
             pageResult.put("total", total);
-            pageResult.put("pageNum", pageNum);
-            pageResult.put("pageSize", pageSize);
+            pageResult.put("pageNum", validPageNum);
+            pageResult.put("pageSize", validPageSize);
 
             return Result.success(pageResult);
         } catch (Exception e) {
