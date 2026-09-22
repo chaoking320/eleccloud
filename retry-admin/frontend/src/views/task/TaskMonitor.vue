@@ -1,136 +1,166 @@
 <template>
   <div class="task-monitor">
-    <!-- 顶部数据看板 Dashboard Cards -->
+    <!-- 顶部数据看板 Dashboard Metric Cards -->
     <el-row :gutter="20" class="stat-dashboard">
-      <el-col :span="6">
-        <el-card shadow="hover" class="stat-card total-card">
-          <div class="stat-content">
-            <div class="stat-label">总任务数</div>
-            <div class="stat-value">{{ stats.total }}</div>
+      <el-col :xs="24" :sm="12" :md="6">
+        <div class="stat-box total-box">
+          <div class="stat-left">
+            <span class="stat-title">总任务数</span>
+            <div class="stat-num">{{ stats.total }}</div>
+            <div class="stat-sub">全量任务登记流水</div>
           </div>
-          <div class="stat-icon">
+          <div class="stat-badge-icon total-icon">
             <el-icon><Tickets /></el-icon>
           </div>
-        </el-card>
+        </div>
       </el-col>
-      <el-col :span="6">
-        <el-card shadow="hover" class="stat-card init-card">
-          <div class="stat-content">
-            <div class="stat-label">就绪状态 (INIT)</div>
-            <div class="stat-value">{{ stats.init }}</div>
+
+      <el-col :xs="24" :sm="12" :md="6">
+        <div class="stat-box init-box">
+          <div class="stat-left">
+            <span class="stat-title">就绪排队 (INIT)</span>
+            <div class="stat-num text-primary">{{ stats.init }}</div>
+            <div class="stat-sub">等待首次延时触发</div>
           </div>
-          <div class="stat-icon">
+          <div class="stat-badge-icon init-icon">
             <el-icon><Timer /></el-icon>
           </div>
-        </el-card>
+        </div>
       </el-col>
-      <el-col :span="6">
-        <el-card shadow="hover" class="stat-card wait-card">
-          <div class="stat-content">
-            <div class="stat-label">等待回调 (WAIT)</div>
-            <div class="stat-value">{{ stats.wait }}</div>
+
+      <el-col :xs="24" :sm="12" :md="6">
+        <div class="stat-box wait-box">
+          <div class="stat-left">
+            <span class="stat-title">反查等待 (WAIT)</span>
+            <div class="stat-num text-warning">{{ stats.wait }}</div>
+            <div class="stat-sub">Hook 异步三步流转中</div>
           </div>
-          <div class="stat-icon">
+          <div class="stat-badge-icon wait-icon">
             <el-icon><Refresh /></el-icon>
           </div>
-        </el-card>
+        </div>
       </el-col>
-      <el-col :span="6">
-        <el-card shadow="hover" class="stat-card failed-card">
-          <div class="stat-content">
-            <div class="stat-label">已转失败 (FAILED)</div>
-            <div class="stat-value">{{ stats.failed }}</div>
+
+      <el-col :xs="24" :sm="12" :md="6">
+        <div class="stat-box failed-box">
+          <div class="stat-left">
+            <span class="stat-title">死信归档 (FAILED)</span>
+            <div class="stat-num text-danger">{{ stats.failed }}</div>
+            <div class="stat-sub">耗尽次数移入失败表</div>
           </div>
-          <div class="stat-icon">
+          <div class="stat-badge-icon failed-icon">
             <el-icon><Warning /></el-icon>
           </div>
-        </el-card>
+        </div>
       </el-col>
     </el-row>
 
     <!-- 搜索筛选区 Filters -->
-    <el-card class="filter-card">
+    <el-card shadow="never" class="filter-card">
       <el-form :inline="true" :model="filters" class="demo-form-inline">
         <el-form-item label="场景类型">
           <el-select v-model="filters.sceneType" placeholder="选择场景" clearable style="width: 180px">
-            <el-option v-for="item in sceneOptions" :key="item.sceneType" :label="`${item.sceneName} (${item.sceneType})`" :value="item.sceneType" />
+            <el-option v-for="item in sceneOptions" :key="item.sceneType" :label="`${item.sceneName} (#${item.sceneType})`" :value="item.sceneType" />
           </el-select>
         </el-form-item>
         <el-form-item label="任务状态">
-          <el-select v-model="filters.taskStatus" placeholder="选择状态" clearable style="width: 160px">
-            <el-option label="INIT" value="INIT" />
-            <el-option label="WAIT" value="WAIT" />
-            <el-option label="SUCCESS" value="SUCCESS" />
-            <el-option label="最终失败" value="FAILED" />
+          <el-select v-model="filters.taskStatus" placeholder="选择状态" clearable style="width: 140px">
+            <el-option label="INIT (就绪)" value="INIT" />
+            <el-option label="WAIT (等待)" value="WAIT" />
+            <el-option label="SUCCESS (成功)" value="SUCCESS" />
+            <el-option label="FAILED (超限失败)" value="FAILED" />
           </el-select>
         </el-form-item>
-        <el-form-item label="幂等键 (Idempotent Key)">
-          <el-input v-model="filters.idempotentKey" placeholder="请输入幂等键" clearable style="width: 240px" />
+        <el-form-item label="幂等键">
+          <el-input v-model="filters.idempotentKey" placeholder="请输入幂等流水号" clearable style="width: 220px" />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch">
-            <el-icon><Search /></el-icon>&nbsp;查询
+          <el-button type="primary" :icon="Search" @click="handleSearch">
+            查询
           </el-button>
           <el-button @click="resetFilters">重置</el-button>
-          <el-button type="success" @click="loadAllData" :loading="loading">
-            <el-icon><RefreshRight /></el-icon>&nbsp;刷新
+          <el-button :icon="RefreshRight" @click="loadAllData" :loading="loading">
+            刷新
           </el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <!-- 任务数据列表 Table -->
-    <el-card class="table-card">
+    <el-card shadow="never" class="table-card">
       <template #header>
         <div class="card-header-title">
-          <span class="title-text">重试任务监控列表</span>
+          <div class="header-left-title">
+            <span class="title-text">重试任务执行流</span>
+            <span class="title-sub">实时监控重试任务生命周期流转状态与调度计划</span>
+          </div>
         </div>
       </template>
 
-      <el-table :data="tableData" v-loading="loading" stripe style="width: 100%" class="custom-table">
-        <el-table-column prop="taskId" label="任务ID" width="180" show-overflow-tooltip />
-        <el-table-column prop="sceneType" label="场景" width="160">
+      <!-- 核心修复：扩大列宽，消解叠字与换行问题，去除透明穿透 -->
+      <el-table :data="tableData" v-loading="loading" stripe style="width: 100%" class="custom-monitor-table">
+        <el-table-column prop="taskId" label="任务ID (Task ID)" width="190" show-overflow-tooltip>
           <template #default="{ row }">
-            <el-tag :type="getSceneTagType(row.sceneType)" effect="plain">
-              {{ getSceneName(row.sceneType) }}
-            </el-tag>
+            <span class="task-id-text">{{ row.taskId }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="idempotentKey" label="幂等键" width="180" show-overflow-tooltip />
-        <el-table-column prop="methodName" label="触发方法" width="160" show-overflow-tooltip>
+
+        <!-- 场景类型与名称 (修复叠字叠层问题，独立胶囊与文本) -->
+        <el-table-column label="所属场景" min-width="210">
           <template #default="{ row }">
-            <span class="method-name">{{ row.methodName }}</span>
+            <div class="scene-item-cell">
+              <span class="scene-chip">#{{ row.sceneType }}</span>
+              <span class="scene-title-text">{{ cleanSceneName(row.sceneType) }}</span>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column prop="taskStatus" label="状态" width="120">
+
+        <el-table-column prop="idempotentKey" label="业务幂等键" width="160" show-overflow-tooltip>
           <template #default="{ row }">
-            <el-tag :type="getStatusType(row.taskStatus)" effect="dark" class="status-tag">
-              {{ row.taskStatus }}
-            </el-tag>
+            <span class="idempotent-text">{{ row.idempotentKey }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="重试次数" width="120">
+
+        <el-table-column prop="methodName" label="触发方法" width="150" show-overflow-tooltip>
           <template #default="{ row }">
-            <span class="retry-badge">{{ row.retryCount }} / {{ row.maxRetryCount }}</span>
+            <span class="method-badge">{{ row.methodName }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="下次执行时间" width="180">
+
+        <el-table-column prop="taskStatus" label="当前状态" width="120">
           <template #default="{ row }">
-            {{ formatTime(row.nextRetryTime) }}
+            <span class="status-pill" :class="getStatusClass(row.taskStatus)">
+              <span class="status-bullet"></span>
+              <span>{{ row.taskStatus }}</span>
+            </span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+
+        <el-table-column label="重试频次" width="110">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="viewDetail(row)">
-              <el-icon><View /></el-icon>&nbsp;详情
+            <span class="retry-counter-pill">{{ row.retryCount }} / {{ row.maxRetryCount }}</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="计划执行时间" width="170">
+          <template #default="{ row }">
+            <span class="time-text">{{ formatTime(row.nextRetryTime) }}</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="操作" width="150" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" size="small" :icon="View" @click="viewDetail(row)">
+              轨迹详情
             </el-button>
             <el-button 
               link 
               type="warning" 
               size="small" 
+              :icon="Refresh"
               @click="triggerRetry(row)"
               :disabled="row.taskStatus === 'SUCCESS'">
-              <el-icon><Refresh /></el-icon>&nbsp;重试
+              触发
             </el-button>
           </template>
         </el-table-column>
@@ -153,34 +183,45 @@
     <!-- 详情弹窗 Dialog -->
     <el-dialog
       v-model="detailVisible"
-      title="重试任务详细信息及历史轨迹"
-      width="800px"
+      title="重试任务详细全息档案与执行轨迹"
+      width="820px"
       class="detail-dialog"
       destroy-on-close>
       <div v-if="selectedTask" class="dialog-content">
         <el-tabs type="border-card">
           <!-- 任务基本信息 -->
-          <el-tab-pane label="基本属性">
+          <el-tab-pane label="任务基本属性">
             <el-descriptions :column="2" border class="descriptions-box">
-              <el-descriptions-item label="任务ID" :span="2">{{ selectedTask.taskId }}</el-descriptions-item>
-              <el-descriptions-item label="场景名称">
-                {{ getSceneName(selectedTask.sceneType) }} (Type: {{ selectedTask.sceneType }})
+              <el-descriptions-item label="任务全局ID" :span="2">
+                <span class="mono-code">{{ selectedTask.taskId }}</span>
               </el-descriptions-item>
-              <el-descriptions-item label="幂等键">{{ selectedTask.idempotentKey }}</el-descriptions-item>
-              <el-descriptions-item label="业务方法类" :span="2">{{ selectedTask.methodClass }}</el-descriptions-item>
-              <el-descriptions-item label="业务方法名">{{ selectedTask.methodName }}</el-descriptions-item>
+              <el-descriptions-item label="所属场景">
+                {{ cleanSceneName(selectedTask.sceneType) }} (编码: #{{ selectedTask.sceneType }})
+              </el-descriptions-item>
+              <el-descriptions-item label="幂等流水号">
+                <span class="mono-code">{{ selectedTask.idempotentKey }}</span>
+              </el-descriptions-item>
+              <el-descriptions-item label="业务方法类" :span="2">
+                <span class="mono-code">{{ selectedTask.methodClass }}</span>
+              </el-descriptions-item>
+              <el-descriptions-item label="业务方法名">
+                <span class="method-badge">{{ selectedTask.methodName }}</span>
+              </el-descriptions-item>
               <el-descriptions-item label="当前状态">
-                <el-tag :type="getStatusType(selectedTask.taskStatus)" effect="dark">{{ selectedTask.taskStatus }}</el-tag>
+                <span class="status-pill" :class="getStatusClass(selectedTask.taskStatus)">
+                  <span class="status-bullet"></span>
+                  <span>{{ selectedTask.taskStatus }}</span>
+                </span>
               </el-descriptions-item>
-              <el-descriptions-item label="已重试次数">{{ selectedTask.retryCount }} 次</el-descriptions-item>
-              <el-descriptions-item label="最大限制">{{ selectedTask.maxRetryCount }} 次</el-descriptions-item>
-              <el-descriptions-item label="创建时间">{{ formatTime(selectedTask.createTime) }}</el-descriptions-item>
-              <el-descriptions-item label="更新时间">{{ formatTime(selectedTask.updateTime) }}</el-descriptions-item>
+              <el-descriptions-item label="已执行次数">{{ selectedTask.retryCount }} 次</el-descriptions-item>
+              <el-descriptions-item label="允许最大次数">{{ selectedTask.maxRetryCount }} 次</el-descriptions-item>
+              <el-descriptions-item label="登记时间">{{ formatTime(selectedTask.createTime) }}</el-descriptions-item>
+              <el-descriptions-item label="最后更新">{{ formatTime(selectedTask.updateTime) }}</el-descriptions-item>
             </el-descriptions>
 
             <!-- 参数展示 -->
             <div class="params-section">
-              <div class="section-title">业务方法调用参数 (JSON)</div>
+              <div class="section-title">业务方法入参反序列化快照 (JSON)</div>
               <pre class="json-code"><code>{{ formatJson(selectedTask.methodParams) }}</code></pre>
             </div>
           </el-tab-pane>
@@ -199,19 +240,19 @@
                   placement="top">
                   <el-card class="timeline-card">
                     <div class="timeline-card-header">
-                      <span class="retry-count-tag">第 {{ history.retryCount }} 次重试</span>
+                      <span class="retry-count-tag">第 {{ history.retryCount }} 次调度执行</span>
                       <el-tag :type="getHistoryType(history.executeResult)" size="small" effect="dark">
                         {{ history.executeResult }}
                       </el-tag>
                     </div>
                     <div class="timeline-card-body">
                       <p v-if="history.errorMessage && history.executeResult !== 'SUCCESS'" class="error-msg">
-                        <strong>异常信息：</strong>{{ formatErrorMessage(history.errorMessage) }}
+                        <strong>异常原因：</strong>{{ formatErrorMessage(history.errorMessage) }}
                       </p>
                       <p v-else-if="history.errorMessage && history.executeResult === 'SUCCESS'" class="success-msg">
                         <strong>执行反馈：</strong>{{ formatErrorMessage(history.errorMessage) }}
                       </p>
-                      <p class="cost-time"><strong>耗时：</strong>{{ history.costTime }} ms</p>
+                      <p class="cost-time"><strong>执行耗时：</strong>{{ history.costTime }} ms</p>
                     </div>
                   </el-card>
                 </el-timeline-item>
@@ -241,7 +282,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Tickets, Timer, Refresh, Warning, Search, RefreshRight, View } from '@element-plus/icons-vue'
 import request from '@/utils/request'
 
-// API URLs
 const getTaskList = (params) => request({ url: '/task/list', method: 'get', params })
 const getTaskDetail = (taskId) => request({ url: `/task/${taskId}`, method: 'get' })
 const getTaskHistory = (taskId) => request({ url: `/task/${taskId}/history`, method: 'get' })
@@ -249,7 +289,6 @@ const getDashboardStats = () => request({ url: '/task/stats', method: 'get' })
 const triggerManualRetry = (taskId) => request({ url: `/task/${taskId}/retry`, method: 'post' })
 const getSceneList = () => request({ url: '/scene/list', method: 'get' })
 
-// State Variables
 const loading = ref(false)
 const tableData = ref([])
 const historyList = ref([])
@@ -277,7 +316,6 @@ const pagination = reactive({
   total: 0
 })
 
-// Methods
 const loadScenes = async () => {
   try {
     const res = await getSceneList()
@@ -294,22 +332,19 @@ const loadScenes = async () => {
   }
 }
 
-const getSceneName = (sceneType) => {
-  return sceneMap.value[sceneType] ? `${sceneMap.value[sceneType]} (${sceneType})` : `场景 (${sceneType})`
+const cleanSceneName = (sceneType) => {
+  const name = sceneMap.value[sceneType]
+  if (!name) return `场景 #${sceneType}`
+  return name.replace(/\s*\(\d+\)$/, '')
 }
 
-const getSceneTagType = (sceneType) => {
-  const types = ['primary', 'success', 'warning', 'danger', 'info']
-  return types[sceneType % types.length] || 'info'
-}
-
-const getStatusType = (status) => {
+const getStatusClass = (status) => {
   switch (status) {
-    case 'SUCCESS': return 'success'
-    case 'WAIT': return 'warning'
-    case 'INIT': return 'info'
-    case 'FAILED': return 'danger'
-    default: return 'info'
+    case 'SUCCESS': return 'status-success'
+    case 'WAIT': return 'status-wait'
+    case 'INIT': return 'status-init'
+    case 'FAILED': return 'status-failed'
+    default: return 'status-init'
   }
 }
 
@@ -324,10 +359,10 @@ const getHistoryType = (result) => {
 
 const getHistoryColor = (result) => {
   switch (result) {
-    case 'SUCCESS': return '#67C23A'
-    case 'FAILED': return '#F56C6C'
-    case 'RETRY': return '#E6A23C'
-    default: return '#909399'
+    case 'SUCCESS': return '#10b981'
+    case 'FAILED': return '#ef4444'
+    case 'RETRY': return '#f59e0b'
+    default: return '#64748b'
   }
 }
 
@@ -356,7 +391,6 @@ const formatErrorMessage = (msg) => {
   }
 }
 
-// Load Stats and Table
 const loadStats = async () => {
   try {
     const res = await getDashboardStats()
@@ -419,7 +453,6 @@ const handleCurrentChange = (val) => {
   loadTableData()
 }
 
-// Actions
 const viewDetail = async (row) => {
   try {
     const resDetail = await getTaskDetail(row.taskId)
@@ -429,7 +462,6 @@ const viewDetail = async (row) => {
       selectedTask.value = row
     }
     
-    // Load history timeline
     const resHistory = await getTaskHistory(row.taskId)
     if (resHistory && resHistory.data) {
       historyList.value = resHistory.data
@@ -456,10 +488,9 @@ const triggerRetry = (row) => {
     try {
       const res = await triggerManualRetry(row.taskId)
       if (res && res.success) {
-        ElMessage.success('手动触发重试已提交，正在远程执行...')
+        ElMessage.success('手动触发重试已提交，正在调度执行...')
         loadAllData()
         if (detailVisible.value) {
-          // Refresh details if visible
           viewDetail(row)
         }
       } else {
@@ -479,93 +510,82 @@ onMounted(() => {
 
 <style scoped>
 .task-monitor {
-  padding: 20px;
-  background-color: #f0f2f5;
-  box-sizing: border-box;
+  padding: 24px;
 }
 
-/* Dashboard cards styling with beautiful linear-gradients */
+/* Modern Metric Cards (Replaced harsh gradient with refined cards) */
 .stat-dashboard {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
-.stat-card {
-  height: 96px;
-  border: none;
-  border-radius: 10px;
-  color: #fff;
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  overflow: hidden;
-}
-
-.stat-card :deep(.el-card__body) {
-  padding: 16px 20px;
-  height: 100%;
+.stat-box {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 18px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-sizing: border-box;
-  overflow: hidden;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.25s ease;
 }
 
-.stat-card:hover {
+.stat-box:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.06);
+  border-color: #cbd5e1;
 }
 
-.total-card {
-  background: linear-gradient(135deg, #1890ff 0%, #36cfc9 100%);
-}
-
-.init-card {
-  background: linear-gradient(135deg, #597ef7 0%, #722ed1 100%);
-}
-
-.wait-card {
-  background: linear-gradient(135deg, #fa8c16 0%, #ffc069 100%);
-}
-
-.failed-card {
-  background: linear-gradient(135deg, #ff4d4f 0%, #ff7875 100%);
-}
-
-.stat-content {
-  flex: 1;
-}
-
-.stat-label {
+.stat-title {
   font-size: 13px;
-  opacity: 0.9;
-  margin-bottom: 6px;
+  color: #64748b;
   font-weight: 500;
 }
 
-.stat-value {
+.stat-num {
   font-size: 28px;
-  font-weight: 700;
-  line-height: 1;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 4px 0 2px;
 }
 
-.stat-icon {
-  font-size: 36px;
-  opacity: 0.35;
+.stat-sub {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.stat-badge-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
+  justify-content: center;
+  font-size: 22px;
 }
 
-/* Filter area styling */
+.total-icon  { background: #eff6ff; color: #2563eb; }
+.init-icon   { background: #eef2ff; color: #4f46e5; }
+.wait-icon   { background: #fffbeb; color: #d97706; }
+.failed-icon { background: #fef2f2; color: #ef4444; }
+
+.text-primary { color: #2563eb; }
+.text-warning { color: #d97706; }
+.text-danger  { color: #ef4444; }
+
+/* Filter area */
 .filter-card {
   border-radius: 12px;
-  margin-bottom: 24px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
+  margin-bottom: 20px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
 }
 
-/* Table area styling */
 .table-card {
   border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
-  margin-bottom: 24px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
 }
 
 .card-header-title {
@@ -574,38 +594,111 @@ onMounted(() => {
   justify-content: space-between;
 }
 
+.header-left-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .title-text {
-  font-size: 18px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.title-sub {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+/* Custom Table Components */
+.task-id-text {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: #2563eb;
   font-weight: 600;
-  color: #303133;
 }
 
-.custom-table {
-  border-radius: 8px;
-  overflow: hidden;
+.scene-item-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.method-name {
-  font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
-  font-size: 13px;
-  color: #606266;
-  background-color: #f4f4f5;
-  padding: 2px 6px;
+.scene-chip {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  background: #f1f5f9;
+  color: #475569;
+  padding: 1px 6px;
   border-radius: 4px;
 }
 
-.status-tag {
+.scene-title-text {
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.5px;
+  color: #1e293b;
 }
 
-.retry-badge {
-  font-weight: bold;
-  color: #409eff;
-  background-color: #ecf5ff;
-  padding: 4px 8px;
-  border-radius: 20px;
+.idempotent-text {
+  font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
+  color: #475569;
+}
+
+.method-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  color: #0f172a;
+  background-color: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.status-bullet {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.status-success { background: #ecfdf5; color: #059669; }
+.status-success .status-bullet { background: #10b981; }
+
+.status-wait { background: #fffbeb; color: #d97706; }
+.status-wait .status-bullet { background: #f59e0b; }
+
+.status-init { background: #eff6ff; color: #2563eb; }
+.status-init .status-bullet { background: #3b82f6; }
+
+.status-failed { background: #fef2f2; color: #ef4444; }
+.status-failed .status-bullet { background: #ef4444; }
+
+.retry-counter-pill {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  color: #2563eb;
+  background-color: #eff6ff;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11.5px;
+}
+
+.time-text {
+  font-size: 12px;
+  color: #64748b;
 }
 
 .pagination-container {
@@ -614,9 +707,9 @@ onMounted(() => {
   justify-content: flex-end;
 }
 
-/* Timeline and details dialog styling */
-.descriptions-box {
-  margin-bottom: 20px;
+.mono-code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
 }
 
 .params-section {
@@ -624,24 +717,21 @@ onMounted(() => {
 }
 
 .section-title {
-  font-size: 15px;
-  font-weight: 600;
-  margin-bottom: 10px;
-  color: #303133;
-  border-left: 4px solid #409eff;
-  padding-left: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: #0f172a;
 }
 
 .json-code {
-  background-color: #2d3748;
-  color: #a3b1c6;
+  background-color: #0f172a;
+  color: #e2e8f0;
   padding: 16px;
   border-radius: 8px;
-  font-family: Consolas, Monaco, monospace;
-  font-size: 13px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
   overflow-x: auto;
   line-height: 1.5;
-  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .timeline-wrapper {
@@ -652,45 +742,42 @@ onMounted(() => {
 
 .timeline-card {
   border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
 }
 
 .timeline-card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .retry-count-tag {
-  font-weight: 600;
-  color: #303133;
-}
-
-.timeline-card-body p {
-  margin: 6px 0;
+  font-weight: 700;
+  color: #0f172a;
   font-size: 13px;
 }
 
 .error-msg {
-  color: #f56c6c;
-  background-color: #fef0f0;
+  color: #ef4444;
+  background-color: #fef2f2;
   padding: 8px 12px;
-  border-radius: 4px;
-  word-break: break-all;
-  border-left: 3px solid #f56c6c;
+  border-radius: 6px;
+  font-size: 12px;
+  border-left: 3px solid #ef4444;
 }
 
 .success-msg {
-  color: #67c23a;
-  background-color: #f0f9eb;
+  color: #059669;
+  background-color: #ecfdf5;
   padding: 8px 12px;
-  border-radius: 4px;
-  word-break: break-all;
-  border-left: 3px solid #67c23a;
+  border-radius: 6px;
+  font-size: 12px;
+  border-left: 3px solid #10b981;
 }
 
 .cost-time {
-  color: #909399;
+  color: #64748b;
+  font-size: 12px;
+  margin-top: 6px;
 }
 </style>

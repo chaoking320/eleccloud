@@ -53,43 +53,55 @@
       </template>
 
       <el-table :data="tableData" v-loading="loading" stripe style="width: 100%" class="custom-table">
-        <el-table-column prop="taskId" label="任务ID" width="180" show-overflow-tooltip />
-        <el-table-column prop="sceneType" label="场景" width="160">
+        <el-table-column prop="taskId" label="任务ID" min-width="190">
           <template #default="{ row }">
-            <el-tag :type="getSceneTagType(row.sceneType)" effect="plain">
-              {{ getSceneName(row.sceneType) }}
-            </el-tag>
+            <span class="task-id-mono" :title="row.taskId">{{ row.taskId }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="idempotentKey" label="幂等键" width="180" show-overflow-tooltip />
-        <el-table-column prop="failReason" label="核心失败原因" show-overflow-tooltip>
+        <el-table-column prop="sceneType" label="场景" min-width="200">
+          <template #default="{ row }">
+            <div class="scene-cell">
+              <span class="scene-id-chip">#{{ row.sceneType }}</span>
+              <span class="scene-name-text" :title="getSceneName(row.sceneType)">{{ cleanSceneName(row.sceneType) }}</span>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="idempotentKey" label="幂等键" min-width="160">
+          <template #default="{ row }">
+            <span class="idempotent-code" :title="row.idempotentKey">{{ row.idempotentKey }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="failReason" label="核心失败原因" min-width="240" show-overflow-tooltip>
           <template #default="{ row }">
             <span class="fail-reason-text">{{ row.failReason }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="retryCount" label="重试次数" width="100">
+        <el-table-column prop="retryCount" label="重试次数" width="110" align="center">
           <template #default="{ row }">
-            <el-tag type="danger" size="small" effect="dark" round>
+            <span class="retry-badge danger">
+              <span class="retry-badge-dot"></span>
               {{ row.retryCount }} 次
-            </el-tag>
+            </span>
           </template>
         </el-table-column>
-        <el-table-column label="归档时间" width="180">
+        <el-table-column label="归档时间" width="170">
           <template #default="{ row }">
-            {{ formatTime(row.failTime) }}
+            <span class="time-cell">{{ formatTime(row.failTime) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="viewDetail(row)">
-              <el-icon><View /></el-icon>&nbsp;详情
-            </el-button>
-            <el-button link type="success" size="small" @click="recoverTask(row)">
-              <el-icon><Refresh /></el-icon>&nbsp;一键恢复
-            </el-button>
-            <el-button link type="danger" size="small" @click="deleteTask(row)">
-              <el-icon><Delete /></el-icon>&nbsp;删除
-            </el-button>
+            <div class="action-buttons">
+              <button class="action-btn detail" @click="viewDetail(row)" title="查看详情">
+                <el-icon><View /></el-icon> 详情
+              </button>
+              <button class="action-btn recover" @click="recoverTask(row)" title="重新放回队列重试">
+                <el-icon><Refresh /></el-icon> 恢复
+              </button>
+              <button class="action-btn delete" @click="deleteTask(row)" title="删除归档记录">
+                <el-icon><Delete /></el-icon>
+              </button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -206,9 +218,10 @@ const getSceneName = (sceneType) => {
   return sceneMap.value[sceneType] ? `${sceneMap.value[sceneType]} (${sceneType})` : `场景 (${sceneType})`
 }
 
-const getSceneTagType = (sceneType) => {
-  const types = ['primary', 'success', 'warning', 'danger', 'info']
-  return types[sceneType % types.length] || 'info'
+const cleanSceneName = (sceneType) => {
+  const full = sceneMap.value[sceneType]
+  if (!full) return `场景 ${sceneType}`
+  return full.replace(/^\[Demo\]\s*/, '')
 }
 
 const formatTime = (timeVal) => {
@@ -389,10 +402,156 @@ onMounted(() => {
   overflow: hidden;
 }
 
-.fail-reason-text {
-  color: #f56c6c;
+.task-id-mono {
+  font-family: 'SF Mono', Consolas, Monaco, monospace;
+  font-size: 12.5px;
+  color: #1e293b;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+
+.scene-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.scene-id-chip {
+  font-family: 'SF Mono', Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #6366f1;
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  padding: 1px 5px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.scene-name-text {
+  font-size: 12.5px;
+  color: #334155;
   font-weight: 500;
-  font-family: Menlo, Monaco, Consolas, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idempotent-code {
+  font-family: 'SF Mono', Consolas, monospace;
+  font-size: 11.5px;
+  color: #475569;
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  max-width: 150px;
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.fail-reason-text {
+  color: #ef4444;
+  font-weight: 500;
+  font-family: 'SF Mono', Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+}
+
+.retry-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.retry-badge.danger {
+  background: #fef2f2;
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.retry-badge-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.time-cell {
+  font-size: 12px;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+.action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid transparent;
+  background: #f8fafc;
+  color: #475569;
+}
+
+.action-btn:hover {
+  transform: translateY(-1px);
+}
+
+.action-btn.detail {
+  color: #6366f1;
+  background: rgba(99, 102, 241, 0.06);
+  border-color: rgba(99, 102, 241, 0.2);
+}
+
+.action-btn.detail:hover {
+  background: #6366f1;
+  color: #ffffff;
+  border-color: #6366f1;
+  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);
+}
+
+.action-btn.recover {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.06);
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.action-btn.recover:hover {
+  background: #10b981;
+  color: #ffffff;
+  border-color: #10b981;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+}
+
+.action-btn.delete {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.06);
+  border-color: rgba(239, 68, 68, 0.2);
+  padding: 3px 6px;
+}
+
+.action-btn.delete:hover {
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #ef4444;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
 }
 
 .pagination-container {

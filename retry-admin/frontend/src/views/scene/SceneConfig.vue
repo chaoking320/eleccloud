@@ -1,64 +1,123 @@
 <template>
   <div class="scene-config">
+    <!-- Top Action & Statistics Header -->
     <div class="header">
       <div class="header-left">
-        <h2>场景配置管理</h2>
-        <div class="stats" v-if="sceneList.length > 0">
-          <el-tag type="info" size="small">
-            总计: {{ sceneList.length }}个场景
-          </el-tag>
-          <el-tag type="success" size="small">
-            启用: {{ enabledCount }}个
-          </el-tag>
-          <el-tag type="warning" size="small">
-            禁用: {{ disabledCount }}个
-          </el-tag>
+        <div class="title-row">
+          <h2 class="page-title">场景重试策略配置</h2>
+          <span class="page-subtitle">定义各业务场景的退避算法、重试流水线与 Hook 状态机契约</span>
+        </div>
+        <div class="stats-pills" v-if="sceneList.length > 0">
+          <span class="pill-item total">总计 <strong>{{ sceneList.length }}</strong> 个场景</span>
+          <span class="pill-item enabled">已启用 <strong>{{ enabledCount }}</strong></span>
+          <span class="pill-item disabled" v-if="disabledCount > 0">已禁用 <strong>{{ disabledCount }}</strong></span>
         </div>
       </div>
-      <el-button type="primary" @click="handleAdd">
-        <el-icon><Plus /></el-icon>
-        新增场景
+      <el-button type="primary" :icon="Plus" class="btn-create" @click="handleAdd">
+        新增重试场景
       </el-button>
     </div>
 
-    <!-- 场景列表 -->
-    <el-card>
-      <el-table :data="sceneList" v-loading="loading" stripe>
-        <el-table-column prop="sceneType" label="场景类型" width="120" />
-        <el-table-column prop="sceneName" label="场景名称" width="200" />
-        <el-table-column prop="retryIntervals" label="重试间隔" width="300">
+    <!-- 场景数据表格 -->
+    <el-card shadow="never" class="table-card">
+      <el-table :data="sceneList" v-loading="loading" stripe style="width: 100%" class="custom-scene-table">
+        <!-- 场景类型 -->
+        <el-table-column prop="sceneType" label="场景编码" width="110">
           <template #default="{ row }">
-            <el-tag v-for="(interval, index) in parseIntervals(row.retryIntervals)" 
-                    :key="index" 
-                    size="small" 
-                    style="margin-right: 5px;">
-              {{ interval }}分钟
-            </el-tag>
+            <span class="scene-code-badge">ID: {{ row.sceneType }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="maxRetryCount" label="最大重试次数" width="120" />
-        <el-table-column prop="hookClass" label="钩子类" min-width="200" show-overflow-tooltip>
+
+        <!-- 场景名称 -->
+        <el-table-column prop="sceneName" label="场景名称" min-width="160">
           <template #default="{ row }">
-            <span v-if="row.hookClass" class="hook-class">{{ row.hookClass }}</span>
-            <el-tag v-else type="info" size="small">默认实现</el-tag>
+            <span class="scene-name-text">{{ row.sceneName }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="enabled" label="状态" width="100">
+
+        <!-- 重试策略与间隔流水线 (彻底消除干涩，升级为可视化流水线) -->
+        <el-table-column label="退避策略与重试流水线 (Retry Pipeline)" min-width="340">
+          <template #default="{ row }">
+            <div class="strategy-pipeline-cell">
+              <!-- 策略类型标签 -->
+              <span class="strategy-pill" :class="getStrategyClass(row.backoffStrategy)">
+                {{ getStrategyLabel(row.backoffStrategy) }}
+              </span>
+
+              <!-- 间隔流水线序列 -->
+              <div class="pipeline-flow" v-if="parseIntervals(row.retryIntervals).length > 0">
+                <template v-for="(interval, idx) in parseIntervals(row.retryIntervals)" :key="idx">
+                  <span class="flow-step-pill">
+                    <span class="step-num">{{ idx + 1 }}</span>
+                    <span class="step-val">{{ formatIntervalText(interval) }}</span>
+                  </span>
+                  <span v-if="idx < parseIntervals(row.retryIntervals).length - 1" class="flow-connector">➔</span>
+                </template>
+              </div>
+
+              <!-- 非自定义退避公式提示 -->
+              <div v-else class="strategy-formula">
+                <span v-if="row.backoffStrategy === 'LINEAR'" class="formula-text">
+                  间隔 = 次数 × {{ row.backoffBase || 1 }} 分钟
+                </span>
+                <span v-else-if="row.backoffStrategy === 'EXPONENTIAL'" class="formula-text">
+                  间隔 = 2^(n-1) × {{ row.backoffBase || 1 }} 分钟
+                </span>
+                <span v-else-if="row.backoffStrategy === 'FIXED'" class="formula-text">
+                  固定间隔 {{ row.backoffBase || 1 }} 分钟
+                </span>
+                <span v-else class="formula-text text-muted">遵循默认退避策略</span>
+              </div>
+            </div>
+          </template>
+        </el-table-column>
+
+        <!-- 最大重试限制 -->
+        <el-table-column label="重试限制" width="130">
+          <template #default="{ row }">
+            <div class="limit-cell">
+              <span class="count-badge">上限 {{ row.maxRetryCount || 3 }} 次</span>
+              <span v-if="row.maxRetryDuration" class="duration-text">
+                限时 {{ row.maxRetryDuration }}s
+              </span>
+            </div>
+          </template>
+        </el-table-column>
+
+        <!-- 钩子类 -->
+        <el-table-column prop="hookClass" label="Hook 钩子全限定名" min-width="220" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span v-if="row.hookClass" class="hook-class-pill" :title="row.hookClass">
+              {{ getSimpleHookName(row.hookClass) }}
+            </span>
+            <span v-else class="hook-default-pill">系统默认反射 (无Hook)</span>
+          </template>
+        </el-table-column>
+
+        <!-- 状态切换 -->
+        <el-table-column prop="enabled" label="运行状态" width="100">
           <template #default="{ row }">
             <el-switch 
               v-model="row.enabled" 
-              :active-value="1"
+              :active-value="1" 
               :inactive-value="0"
+              active-color="#10b981"
+              inactive-color="#cbd5e1"
               :before-change="() => handleBeforeChange(row)"
               :loading="row.switching"
             />
           </template>
         </el-table-column>
-        <el-table-column prop="createTime" label="创建时间" width="180" />
-        <el-table-column label="操作" width="150" fixed="right">
+
+        <!-- 操作 -->
+        <el-table-column label="操作" width="140" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" size="small" @click="handleEdit(row)">编辑</el-button>
-            <el-button type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+            <el-button link type="primary" size="small" :icon="Edit" @click="handleEdit(row)">
+              编辑
+            </el-button>
+            <el-button link type="danger" size="small" :icon="Delete" @click="handleDelete(row)">
+              删除
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -68,7 +127,7 @@
     <el-dialog 
       :title="dialogTitle" 
       v-model="dialogVisible" 
-      width="600px"
+      width="640px"
       @close="resetForm"
     >
       <el-form 
@@ -99,10 +158,10 @@
 
         <el-form-item label="退避策略" prop="backoffStrategy">
           <el-select v-model="form.backoffStrategy" placeholder="请选择退避策略" style="width: 100%">
-            <el-option label="自定义间隔 (CUSTOM)" value="CUSTOM" />
-            <el-option label="固定间隔 (FIXED)" value="FIXED" />
-            <el-option label="线性递增 (LINEAR)" value="LINEAR" />
-            <el-option label="指数递增 (EXPONENTIAL)" value="EXPONENTIAL" />
+            <el-option label="自定义间隔 (CUSTOM - 支持秒级/分钟级精细序列)" value="CUSTOM" />
+            <el-option label="固定间隔 (FIXED - 每次等待固定时间)" value="FIXED" />
+            <el-option label="线性递增 (LINEAR - 随次数线性递增)" value="LINEAR" />
+            <el-option label="指数递增 (EXPONENTIAL - 2^n 倍数指数退避)" value="EXPONENTIAL" />
           </el-select>
         </el-form-item>
 
@@ -113,7 +172,7 @@
             placeholder="单位：分钟"
             style="width: 100%"
           />
-          <div class="form-tip" style="width: 100%; margin-top: 5px;">单位：分钟。用于计算退避间隔。</div>
+          <div class="form-tip">单位：分钟。用于计算退避间隔。</div>
         </el-form-item>
         
         <el-form-item label="最大重试次数" prop="maxRetryCount" v-if="form.backoffStrategy !== 'CUSTOM'">
@@ -124,7 +183,7 @@
             placeholder="最大重试次数"
             style="width: 100%"
           />
-          <div class="form-tip" style="width: 100%; margin-top: 5px;">非自定义策略下必须指定最大重试次数。</div>
+          <div class="form-tip">非自定义策略下必须指定最大重试次数。</div>
         </el-form-item>
         
         <el-form-item label="重试间隔" prop="retryIntervals" v-if="form.backoffStrategy === 'CUSTOM'">
@@ -138,7 +197,7 @@
             maxlength="256"
           />
           <div class="form-tip">
-            钩子类需要实现 RetryHook 接口，用于自定义状态检查和业务逻辑。留空则使用默认实现。
+            钩子类需实现 RetryHook 接口，用于三步幂等状态检查 (checkStatus ➜ doQuery ➜ doCallback)。
           </div>
         </el-form-item>
         
@@ -160,18 +219,16 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete } from '@element-plus/icons-vue'
 import { sceneApi } from '@/api'
 import RetryIntervalConfig from './components/RetryIntervalConfig.vue'
 
-// 响应式数据
 const loading = ref(false)
 const sceneList = ref([])
 const dialogVisible = ref(false)
 const submitting = ref(false)
 const formRef = ref()
 
-// 表单数据
 const form = reactive({
   id: null,
   sceneType: null,
@@ -183,7 +240,6 @@ const form = reactive({
   backoffBase: 1
 })
 
-// 表单验证规则
 const rules = {
   sceneType: [
     { required: true, message: '请输入场景类型', trigger: 'blur' },
@@ -204,29 +260,48 @@ const rules = {
       }, 
       trigger: 'blur' 
     }
-  ],
-  hookClass: [
-    { 
-      pattern: /^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)*$/, 
-      message: '钩子类名格式不正确，应为Java类全限定名', 
-      trigger: 'blur' 
-    }
   ]
 }
 
-// 计算属性
 const isEdit = computed(() => !!form.id)
 const dialogTitle = computed(() => isEdit.value ? '编辑场景配置' : '新增场景配置')
 const enabledCount = computed(() => sceneList.value.filter(scene => scene.enabled === 1 || scene.enabled === true).length)
 const disabledCount = computed(() => sceneList.value.filter(scene => scene.enabled === 0 || scene.enabled === false).length)
 
-// 解析重试间隔字符串
 const parseIntervals = (intervals) => {
   if (!intervals) return []
   return intervals.split(',').map(item => item.trim()).filter(item => item)
 }
 
-// 加载场景列表
+const formatIntervalText = (val) => {
+  if (val === '0') return '<5s'
+  return `${val}m`
+}
+
+const getStrategyLabel = (strategy) => {
+  switch (strategy) {
+    case 'FIXED': return '固定间隔'
+    case 'LINEAR': return '线性递增'
+    case 'EXPONENTIAL': return '指数退避'
+    case 'CUSTOM': default: return '自定义流水'
+  }
+}
+
+const getStrategyClass = (strategy) => {
+  switch (strategy) {
+    case 'FIXED': return 'strat-fixed'
+    case 'LINEAR': return 'strat-linear'
+    case 'EXPONENTIAL': return 'strat-exp'
+    case 'CUSTOM': default: return 'strat-custom'
+  }
+}
+
+const getSimpleHookName = (fullClass) => {
+  if (!fullClass) return ''
+  const parts = fullClass.split('.')
+  return parts[parts.length - 1]
+}
+
 const loadSceneList = async () => {
   try {
     loading.value = true
@@ -239,20 +314,17 @@ const loadSceneList = async () => {
   }
 }
 
-// 处理新增
 const handleAdd = () => {
   resetForm()
   dialogVisible.value = true
 }
 
-// 处理编辑
 const handleEdit = (row) => {
   Object.assign(form, { ...row })
   form.enabled = (row.enabled === 1 || row.enabled === true) ? 1 : 0
   dialogVisible.value = true
 }
 
-// 处理删除
 const handleDelete = async (row) => {
   try {
     await ElMessageBox.confirm(
@@ -275,7 +347,6 @@ const handleDelete = async (row) => {
   }
 }
 
-// 处理状态切换（使用 before-change 机制，彻底避免加载时误触发）
 const handleBeforeChange = (row) => {
   const currentEnabled = (row.enabled === 1 || row.enabled === true) ? 1 : 0
   const nextStatus = currentEnabled === 1 ? 0 : 1
@@ -309,13 +380,10 @@ const handleBeforeChange = (row) => {
   })
 }
 
-// 处理表单提交
 const handleSubmit = async () => {
   try {
     await formRef.value.validate()
-    
     submitting.value = true
-    
     const data = { ...form }
     delete data.id
     
@@ -331,16 +399,15 @@ const handleSubmit = async () => {
     loadSceneList()
   } catch (error) {
     if (error.response?.data?.message) {
-      ElMessage.error(isEdit.value ? '更新失败：' + error.response.data.message : '创建失败：' + error.response.data.message)
+      ElMessage.error(error.response.data.message)
     } else if (error.message) {
-      ElMessage.error(isEdit.value ? '更新失败：' + error.message : '创建失败：' + error.message)
+      ElMessage.error(error.message)
     }
   } finally {
     submitting.value = false
   }
 }
 
-// 重置表单
 const resetForm = () => {
   Object.assign(form, {
     id: null,
@@ -352,13 +419,9 @@ const resetForm = () => {
     backoffStrategy: 'CUSTOM',
     backoffBase: 1
   })
-  
-  if (formRef.value) {
-    formRef.value.clearValidate()
-  }
+  if (formRef.value) formRef.value.clearValidate()
 }
 
-// 组件挂载时加载数据
 onMounted(() => {
   loadSceneList()
 })
@@ -366,14 +429,16 @@ onMounted(() => {
 
 <style scoped>
 .scene-config {
-  padding: 20px;
+  padding: 24px;
 }
 
 .header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
 .header-left {
@@ -382,38 +447,182 @@ onMounted(() => {
   gap: 8px;
 }
 
-.header h2 {
-  margin: 0;
-  color: #303133;
+.title-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.stats {
+.page-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.3px;
+}
+
+.page-subtitle {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.stats-pills {
   display: flex;
   gap: 8px;
+  margin-top: 4px;
+}
+
+.pill-item {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-weight: 500;
+}
+
+.pill-item.total {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.pill-item.enabled {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.pill-item.disabled {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.btn-create {
+  height: 38px;
+  padding: 0 18px;
+  font-weight: 600;
+}
+
+.table-card {
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.scene-code-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  background: #eff6ff;
+  color: #2563eb;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid #dbeafe;
+}
+
+.scene-name-text {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 13.5px;
+}
+
+/* Strategy & Pipeline Visualization */
+.strategy-pipeline-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.strategy-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.2px;
+}
+
+.strat-custom { background: #f5f3ff; color: #7c3aed; border: 1px solid #ede9fe; }
+.strat-fixed  { background: #ecfdf5; color: #059669; border: 1px solid #d1fae5; }
+.strat-linear { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
+.strat-exp    { background: #fffbeb; color: #d97706; border: 1px solid #fef3c7; }
+
+.pipeline-flow {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #f8fafc;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.flow-step-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.step-num {
+  color: #94a3b8;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.step-val {
+  color: #0f172a;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.flow-connector {
+  font-size: 9px;
+  color: #94a3b8;
+}
+
+.strategy-formula {
+  font-size: 12px;
+  color: #475569;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.limit-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.count-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.duration-text {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.hook-class-pill {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  color: #0f172a;
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+}
+
+.hook-default-pill {
+  font-size: 11px;
+  color: #94a3b8;
 }
 
 .form-tip {
   font-size: 12px;
-  color: #909399;
-  margin-top: 5px;
-  line-height: 1.4;
-}
-
-:deep(.el-table) {
-  font-size: 14px;
-}
-
-:deep(.el-table .el-table__cell) {
-  padding: 12px 0;
-}
-
-:deep(.el-tag) {
-  margin-bottom: 2px;
-}
-
-.hook-class {
-  font-family: 'Courier New', monospace;
-  font-size: 12px;
-  color: #606266;
+  color: #94a3b8;
+  margin-top: 4px;
 }
 </style>

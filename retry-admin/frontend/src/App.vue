@@ -69,11 +69,12 @@ html, body, #app {
   padding: 16px 20px !important;
 }
 
-/* Modern Table Overrides */
+/* 核心修复：彻底解决 Element Plus fixed 列造成的文本叠层/重影问题 */
 .el-table {
   border-radius: 8px !important;
   --el-table-header-bg-color: #f8fafc !important;
   --el-table-header-text-color: #475569 !important;
+  background-color: #ffffff !important;
 }
 
 .el-table th.el-table__cell {
@@ -87,37 +88,78 @@ html, body, #app {
 .el-table td.el-table__cell {
   padding: 12px 0 !important;
   font-size: 13px !important;
+  background-color: #ffffff; /* 确保背景不透明，防止多层叠影 */
 }
 
 .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-  background-color: #fafbfc !important;
+  background-color: #f8fafc;
 }
 
 .el-table .el-table__row:hover > td.el-table__cell {
   background-color: #f1f5f9 !important;
 }
 
-/* Modern Tag Overrides */
-.el-tag {
-  border-radius: 6px !important;
-  font-weight: 500 !important;
-  border: none !important;
+/* 修复 fixed-right 列透明穿透导致叠字 */
+.el-table__fixed-right, .el-table__fixed {
+  background-color: #ffffff !important;
+  box-shadow: -4px 0 12px rgba(0, 0, 0, 0.05) !important;
+}
+.el-table__fixed-right td.el-table__cell, .el-table__fixed td.el-table__cell {
+  background-color: #ffffff !important;
 }
 
-/* Modern Button Overrides */
-.el-button {
+/* 核心修复：确保 link 类型的按钮不被 primary 渐变背景污染成蓝块 */
+.el-button.is-link {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 4px 6px !important;
+  height: auto !important;
+  line-height: 1.5 !important;
+}
+.el-button.is-link.el-button--primary {
+  color: #2563eb !important;
+}
+.el-button.is-link.el-button--primary:hover {
+  color: #3b82f6 !important;
+  text-decoration: underline;
+}
+.el-button.is-link.el-button--warning {
+  color: #d97706 !important;
+}
+.el-button.is-link.el-button--warning:hover {
+  color: #f59e0b !important;
+  text-decoration: underline;
+}
+.el-button.is-link.el-button--danger {
+  color: #dc2626 !important;
+}
+.el-button.is-link.el-button--danger:hover {
+  color: #ef4444 !important;
+  text-decoration: underline;
+}
+.el-button.is-link.el-button--success {
+  color: #059669 !important;
+}
+.el-button.is-link.el-button--success:hover {
+  color: #10b981 !important;
+  text-decoration: underline;
+}
+
+/* 实体按钮样式 */
+.el-button:not(.is-link) {
   border-radius: 8px !important;
   font-weight: 500 !important;
   transition: all 0.2s ease !important;
 }
 
-.el-button--primary {
+.el-button--primary:not(.is-link) {
   background: linear-gradient(135deg, #2563eb, #3b82f6) !important;
   border: none !important;
   box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25) !important;
 }
 
-.el-button--primary:hover {
+.el-button--primary:not(.is-link):hover {
   background: linear-gradient(135deg, #3b82f6, #60a5fa) !important;
   transform: translateY(-1px) !important;
   box-shadow: 0 4px 10px rgba(37, 99, 235, 0.35) !important;
