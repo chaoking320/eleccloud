@@ -51,6 +51,7 @@ services:
       - RETRY_CLIENT_API_KEY=demo-key-12345678
       - SPRING_REDIS_HOST=redis
       - SPRING_REDIS_PORT=6379
+      - SPRING_REDIS_DATABASE=1
       - SPRING_REDIS_PASSWORD=123456
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/retry_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
     restart: unless-stopped
