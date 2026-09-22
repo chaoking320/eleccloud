@@ -624,33 +624,49 @@ public class LocalRetryExecutor {
         
         for (int i = 0; i < parameters.length; i++) {
             String paramName = (paramNames != null && paramNames.length > i) ? paramNames[i] : parameters[i].getName();
-            Class<?> paramType = parameters[i].getType();
+            java.lang.reflect.Type genericType = parameters[i].getParameterizedType();
             Object paramValue = paramsMap.get(paramName);
             if (paramValue == null && log.isDebugEnabled()) {
                 log.debug("[prepareMethodArgs] No value found for param '{}' in paramsMap, will use null/zero.", paramName);
             }
-            args[i] = convertType(paramValue, paramType);
+            args[i] = convertType(paramValue, genericType);
         }
         return args;
     }
 
-    private Object convertType(Object value, Class<?> targetType) throws Exception {
+    private Object convertType(Object value, java.lang.reflect.Type targetType) throws Exception {
         if (value == null) return null;
-        if (targetType.isInstance(value)) return value;
-        if (targetType == String.class) return value.toString();
-        if (targetType == Integer.class || targetType == int.class) {
+
+        Class<?> rawType;
+        if (targetType instanceof Class) {
+            rawType = (Class<?>) targetType;
+        } else if (targetType instanceof java.lang.reflect.ParameterizedType) {
+            rawType = (Class<?>) ((java.lang.reflect.ParameterizedType) targetType).getRawType();
+        } else {
+            rawType = Object.class;
+        }
+
+        if (rawType.isInstance(value)) {
+            // 如果是普通非泛型集合/对象直接返回；但若是带有泛型实参的集合，且内容仍为原始 Map，则继续进行泛型深转
+            if (!(targetType instanceof java.lang.reflect.ParameterizedType)) {
+                return value;
+            }
+        }
+
+        if (rawType == String.class) return value.toString();
+        if (rawType == Integer.class || rawType == int.class) {
             if (value instanceof Number) return ((Number) value).intValue();
             return Integer.parseInt(value.toString());
         }
-        if (targetType == Long.class || targetType == long.class) {
+        if (rawType == Long.class || rawType == long.class) {
             if (value instanceof Number) return ((Number) value).longValue();
             return Long.parseLong(value.toString());
         }
-        if (targetType == Double.class || targetType == double.class) {
+        if (rawType == Double.class || rawType == double.class) {
             if (value instanceof Number) return ((Number) value).doubleValue();
             return Double.parseDouble(value.toString());
         }
-        if (targetType == Boolean.class || targetType == boolean.class) {
+        if (rawType == Boolean.class || rawType == boolean.class) {
             if (value instanceof Boolean) return value;
             return Boolean.parseBoolean(value.toString());
         }

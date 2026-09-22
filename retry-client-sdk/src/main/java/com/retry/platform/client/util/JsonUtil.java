@@ -44,6 +44,22 @@ public class JsonUtil {
             throw new RuntimeException("JSON deserialization failed", e);
         }
     }
+
+    /**
+     * 支持复杂泛型（如 List<MyDTO>, Map<String, UserDTO>）的 JSON 字符串反序列化
+     */
+    public static Object fromJson(String json, java.lang.reflect.Type type) {
+        if (json == null || json.isEmpty()) {
+            return null;
+        }
+        try {
+            com.fasterxml.jackson.databind.JavaType javaType = MAPPER.getTypeFactory().constructType(type);
+            return MAPPER.readValue(json, javaType);
+        } catch (Exception e) {
+            log.error("JSON to Generic Object failed for type: {}", type, e);
+            throw new RuntimeException("JSON deserialization failed", e);
+        }
+    }
     
     /**
      * 对象转JSON字节数组
