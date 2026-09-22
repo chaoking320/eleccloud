@@ -67,10 +67,13 @@ public class DatabaseFallbackScheduler {
                 return;
             }
             
+            // 批量一次性预获取当前 Redis 队列中的任务ID集合，避免在循环中对每个任务重复全量扫描 Redis (O(N*M) -> O(1))
+            java.util.Set<String> queuedTaskIds = getQueuedTaskIdsInRedis(1000);
+
             int syncedCount = 0;
             for (String taskId : pendingTaskIds) {
-                // 检查任务是否已经在 Redis 中排队
-                if (!isTaskInRedis(taskId)) {
+                // 优先从批量预取的内存集合中极速 O(1) 命中
+                if (!queuedTaskIds.contains(taskId) && !isTaskInRedisSlim(taskId)) {
                     com.retry.platform.server.entity.RetryTask task = retryTaskMapper.selectByTaskId(taskId);
                     if (task != null && "INIT".equals(task.getTaskStatus())) {
                         com.retry.platform.server.entity.SceneConfig sceneConfig = 
@@ -110,48 +113,54 @@ public class DatabaseFallbackScheduler {
     }
     
     /**
-     * 检查任务是否在Redis延时队列中。
+     * 单次批量预取 Redis 延时队列中的任务ID集合。
      *
-     * <p>两种消息格式均需覆盖：
-     * <ul>
-     *   <li>瘦消息（slim）：member = taskId，直接用 ZSCORE O(1) 检查</li>
-     *   <li>胖消息（fat）：member = JSON(RetryMessagePayload)，需扫描后解析 taskId 字段</li>
-     * </ul>
+     * <p>将原本循环内针对每个待处理任务扫描 Redis 的高开销行为（O(N * 1000)），
+     * 降维为单次批量提取 + 内存 O(1) 比对，彻底消除队列积压时兜底调度器对 Redis 造成的性能瓶颈。
      *
-     * <p>Bug 修复：原实现仅检查 slim 消息，导致胖消息路径下兜底调度器重复投递所有任务。
-     * 现增加有界 fat 消息扫描（上限 1000 条），兼顾正确性与性能。
+     * @param limit 扫描的最大 member 数量
+     * @return 存在于 Redis 队列中的 TaskId 集合
      */
-    private boolean isTaskInRedis(String taskId) {
+    private java.util.Set<String> getQueuedTaskIdsInRedis(int limit) {
+        java.util.Set<String> result = new java.util.HashSet<>();
         try {
-            // 1. O(1) 检查瘦消息（member = taskId）
-            Double score = redisTemplate.opsForZSet().score(DELAY_QUEUE_KEY, taskId);
-            if (score != null) {
-                return true;
-            }
-
-            // 2. 有界扫描胖消息（member = JSON，上限 1000 条防止全量拉取）
-            // 胖消息是当前主路径，必须覆盖否则 FallbackScheduler 会无效重投所有任务
-            Set<String> members = redisTemplate.opsForZSet().range(DELAY_QUEUE_KEY, 0, 999);
-            if (members != null) {
+            Set<String> members = redisTemplate.opsForZSet().range(DELAY_QUEUE_KEY, 0, Math.max(0, limit - 1));
+            if (members != null && !members.isEmpty()) {
                 for (String member : members) {
-                    // 快速字符串包含检查，命中后再做 JSON 解析，避免无谓解析开销
-                    if (member.startsWith("{") && member.contains(taskId)) {
+                    if (member == null || member.isEmpty()) {
+                        continue;
+                    }
+                    if (member.startsWith("{")) {
                         try {
                             com.retry.platform.client.mq.RetryMessagePayload payload =
                                     com.retry.platform.client.util.JsonUtil.fromJson(
                                             member, com.retry.platform.client.mq.RetryMessagePayload.class);
-                            if (payload != null && taskId.equals(payload.getTaskId())) {
-                                return true;
+                            if (payload != null && payload.getTaskId() != null) {
+                                result.add(payload.getTaskId());
                             }
                         } catch (Exception ignored) {
-                            // JSON 解析失败跳过，继续扫描下一条
+                            // 忽略脏数据格式
                         }
+                    } else {
+                        // 瘦消息：member 即 taskId
+                        result.add(member);
                     }
                 }
             }
-            return false;
         } catch (Exception e) {
-            log.warn("[FallbackScheduler] Failed to check task in Redis, assuming not present: taskId={}", taskId, e);
+            log.warn("[FallbackScheduler] Failed to batch pre-fetch queued tasks from Redis", e);
+        }
+        return result;
+    }
+
+    /**
+     * 快速检查瘦消息（O(1) ZSCORE），用于超出预取窗口时的单项安全兜底。
+     */
+    private boolean isTaskInRedisSlim(String taskId) {
+        try {
+            Double score = redisTemplate.opsForZSet().score(DELAY_QUEUE_KEY, taskId);
+            return score != null;
+        } catch (Exception e) {
             return false;
         }
     }
