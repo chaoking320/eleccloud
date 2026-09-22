@@ -116,6 +116,25 @@ public class RefundService {
 - 方法参数需支持 JSON 序列化（重试时用于重建方法入参）
 - 业务方法应实现幂等（因为会被重复调用）
 
+#### 两级协同重试（Two-Tier Hybrid Retry：本地快重试 + 分布式慢兜底）
+
+对于瞬时微抖动（如 50ms 网络闪断、连接瞬时重置），直接入库推延时队列会带来写放大和延迟感知。可在注解上开启第 1 级本地毫秒级快重试：
+
+```java
+@RetryableTask(
+    sceneType = 1, 
+    idempotentKey = "#transId",
+    localRetryTimes = 2,      // 第 1 级：本地快重试 2 次（默认 0 不开启）
+    localIntervalMs = 200     // 本地每次重试间隔 200 毫秒
+)
+public boolean refund(String transId, String orderId, Double amount) {
+    return paymentApi.refund(transId, amount);
+}
+```
+
+- **瞬时微抖动自愈**：当前线程本地重试成功即刻返回，**零 DB、零 Redis、零 MQ 消耗**，调用方完全无感知；
+- **持续故障平滑升级**：本地重试次数耗尽仍失败，自动升级为第 2 级分布式重试（持久化落库 + 延时队列调度 + 指数退避），并释放当前工作线程，防止连接池打满。
+
 ---
 
 ### 2.2 API 模式（精确控制）

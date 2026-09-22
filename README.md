@@ -55,7 +55,7 @@ ElecCloud does not try to be an all-in-one scheduler. Instead, it focuses on sol
 
 ### Trade-offs & Comparisons
 
-- **vs. Spring Retry**: Spring Retry is fantastic for in-memory, immediate retries. However, when an application process crashes or retries must span hours with exponential backoff, in-memory state is lost. ElecCloud provides persistence across restarts.
+- **vs. Spring Retry**: Spring Retry is great for in-memory immediate retries, but loses state upon process crashes and risks thread exhaustion during prolonged outages. ElecCloud bridges both paradigms with **Two-Tier Hybrid Retry**: fast in-memory retries for transient blips, seamlessly escalating to persistent distributed retries when fast attempts are exhausted.
 - **vs. XXL-JOB / ElasticJob**: Distributed job schedulers are the industry standard for cron-based batch computing. But setting up dedicated job handlers for individual method-level transient errors can be heavyweight. ElecCloud provides lightweight annotation-driven method retries.
 - **vs. Centralized Retry Platforms**: Traditional platforms require the server to call back into your application via HTTP. This demands bidirectional network connectivity, which often breaks across VPCs, Kubernetes clusters, or private network boundaries. ElecCloud shifts the execution loop to the client SDK, making the server a simple, passive storage node.
 
@@ -63,6 +63,7 @@ ElecCloud does not try to be an all-in-one scheduler. Instead, it focuses on sol
 | :--- | :--- | :--- | :--- | :--- |
 | **Primary Focus** | In-memory retry | Scheduled batch jobs | Centralized HTTP callbacks | Asynchronous method retries |
 | **Crash Safety** | ❌ Memory lost | ✅ Yes | ✅ Yes | ✅ `PRE_SUBMIT` mode |
+| **Two-Tier (Fast + Slow)** | ❌ Only local in-memory | ❌ Only slow batch | ❌ Only slow remote | ✅ **Native Two-Tier Hybrid** |
 | **Network Boundary** | Local JVM | Bidirectional / Agent | Bidirectional HTTP required | **One-directional only (SDK → Server)** |
 | **Callback Coupling** | None | Agent required | Server needs business IP:port | **Zero (SDK pulls & executes locally)** |
 | **Setup Overhead** | Minimal | Medium - High | Medium | Low |
@@ -74,18 +75,34 @@ ElecCloud does not try to be an all-in-one scheduler. Instead, it focuses on sol
 ### 1. Decentralized Execution (No Reverse Callbacks)
 Traditional retry platforms require the server to make HTTP requests back into your service. In cloud environments with ingress restrictions or dynamic containers, this is notoriously difficult to maintain. ElecCloud delegates scheduling to the SDK via MQ delayed queues, eliminating reverse connectivity requirements entirely.
 
-### 2. Zero-Hook Mode for Common Cases
+### 2. Two-Tier Hybrid Retry (Fast Local + Persistent Distributed)
+Avoid write amplification and latency penalty for transient micro-glitches (e.g., 50ms socket resets). With `localRetryTimes` and `localIntervalMs`, ElecCloud attempts immediate lightweight local retries first. If recovered, the method returns normally with **zero DB, Redis, or MQ overhead**. Only when local retries are exhausted does it seamlessly escalate to distributed delayed scheduling:
+
+```java
+@RetryableTask(
+    sceneType = 1001,
+    idempotentKey = "#orderId",
+    localRetryTimes = 2,      // Tier 1: Fast local retry (2 attempts)
+    localIntervalMs = 200     // 200ms interval (avoids MQ/DB write amplification)
+    // Tier 2: Escalates automatically to distributed retry if local attempts fail
+)
+public void processPayment(String orderId) {
+    paymentApi.pay(orderId);
+}
+```
+
+### 3. Zero-Hook Mode for Common Cases
 For scenarios that simply succeed if no exception is thrown (e.g., inventory sync, cache evictions, notifications), you don't need to write custom query hooks:
 
 ```java
 @RetryableTask(sceneType = 1001, idempotentKey = "#orderId")
-public void processPayment(String orderId) {
-    paymentApi.pay(orderId);
+public void syncOrder(String orderId) {
+    orderSyncApi.sync(orderId);
     // Automatically retried on exception using configured scene backoff
 }
 ```
 
-### 3. Crash Resilient (PRE_SUBMIT Mode)
+### 4. Crash Resilient (PRE_SUBMIT Mode)
 If a process crashes while executing a task, traditional post-fail interceptors lose the trigger. In `PRE_SUBMIT` mode, the task is recorded in `INIT` state before execution begins, ensuring recovery if the JVM terminates abruptly.
 
 ### 4. Pragmatic Enterprise Features
