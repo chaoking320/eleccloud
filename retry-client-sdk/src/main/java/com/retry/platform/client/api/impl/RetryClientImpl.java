@@ -26,6 +26,16 @@ public class RetryClientImpl implements RetryClient {
     @Autowired
     private RestTemplate restTemplate;
     
+    @Autowired(required = false)
+    private com.retry.platform.client.resilience.RemoteSyncCompensationManager compensationManager;
+
+    @javax.annotation.PostConstruct
+    public void initCompensation() {
+        if (compensationManager != null) {
+            compensationManager.setRetryClient(this);
+        }
+    }
+
     private static final String SUBMIT_PATH = "/api/retry/submit";
     private static final String CANCEL_PATH = "/api/retry/cancel/";
     private static final String QUERY_PATH = "/api/retry/task/";
@@ -58,7 +68,14 @@ public class RetryClientImpl implements RetryClient {
                 return false;
             }
         } catch (Exception e) {
-            log.error("Failed to mark task success: taskId={}", taskId, e);
+            log.warn("Failed to mark task success remotely (server unreachable), buffering for compensation: taskId={}", taskId, e);
+            if (compensationManager != null) {
+                compensationManager.offer(com.retry.platform.client.resilience.RemoteSyncCompensationManager.SyncEvent.builder()
+                        .type(com.retry.platform.client.resilience.RemoteSyncCompensationManager.EventType.MARK_SUCCESS)
+                        .taskId(taskId)
+                        .timestamp(System.currentTimeMillis())
+                        .build());
+            }
             return false;
         }
     }
@@ -84,7 +101,15 @@ public class RetryClientImpl implements RetryClient {
             String url = properties.getServerUrl() + "/api/retry/status?taskId=" + taskId + "&status=" + status;
             restTemplate.postForObject(url, null, Result.class);
         } catch (Exception e) {
-            log.error("Failed to update status remotely: taskId={}", taskId, e);
+            log.warn("Failed to update status remotely (server unreachable), buffering: taskId={}, status={}", taskId, status, e);
+            if (compensationManager != null) {
+                compensationManager.offer(com.retry.platform.client.resilience.RemoteSyncCompensationManager.SyncEvent.builder()
+                        .type(com.retry.platform.client.resilience.RemoteSyncCompensationManager.EventType.UPDATE_STATUS)
+                        .taskId(taskId)
+                        .status(status)
+                        .timestamp(System.currentTimeMillis())
+                        .build());
+            }
         }
     }
 
@@ -94,14 +119,22 @@ public class RetryClientImpl implements RetryClient {
             String url = properties.getServerUrl() + "/api/retry/retry-info?taskId=" + taskId + "&retryCount=" + retryCount + "&status=" + status;
             restTemplate.postForObject(url, null, Result.class);
         } catch (Exception e) {
-            log.error("Failed to update retry info remotely: taskId={}", taskId, e);
+            log.warn("Failed to update retry info remotely (server unreachable), buffering: taskId={}, count={}, status={}", taskId, retryCount, status, e);
+            if (compensationManager != null) {
+                compensationManager.offer(com.retry.platform.client.resilience.RemoteSyncCompensationManager.SyncEvent.builder()
+                        .type(com.retry.platform.client.resilience.RemoteSyncCompensationManager.EventType.UPDATE_RETRY_COUNT_AND_STATUS)
+                        .taskId(taskId)
+                        .retryCount(retryCount)
+                        .status(status)
+                        .timestamp(System.currentTimeMillis())
+                        .build());
+            }
         }
     }
 
     @Override
     public void rollbackToPending(String taskId, String errorMsg) {
         try {
-            // 修复 Bug5: 使用 UriComponentsBuilder 自动编码，防止 errorMsg 含 &/=/# 等特殊字符导致解析失败
             String url = UriComponentsBuilder
                     .fromHttpUrl(properties.getServerUrl() + "/api/retry/rollback")
                     .queryParam("taskId", taskId)
@@ -109,14 +142,21 @@ public class RetryClientImpl implements RetryClient {
                     .toUriString();
             restTemplate.postForObject(url, null, Result.class);
         } catch (Exception e) {
-            log.error("Failed to rollback task remotely: taskId={}", taskId, e);
+            log.warn("Failed to rollback task remotely (server unreachable), buffering: taskId={}", taskId, e);
+            if (compensationManager != null) {
+                compensationManager.offer(com.retry.platform.client.resilience.RemoteSyncCompensationManager.SyncEvent.builder()
+                        .type(com.retry.platform.client.resilience.RemoteSyncCompensationManager.EventType.ROLLBACK)
+                        .taskId(taskId)
+                        .reason(errorMsg)
+                        .timestamp(System.currentTimeMillis())
+                        .build());
+            }
         }
     }
 
     @Override
     public void markFailed(String taskId, String reason) {
         try {
-            // 修复 Bug5: 使用 UriComponentsBuilder 自动编码，防止 reason 含特殊字符导致解析失败
             String url = UriComponentsBuilder
                     .fromHttpUrl(properties.getServerUrl() + "/api/retry/failed")
                     .queryParam("taskId", taskId)
@@ -124,7 +164,15 @@ public class RetryClientImpl implements RetryClient {
                     .toUriString();
             restTemplate.postForObject(url, null, Result.class);
         } catch (Exception e) {
-            log.error("Failed to mark task failed remotely: taskId={}", taskId, e);
+            log.warn("Failed to mark task failed remotely (server unreachable), buffering: taskId={}", taskId, e);
+            if (compensationManager != null) {
+                compensationManager.offer(com.retry.platform.client.resilience.RemoteSyncCompensationManager.SyncEvent.builder()
+                        .type(com.retry.platform.client.resilience.RemoteSyncCompensationManager.EventType.MARK_FAILED)
+                        .taskId(taskId)
+                        .reason(reason)
+                        .timestamp(System.currentTimeMillis())
+                        .build());
+            }
         }
     }
 

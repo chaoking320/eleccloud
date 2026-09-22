@@ -196,6 +196,16 @@ public class RetryClientAutoConfiguration {
         return new RetryClientImpl();
     }
 
+    /**
+     * Remote 模式下注册远程同步补偿管理器（Server 不可用时的内存缓冲与自动重放）
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "retry.client", name = "mode", havingValue = "remote", matchIfMissing = true)
+    public com.retry.platform.client.resilience.RemoteSyncCompensationManager remoteSyncCompensationManager() {
+        return new com.retry.platform.client.resilience.RemoteSyncCompensationManager();
+    }
+
     // ==================== Standalone 模式：本地 DB Mapper + StandaloneRetryClientImpl ====================
 
     /**
