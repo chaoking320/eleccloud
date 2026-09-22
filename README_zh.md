@@ -272,8 +272,8 @@ ElecCloud 采用**去中心化 MQ-SDK 驱动**架构 — 调度权完全移交�
 
 <div align="center">
 
-**如果 ElecCloud 对你有帮助，请给个 ⭐️ Star！**
+**如果 ElecCloud 在你的项目中带来了帮助，欢迎点亮右上角的 ⭐️ Star 支持！**
 
-Made with ❤️ by the ElecCloud community
+Crafted with care by the ElecCloud maintainers & contributors
 
 </div>

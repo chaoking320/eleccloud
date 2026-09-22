@@ -232,10 +232,13 @@ Look for issues tagged [`good first issue`](../../issues?q=label%3A%22good+first
 
 ---
 
-## 💬 Community
+## 💬 Community & Feedback
+
+ElecCloud is an active open-source project initiated and maintained by [@chaoking320](https://github.com/chaoking320).
+Feedback, bug reports, and pull requests are warmly welcomed:
 
 - **GitHub Issues**: [Bug reports and feature requests](../../issues)
-- **GitHub Discussions**: [Q&A and discussions](../../discussions)
+- **GitHub Discussions**: [Q&A and architectural discussions](../../discussions)
 
 ---
 
@@ -247,8 +250,8 @@ This project is licensed under the Apache License 2.0 — see the [LICENSE](LICE
 
 <div align="center">
 
-**If ElecCloud helps you, please give it a ⭐️ Star!**
+**If ElecCloud helps you in your projects, please consider giving it a ⭐️ Star!**
 
-Made with ❤️ by the ElecCloud community
+Crafted with care by the ElecCloud maintainers & contributors
 
 </div>

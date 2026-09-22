@@ -259,7 +259,50 @@ retry:
 
 ---
 
-## 5. 常见问题（FAQ）
+## 5. ⚠️ 生产最佳实践与避坑指南 (Caveats & Best Practices)
+
+注解式重试的本质是**将方法调用上下文持久化并在未来通过反射重新执行**。为确保线上稳定运行，请务必阅读以下生产避坑建议：
+
+### 5.1 强烈建议开启 `-parameters` 编译参数
+Spring 在解析 SpEL 表达式（如 `idempotentKey = "#orderId"`）以及 SDK 在进行方法形参名匹配时，依赖字节码中的真实参数名。若未开启此选项，Java 默认会将参数编译为 `arg0, arg1`，可能导致 SpEL 无法获取参数值。
+
+**在业务工程的 `pom.xml` 中配置：**
+```xml
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-compiler-plugin</artifactId>
+    <version>3.11.0</version>
+    <configuration>
+        <parameters>true</parameters> <!-- 开启形参名保留 -->
+    </configuration>
+</plugin>
+```
+
+### 5.2 避免使用复杂匿名嵌套泛型作为方法入参
+SDK 内部使用 Jackson 将方法入参序列化为 JSON 存储并在重试时反序列化。
+- **推荐写法（清晰明确）**：
+  ```java
+  @RetryableTask(sceneType = 1001, idempotentKey = "#req.orderId")
+  public void syncOrder(OrderSyncDTO req) { ... }
+  ```
+- **不推荐写法（存在泛型擦除风险）**：
+  ```java
+  // 尽量避免：复杂的深层嵌套泛型在反序列化时可能被降级解析为 LinkedHashMap
+  @RetryableTask(...)
+  public void processBatch(List<Map<String, Object>> items) { ... }
+  ```
+
+### 5.3 保持重试方法签名的向后兼容性
+如果线上队列中存在尚未完成重试的任务（例如指数退避数小时的任务），请注意：
+- **避免直接重命名方法名**：否则重启后待重试任务反射查找原方法将抛出 `NoSuchMethodException`。
+- **重构建议**：若需修改方法参数列表，建议保留原有方法并作为转发入口，或者新增重载方法过渡。
+
+### 5.4 业务方法必须保证最终幂等
+重试可能会因网络超时发生多次执行。无论使用何种重试框架，业务方法自身必须基于业务主键（如订单号、流水号）具备天然的防重入或幂等更新能力。
+
+---
+
+## 6. 常见问题（FAQ）
 
 **Q: 幂等键已存在，提交时报错怎么处理？**
 A: 说明相同业务 ID 已有进行中的重试任务。等待其完成后再提交，或在 Admin 后台手动取消旧任务。
