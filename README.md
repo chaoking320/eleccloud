@@ -215,6 +215,7 @@ ElecCloud adopts a **decentralized MQ-SDK-driven** architecture — scheduling a
 |----------|-------------|
 | [Architecture](docs/ARCHITECTURE.md) | System design, state machine, ER diagram |
 | [SDK Guide](docs/SDK_GUIDE.md) | Complete SDK reference & all configuration options |
+| [Testing Guide](docs/TEST_GUIDE.md) | 5-minute hands-on testing walkthrough (refund, SMS, points) |
 | [Hook Explained](docs/HOOK_EXPLAINED.md) | Custom Hook lifecycle guide (checkStatus → doQuery → doCallback) |
 | [Deployment Guide](docs/QUICK_DOCKER_DEPLOY.md) | Docker Compose, bare-metal JAR deployment, Prometheus + Grafana |
 | [Security](docs/SECURITY.md) | API Key auth, best practices |
