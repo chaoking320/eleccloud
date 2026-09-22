@@ -59,7 +59,7 @@ retry-admin/frontend/dist/
 deploy/eleccloud-test-release.zip
 deploy/test-release/
 deploy/*-test.yml
-deploy/init-tables-for-jkkms.sql
+deploy/init-tables-*.sql
 package-for-test.*
 *-test.yml
 docker-compose.test-server.yml

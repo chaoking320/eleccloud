@@ -210,7 +210,7 @@ public class LocalRetryExecutor {
 
     /**
      * 分支 2：处理中间等待状态 (WAIT)
-     * <p>场景：下游外部系统（如 RagFlow、银行）正在异步处理中，需要主动调用 doQuery() 反查。
+     * <p>场景：下游外部系统（如第三方支付、外部异步接口）正在异步处理中，需要主动调用 doQuery() 反查。
      * <ul>
      *   <li>反查成功：触发 doCallback() 并标记任务终态 SUCCESS</li>
      *   <li>反查未完成：记录 PENDING 历史，计算退避间隔推入下一轮 WAIT</li>

@@ -5,24 +5,20 @@
 #   docker compose -p infra -f ./infra/docker-compose.yml up -d
 #
 # Isolation strategy:
-#   - MySQL (3306): one database (schema) per project
+#   - MySQL (3306):
 #     * eleccloud
-#     * ragflow
-#     * kms
-#     * n9e_v6 (Nightingale monitoring)
+#     * demo
 #   - PostgreSQL (5432):
-#     * coolify (user: postgres, password: 123456, db: coolify)
+#     * app (user: postgres, password: password, db: app)
 #   - Redis (6379): one db index per project (0~15)
 #     * db 0 = Demo app SDK delay queue
 #     * db 1 = eleccloud server/admin spring.redis
 #     * db 2 = eleccloud server/admin Redisson (distributed lock / delay queue)
-#     * db 4 = RAGFlow
-#     * db 5 = Nightingale monitoring
-#   - MinIO (API: 9000, Console: 9001): one bucket per project
+#   - MinIO (API: 9000, Console: 9001):
 #     * credentials: minioadmin / minioadmin
-#     * buckets: ragflow, eleccloud, jkkms, etc.
+#     * buckets: eleccloud, demo
 #   - Elasticsearch (9200):
-#     * Used by RAGFlow for document vector search and full-text indexing
+#     * Document search and full-text indexing
 #   - RabbitMQ (AMQP: 5672, Console: 15672):
 #     * credentials: admin / 123456
 #     * includes x-delayed-message plugin for ElecCloud retry message delivery
@@ -122,14 +118,14 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: "123456"
-      POSTGRES_DB: coolify
+      POSTGRES_DB: app
       TZ: Asia/Shanghai
     ports:
       - "5432:5432"
     volumes:
       - shared-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d coolify"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d app"]
       interval: 10s
       timeout: 5s
       retries: 5
