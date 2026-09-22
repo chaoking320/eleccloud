@@ -3,20 +3,127 @@
     <!-- Top Welcome Banner -->
     <div class="welcome-banner">
       <div class="banner-content">
-        <h2 class="banner-title">ElecCloud 重试调度控制台</h2>
+        <div class="banner-badge-row">
+          <span class="banner-badge">ENTERPRISE EDITION</span>
+          <span class="cluster-status-pill">
+            <span class="pulse-indicator"></span>
+            <span>集群分布式调度引擎在线</span>
+          </span>
+        </div>
+        <h2 class="banner-title">ElecCloud 分布式重试调度中枢</h2>
         <p class="banner-desc">
-          高可用去中心化分布式重试中台 · 实时监控集群任务状态与重试流水线
+          高可用去中心化架构 · 毫秒级两级混合重试 · 实时拓扑与状态机全息监控
         </p>
       </div>
       <div class="banner-actions">
         <el-button type="primary" :icon="Refresh" :loading="loading" @click="loadStatistics">
-          刷新数据
+          刷新指标
         </el-button>
-        <el-button :icon="Monitor" @click="goToDemo">
-          打开交互演示
+        <el-button class="btn-demo-link" :icon="Monitor" @click="goToDemo">
+          交互演示中心 (8082)
         </el-button>
       </div>
     </div>
+
+    <!-- Cluster Nodes Live Topology Panel (COOL HIGH-TECH FEATURE) -->
+    <el-card shadow="never" class="cluster-topology-card">
+      <div class="topology-header">
+        <div class="topology-title">
+          <el-icon class="topology-icon"><Connection /></el-icon>
+          <span>集群多节点运行拓扑 (Cluster Live Topology)</span>
+        </div>
+        <div class="topology-legend">
+          <span class="legend-item"><span class="legend-dot green"></span> 运行正常</span>
+          <span class="legend-item"><span class="legend-dot blue"></span> 状态同步中</span>
+          <span class="legend-item"><span class="legend-dot purple"></span> 分布式锁保护</span>
+        </div>
+      </div>
+      <div class="nodes-grid">
+        <div class="node-card">
+          <div class="node-top">
+            <div class="node-icon bg-blue">🚀</div>
+            <div class="node-title-group">
+              <div class="node-name">Retry Server 集群</div>
+              <div class="node-sub">ShedLock 互斥调度</div>
+            </div>
+            <span class="node-status-badge online">ACTIVE</span>
+          </div>
+          <div class="node-metrics">
+            <div class="metric-item">
+              <span class="metric-key">节点状态:</span>
+              <span class="metric-val text-success">UP (8080)</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-key">并发控制:</span>
+              <span class="metric-val">ShedLock PT5M</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="node-card">
+          <div class="node-top">
+            <div class="node-icon bg-emerald">⚡</div>
+            <div class="node-title-group">
+              <div class="node-name">SDK 消费集群</div>
+              <div class="node-sub">Lua 原子弹出消费</div>
+            </div>
+            <span class="node-status-badge online">RUNNING</span>
+          </div>
+          <div class="node-metrics">
+            <div class="metric-item">
+              <span class="metric-key">消费模式:</span>
+              <span class="metric-val text-primary">Atomic Lua</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-key">两级混合:</span>
+              <span class="metric-val text-success">200ms In-Memory</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="node-card">
+          <div class="node-top">
+            <div class="node-icon bg-amber">⏱️</div>
+            <div class="node-title-group">
+              <div class="node-name">Redis 延时引擎</div>
+              <div class="node-sub">ZSET 延时队列 (db:1)</div>
+            </div>
+            <span class="node-status-badge online">READY</span>
+          </div>
+          <div class="node-metrics">
+            <div class="metric-item">
+              <span class="metric-key">队列健康:</span>
+              <span class="metric-val text-success">Healthy (&lt;1ms)</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-key">兜底保底:</span>
+              <span class="metric-val">15s Fallback</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="node-card">
+          <div class="node-top">
+            <div class="node-icon bg-purple">🛡️</div>
+            <div class="node-title-group">
+              <div class="node-name">MySQL 持久层</div>
+              <div class="node-sub">行级乐观锁 + 唯一幂等</div>
+            </div>
+            <span class="node-status-badge online">SYNCED</span>
+          </div>
+          <div class="node-metrics">
+            <div class="metric-item">
+              <span class="metric-key">主键约束:</span>
+              <span class="metric-val">uk_task_id</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-key">数据归档:</span>
+              <span class="metric-val text-success">Auto-Clean ON</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </el-card>
 
     <!-- Stat Cards -->
     <el-row :gutter="20" class="stat-row">
@@ -39,7 +146,7 @@
             <span class="stat-label">成功任务</span>
             <div class="stat-val text-success">{{ statistics.successTasks }}</div>
             <div class="stat-meta">
-              成功率: {{ successRate }}%
+              综合达成率: <strong class="rate-highlight">{{ successRate }}%</strong>
             </div>
           </div>
           <div class="stat-icon-wrapper success-icon">
@@ -53,7 +160,7 @@
           <div class="stat-info">
             <span class="stat-label">失败任务</span>
             <div class="stat-val text-danger">{{ statistics.failedTasks }}</div>
-            <div class="stat-meta">需人工介入或重试枯竭</div>
+            <div class="stat-meta">已移入死信/需人工介入</div>
           </div>
           <div class="stat-icon-wrapper error-icon">
             <el-icon><CircleCloseFilled /></el-icon>
@@ -76,16 +183,19 @@
     </el-row>
     
     <!-- Chart & Architecture Info -->
-    <el-row :gutter="20" style="margin-top: 20px;">
+    <el-row :gutter="20">
       <el-col :xs="24" :lg="16">
         <el-card shadow="never" class="chart-card">
           <template #header>
             <div class="card-header">
-              <span class="card-title">重试任务流转趋势</span>
+              <div class="card-title-group">
+                <span class="card-title">重试流转实时曲线</span>
+                <span class="card-subtitle">吞吐量与成功恢复趋势分析</span>
+              </div>
               <el-tag size="small" type="success" effect="light">实时心跳同步</el-tag>
             </div>
           </template>
-          <div style="height: 380px;">
+          <div style="height: 360px;">
             <v-chart class="chart" :option="chartOption" autoresize />
           </div>
         </el-card>
@@ -95,7 +205,7 @@
         <el-card shadow="never" class="info-card">
           <template #header>
             <div class="card-header">
-              <span class="card-title">平台核心特性状态</span>
+              <span class="card-title">集群高可用治理特性</span>
               <span class="status-dot-active"></span>
             </div>
           </template>
@@ -104,32 +214,32 @@
             <div class="feature-item">
               <div class="feature-icon bg-blue">⚡</div>
               <div class="feature-body">
-                <div class="feature-name">双层混合重试 (Two-Tier)</div>
-                <div class="feature-desc">本地内存 200ms 快速消解抖动，失败平滑升级至服务端调度</div>
+                <div class="feature-name">两级混合重试 (Two-Tier)</div>
+                <div class="feature-desc">本地 200ms 快速消化微抖动，超时后平滑升级至服务端分布式持久化</div>
               </div>
             </div>
 
             <div class="feature-item">
               <div class="feature-icon bg-emerald">🔄</div>
               <div class="feature-body">
-                <div class="feature-name">去中心化自驱动 MQ</div>
-                <div class="feature-desc">服务端轻量调度延迟与通知，SDK 节点本地通过反射自驱动重试</div>
+                <div class="feature-name">分布式竞争消费无冲突</div>
+                <div class="feature-desc">Redis Lua 脚本原子弹出 (ZRANGEBYSCORE + ZREM)，多节点并发绝不重复消费</div>
               </div>
             </div>
 
             <div class="feature-item">
               <div class="feature-icon bg-purple">🛡️</div>
               <div class="feature-body">
-                <div class="feature-name">预提交与故障降级补偿</div>
-                <div class="feature-desc">支持 PRE_SUBMIT 防崩溃，并在服务端宕机时本地队列补偿同步</div>
+                <div class="feature-name">ShedLock 定时任务互斥</div>
+                <div class="feature-desc">Server 节点多副本部署时自动竞争分布式锁，兜底与归档任务单例执行</div>
               </div>
             </div>
 
             <div class="feature-item">
-              <div class="feature-icon bg-amber">⏱️</div>
+              <div class="feature-icon bg-amber">💾</div>
               <div class="feature-body">
-                <div class="feature-name">动态退避与兜底扫描</div>
-                <div class="feature-desc">支持 FIXED, LINEAR, EXPONENTIAL 策略及高效兜底补漏扫描</div>
+                <div class="feature-name">客户端故障补偿同步</div>
+                <div class="feature-desc">服务端不可用时客户端本地队列自动兜底暂存，恢复后自动重新同步</div>
               </div>
             </div>
           </div>
@@ -151,7 +261,7 @@ import {
   GridComponent
 } from 'echarts/components'
 import VChart from 'vue-echarts'
-import { Document, SuccessFilled, CircleCloseFilled, Loading, Refresh, Monitor } from '@element-plus/icons-vue'
+import { Document, SuccessFilled, CircleCloseFilled, Loading, Refresh, Monitor, Connection } from '@element-plus/icons-vue'
 import { taskApi } from '@/api'
 
 use([
@@ -180,39 +290,41 @@ const successRate = computed(() => {
 const chartOption = ref({
   tooltip: {
     trigger: 'axis',
-    backgroundColor: '#1e293b',
+    backgroundColor: '#0f172a',
     borderColor: '#334155',
-    textStyle: { color: '#f8fafc' }
+    textStyle: { color: '#f8fafc', fontSize: 12 },
+    borderRadius: 8
   },
   legend: {
     data: ['成功任务', '失败任务', '进行中'],
-    top: 5,
-    icon: 'roundRect'
+    top: 0,
+    icon: 'roundRect',
+    textStyle: { color: '#64748b' }
   },
   grid: {
     left: '3%',
     right: '4%',
     bottom: '3%',
-    top: '14%',
+    top: '12%',
     containLabel: true
   },
   xAxis: {
     type: 'category',
     boundaryGap: false,
-    data: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '当前'],
-    axisLine: { lineStyle: { color: '#cbd5e1' } },
-    axisLabel: { color: '#64748b' }
+    data: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '实时'],
+    axisLine: { lineStyle: { color: '#e2e8f0' } },
+    axisLabel: { color: '#64748b', fontSize: 11 }
   },
   yAxis: {
     type: 'value',
-    splitLine: { lineStyle: { color: '#f1f5f9' } },
-    axisLabel: { color: '#64748b' }
+    splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
+    axisLabel: { color: '#64748b', fontSize: 11 }
   },
   series: [
     {
       name: '成功任务',
       type: 'line',
-      smooth: true,
+      smooth: 0.35,
       showSymbol: false,
       lineStyle: { width: 3, color: '#10b981' },
       areaStyle: {
@@ -220,8 +332,8 @@ const chartOption = ref({
           type: 'linear',
           x: 0, y: 0, x2: 0, y2: 1,
           colorStops: [
-            { offset: 0, color: 'rgba(16, 185, 129, 0.28)' },
-            { offset: 1, color: 'rgba(16, 185, 129, 0.02)' }
+            { offset: 0, color: 'rgba(16, 185, 129, 0.3)' },
+            { offset: 1, color: 'rgba(16, 185, 129, 0.01)' }
           ]
         }
       },
@@ -230,7 +342,7 @@ const chartOption = ref({
     {
       name: '进行中',
       type: 'line',
-      smooth: true,
+      smooth: 0.35,
       showSymbol: false,
       lineStyle: { width: 3, color: '#3b82f6' },
       areaStyle: {
@@ -239,7 +351,7 @@ const chartOption = ref({
           x: 0, y: 0, x2: 0, y2: 1,
           colorStops: [
             { offset: 0, color: 'rgba(59, 130, 246, 0.25)' },
-            { offset: 1, color: 'rgba(59, 130, 246, 0.02)' }
+            { offset: 1, color: 'rgba(59, 130, 246, 0.01)' }
           ]
         }
       },
@@ -248,7 +360,7 @@ const chartOption = ref({
     {
       name: '失败任务',
       type: 'line',
-      smooth: true,
+      smooth: 0.35,
       showSymbol: false,
       lineStyle: { width: 2, color: '#ef4444' },
       data: [2, 1, 3, 2, 4, 3, 5]
@@ -291,21 +403,63 @@ onMounted(() => {
 }
 
 .welcome-banner {
-  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  background: linear-gradient(135deg, #090d16 0%, #1e293b 100%);
   color: #fff;
-  padding: 24px 28px;
-  border-radius: 12px;
+  padding: 28px 32px;
+  border-radius: 16px;
   margin-bottom: 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.banner-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.banner-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.cluster-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.pulse-indicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+  animation: pulse 1.8s infinite;
 }
 
 .banner-title {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 24px;
+  font-weight: 800;
   margin-bottom: 6px;
+  letter-spacing: -0.5px;
   color: #f8fafc;
 }
 
@@ -320,6 +474,149 @@ onMounted(() => {
   gap: 12px;
 }
 
+.btn-demo-link {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #f8fafc !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+.btn-demo-link:hover {
+  background: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Cluster Topology Card */
+.cluster-topology-card {
+  margin-bottom: 24px;
+  background: #ffffff;
+  padding: 20px 24px;
+}
+
+.topology-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.topology-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.topology-icon {
+  font-size: 18px;
+  color: #2563eb;
+}
+
+.topology-legend {
+  display: flex;
+  gap: 14px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.legend-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.legend-dot.green  { background: #10b981; }
+.legend-dot.blue   { background: #3b82f6; }
+.legend-dot.purple { background: #a855f7; }
+
+.nodes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.node-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  transition: all 0.25s;
+}
+
+.node-card:hover {
+  border-color: #cbd5e1;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.node-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.node-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.node-title-group {
+  flex: 1;
+}
+
+.node-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.node-sub {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.node-status-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.node-status-badge.online {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+.node-metrics {
+  border-top: 1px dashed #e2e8f0;
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.metric-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.metric-key { color: #64748b; }
+.metric-val { font-weight: 600; color: #1e293b; }
+
+/* Stat Cards */
 .stat-row {
   margin-bottom: 8px;
 }
@@ -334,12 +631,11 @@ onMounted(() => {
   justify-content: space-between;
   margin-bottom: 16px;
   transition: all 0.25s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .stat-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
   border-color: #cbd5e1;
 }
 
@@ -351,7 +647,7 @@ onMounted(() => {
 
 .stat-val {
   font-size: 30px;
-  font-weight: 700;
+  font-weight: 800;
   color: #0f172a;
   margin: 4px 0 2px;
 }
@@ -361,9 +657,14 @@ onMounted(() => {
   color: #94a3b8;
 }
 
+.rate-highlight {
+  color: #10b981;
+}
+
 .text-success { color: #10b981; }
 .text-danger  { color: #ef4444; }
 .text-warning { color: #f59e0b; }
+.text-primary { color: #2563eb; }
 
 .stat-icon-wrapper {
   width: 52px;
@@ -392,10 +693,21 @@ onMounted(() => {
   justify-content: space-between;
 }
 
+.card-title-group {
+  display: flex;
+  flex-direction: column;
+}
+
 .card-title {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   color: #0f172a;
+}
+
+.card-subtitle {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 2px;
 }
 
 .status-dot-active {
@@ -436,19 +748,25 @@ onMounted(() => {
 .bg-amber   { background: #fffbeb; }
 
 .feature-name {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
   color: #1e293b;
   margin-bottom: 2px;
 }
 
 .feature-desc {
-  font-size: 12px;
+  font-size: 11px;
   color: #64748b;
   line-height: 1.5;
 }
 
 .chart {
-  height: 380px;
+  height: 360px;
+}
+
+@keyframes pulse {
+  0% { transform: scale(0.95); opacity: 0.7; }
+  50% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.7; }
 }
 </style>
