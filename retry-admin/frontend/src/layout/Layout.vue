@@ -4,7 +4,7 @@
       <Sidebar />
     </div>
     <div class="main-container">
-      <div class="navbar">
+      <div class="navbar-wrapper">
         <Navbar />
       </div>
       <div class="app-main">
@@ -33,7 +33,7 @@ const isCollapse = computed(() => !appStore.sidebar.opened)
 }
 
 .sidebar-container {
-  width: 210px;
+  width: 220px;
   height: 100%;
   position: fixed;
   font-size: 0px;
@@ -42,19 +42,20 @@ const isCollapse = computed(() => !appStore.sidebar.opened)
   left: 0;
   z-index: 1001;
   overflow: hidden;
-  background-color: #304156;
-  box-shadow: 2px 0 6px rgba(0, 21, 41, 0.35);
+  background-color: #0f172a;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
   transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .main-container {
   min-height: 100vh;
-  width: calc(100% - 210px);
-  margin-left: 210px;
+  width: calc(100% - 220px);
+  margin-left: 220px;
   position: relative;
   display: flex;
   flex-direction: column;
   transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  background-color: #f8fafc;
 }
 
 .hideSidebar .sidebar-container {
@@ -66,22 +67,18 @@ const isCollapse = computed(() => !appStore.sidebar.opened)
   margin-left: 64px;
 }
 
-.navbar {
-  height: 50px;
-  overflow: hidden;
-  position: relative;
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
+.navbar-wrapper {
+  height: 56px;
   flex-shrink: 0;
 }
 
 .app-main {
-  height: calc(100vh - 50px);
+  height: calc(100vh - 56px);
   width: 100%;
   position: relative;
   overflow-y: auto;
   overflow-x: hidden;
-  background-color: #f0f2f5;
+  background-color: #f8fafc;
   box-sizing: border-box;
 }
 </style>
