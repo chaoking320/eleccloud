@@ -48,6 +48,9 @@ public class BusinessController {
     @Autowired
     private InventoryBusinessService inventoryBusinessService;
 
+    @Autowired
+    private com.retry.platform.example.service.TwoTierBusinessService twoTierBusinessService;
+
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     // SSE 连接池
@@ -166,6 +169,46 @@ public class BusinessController {
         }
 
         return resp(transId, rec);
+    }
+
+    /**
+     * 触发双层混合重试演示（本地快速重试 + 分布式平滑升级）
+     *
+     * @param failTimes 模拟失败次数：
+     *                  若为 1：第 1 次失败，第 2 次（本地 200ms）即刻恢复，无分布式存储与 MQ 开销！
+     *                  若为 3：本地 2 次均失败（耗时 400ms），随后自动升级至 ElecCloud 分布式重试！
+     */
+    @PostMapping("/trigger/two-tier")
+    public Map<String, Object> triggerTwoTier(@RequestParam(defaultValue = "1") int failTimes) {
+        String msgId = "SMS_" + shortUUID();
+        twoTierBusinessService.resetCounter();
+
+        pushLog("🚀 [场景4·双层混合重试] 开始短信发送流程 (设定下游抖动失败次数: " + failTimes + ")");
+        pushLog("   msgId = " + msgId);
+        pushLog("   注解配置：@RetryableTask(sceneType=10, localRetryTimes=2, localIntervalMs=200)");
+        pushLog("   执行策略：优先本地 200ms 重试，连续失败 2 次后升级为分布式调度");
+
+        Map<String, Object> rec = rec("短信通知-双层重试", msgId);
+        TASK_RECORDS.put(msgId, rec);
+
+        long start = System.currentTimeMillis();
+        try {
+            twoTierBusinessService.sendSms(msgId, "13800138000", "您的验证码是 8888", failTimes);
+            long cost = System.currentTimeMillis() - start;
+            rec.put("status", "SUCCESS");
+            rec.put("tier", "LOCAL_RECOVERED");
+            pushLog("⚡ [本地快速恢复] 本地重试第 " + twoTierBusinessService.getAttempts() + " 次成功！耗时: " + cost + "ms");
+            pushLog("🎉 零分布式开销：瞬时抖动被本地重试消化，未在服务端生成重试任务！");
+        } catch (Exception e) {
+            long cost = System.currentTimeMillis() - start;
+            rec.put("status", "PENDING");
+            rec.put("tier", "ESCALATED_TO_SERVER");
+            pushLog("⚠️ [本地重试枯竭] 本地快速重试 " + twoTierBusinessService.getAttempts() + " 次均失败 (耗时: " + cost + "ms)");
+            pushLog("🎯 AOP 自动平滑升级为分布式任务并持久化至 ElecCloud (sceneType=10)");
+            pushLog("⏳ ElecCloud 服务端调度器将接管后续分布式退避重试，请观察 Admin 监控...");
+        }
+
+        return resp(msgId, rec);
     }
 
     // ================================================================
