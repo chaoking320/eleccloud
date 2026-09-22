@@ -2,7 +2,9 @@
 
 # ⚡ ElecCloud
 
-**Production-Ready Distributed Retry Platform — 5 Minutes to Integrate**
+**A Lightweight, Decentralized Distributed Retry Framework for Java**
+
+*Designed specifically for environments with one-directional network constraints, zero-callback coupling, and crash-resilient retry semantics.*
 
 [![Java](https://img.shields.io/badge/Java-17%2B-orange?logo=openjdk)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-2.7.18-brightgreen?logo=springboot)](https://spring.io/projects/spring-boot)
@@ -12,7 +14,7 @@
 
 [English](README.md) | [简体中文](README_zh.md)
 
-[Quick Start](#-quick-start) • [Features](#-core-features) • [Architecture](#-architecture) • [Documentation](#-documentation) • [Contributing](#-contributing)
+[Quick Start](#-quick-start) • [Design Focus](#-design-focus--where-it-fits) • [Core Capabilities](#-core-capabilities) • [Architecture](#-architecture) • [Documentation](#-documentation) • [Contributing](#-contributing)
 
 </div>
 
@@ -22,61 +24,62 @@
 
 > **ElecCloud — The Electron Cloud**
 >
-> In quantum physics, electrons don't orbit the nucleus in fixed paths. Instead, they form a **probability cloud** — constantly in motion, tirelessly guarding the core from external interference.
+> In quantum physics, electrons don't orbit the nucleus in fixed paths. Instead, they form a **probability cloud** — constantly in motion, quietly guarding the nucleus from external interference.
 >
-> This is the philosophy behind ElecCloud: **When your critical services fail due to network jitters, downstream timeouts, or third-party unavailability, you shouldn't need manual intervention. Like an electron cloud, ElecCloud silently and persistently guards your business processes until tasks eventually succeed.**
+> That inspired ElecCloud's design: **When downstream calls fail due to temporary network jitters or transient timeouts, you shouldn't have to manually fight fires. ElecCloud aims to silently guard critical tasks within the client process, retrying with backoff until eventual success.**
 
-In distributed systems, cross-service failures are inevitable:
+In distributed systems, transient failures are inevitable:
 
-- 💳 Payment callback timeout → Fund status unknown, manual reconciliation needed
-- 🌐 Third-party API rate limit → Batch requests lost, manual data entry required
-- 📨 Message delivery failure → Data inconsistency, tedious troubleshooting
-
-**ElecCloud's mission: Let failed tasks automatically retry until success, freeing engineers from repetitive firefighting.**
+- 💳 Payment callback timeouts → Unconfirmed transaction state requiring manual reconciliation
+- 🌐 Third-party API rate limits → Dropped requests requiring manual backfilling
+- 📨 Message delivery blips → Temporary data inconsistency
 
 ---
 
-## 🎯 Why ElecCloud?
+## 🎯 Design Focus & Where It Fits
 
-### vs. Traditional Solutions
+ElecCloud does not try to be an all-in-one scheduler. Instead, it focuses on solving a few specific architectural pain points often encountered with retry solutions:
 
-| Feature | ElecCloud | Manual Retry | XXL-JOB | Spring Retry |
-|---------|-----------|--------------|---------|--------------|
-| **Zero-Hook Mode** | ✅ One annotation | ❌ Need code | ❌ Complex setup | ⚠️ No persistence |
-| **PRE_SUBMIT Mode** | ✅ Process crash safe | ❌ Data loss risk | ❌ Not supported | ❌ Not supported |
-| **Standalone Mode** | ✅ Zero infrastructure | ❌ | ❌ | ❌ |
-| **Visual Dashboard** | ✅ Real-time monitoring | ❌ Log only | ✅ Supported | ❌ No UI |
-| **Multi-layer Fallback** | ✅ MQ + DB + Scanner | ❌ Single point | ⚠️ Redis dependent | ❌ In-memory |
-| **Learning Curve** | 🟢 Very Low | 🟡 Medium | 🔴 High | 🟡 Medium |
+### Trade-offs & Comparisons
+
+- **vs. Spring Retry**: Spring Retry is fantastic for in-memory, immediate retries. However, when an application process crashes or retries must span hours with exponential backoff, in-memory state is lost. ElecCloud provides persistence across restarts.
+- **vs. XXL-JOB / ElasticJob**: Distributed job schedulers are the industry standard for cron-based batch computing. But setting up dedicated job handlers for individual method-level transient errors can be heavyweight. ElecCloud provides lightweight annotation-driven method retries.
+- **vs. Centralized Retry Platforms**: Traditional platforms require the server to call back into your application via HTTP. This demands bidirectional network connectivity, which often breaks across VPCs, Kubernetes clusters, or private network boundaries. ElecCloud shifts the execution loop to the client SDK, making the server a simple, passive storage node.
+
+| Scenario / Trait | Spring Retry | Traditional Distributed Schedulers | Centralized HTTP Retry Centers | ElecCloud |
+| :--- | :--- | :--- | :--- | :--- |
+| **Primary Focus** | In-memory retry | Scheduled batch jobs | Centralized HTTP callbacks | Asynchronous method retries |
+| **Crash Safety** | ❌ Memory lost | ✅ Yes | ✅ Yes | ✅ `PRE_SUBMIT` mode |
+| **Network Boundary** | Local JVM | Bidirectional / Agent | Bidirectional HTTP required | **One-directional only (SDK → Server)** |
+| **Callback Coupling** | None | Agent required | Server needs business IP:port | **Zero (SDK pulls & executes locally)** |
+| **Setup Overhead** | Minimal | Medium - High | Medium | Low |
 
 ---
 
-## ✨ Core Features
+## ✨ Core Capabilities
 
-### 🚀 Zero-Hook Mode — One Annotation, Auto Retry
+### 1. Decentralized Execution (No Reverse Callbacks)
+Traditional retry platforms require the server to make HTTP requests back into your service. In cloud environments with ingress restrictions or dynamic containers, this is notoriously difficult to maintain. ElecCloud delegates scheduling to the SDK via MQ delayed queues, eliminating reverse connectivity requirements entirely.
+
+### 2. Zero-Hook Mode for Common Cases
+For scenarios that simply succeed if no exception is thrown (e.g., inventory sync, cache evictions, notifications), you don't need to write custom query hooks:
 
 ```java
-// Before: 50+ lines of Hook code
-// After: Just this ↓
 @RetryableTask(sceneType = 1001, idempotentKey = "#orderId")
 public void processPayment(String orderId) {
     paymentApi.pay(orderId);
-    // Auto retry on failure: 1min → 5min → 10min → 30min ✅
+    // Automatically retried on exception using configured scene backoff
 }
 ```
 
-### 💎 Production-Ready Features
+### 3. Crash Resilient (PRE_SUBMIT Mode)
+If a process crashes while executing a task, traditional post-fail interceptors lose the trigger. In `PRE_SUBMIT` mode, the task is recorded in `INIT` state before execution begins, ensuring recovery if the JVM terminates abruptly.
 
-| Feature | Description |
-|---------|-------------|
-| **🎯 PRE_SUBMIT Mode** | Register task before execution — process crash safe |
-| **🔄 4 Backoff Strategies** | `CUSTOM`, `FIXED`, `LINEAR`, `EXPONENTIAL` |
-| **📊 Real-time Dashboard** | Task monitoring, timeline view, manual trigger |
-| **🛡️ Multi-layer Fallback** | Redis/RabbitMQ → MySQL fallback → Timeout recovery scanner |
-| **🔐 API Key Security** | Built-in authentication with whitelist support |
-| **📈 Prometheus Ready** | Full observability with Grafana dashboard |
-| **🌐 Standalone Mode** | SDK-only mode, no server required |
-| **🔔 Multi-channel Alerts** | Email, DingTalk, WeChat Work |
+### 4. Pragmatic Enterprise Features
+- **4 Backoff Strategies**: `CUSTOM`, `FIXED`, `LINEAR`, `EXPONENTIAL`
+- **Multi-layer Fallback**: Delayed Queue → Database fallback scanner → Executing timeout recovery
+- **Concurrency Protection**: CAS status transitions and idempotent key unique constraints
+- **Standalone Mode**: SDK-only mode without server dependency for simpler setups
 
 ---
 
@@ -97,6 +100,8 @@ docker compose -f docker-compose.simple.yml up -d
 | Demo App | http://localhost:8082 |
 
 ### Option 2: SDK Dependency (Remote Mode)
+
+> 💡 **Quick evaluation**: Run `mvn clean install -DskipTests` at the project root once to install `retry-client-sdk` into your local `.m2` repository before adding the dependency below.
 
 **Step 1: Add dependency**
 
@@ -153,7 +158,7 @@ retry:
 
 ## 🏗️ Architecture
 
-ElecCloud v3.0 uses a **decentralized MQ-SDK-driven** design — scheduling authority is fully delegated to the SDK, eliminating the need for the server to actively call back into business services.
+ElecCloud adopts a **decentralized MQ-SDK-driven** architecture — scheduling authority is fully delegated to the SDK, eliminating the need for the server to actively call back into business services.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -224,17 +229,6 @@ docker compose -f docker-compose.simple.yml up -d
 ```
 
 Look for issues tagged [`good first issue`](../../issues?q=label%3A%22good+first+issue%22) — perfect for newcomers!
-
----
-
-## 🌟 Roadmap
-
-- [ ] **v1.1**: Spring Boot 3.x support
-- [ ] **v1.2**: PostgreSQL support
-- [ ] **v1.3**: Maven Central publishing
-- [ ] **v2.0**: WebSocket real-time dashboard updates
-- [ ] **v2.1**: Multi-tenant support
-- [ ] **v2.2**: Kafka MQ engine
 
 ---
 
