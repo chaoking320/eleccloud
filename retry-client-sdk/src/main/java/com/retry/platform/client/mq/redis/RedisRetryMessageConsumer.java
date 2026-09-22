@@ -5,15 +5,16 @@ import com.retry.platform.client.mq.RetryMessagePayload;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
+import org.springframework.beans.factory.DisposableBean;
+import org.springframework.beans.factory.InitializingBean;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
 
 /**
  * 基于 Redis ZSET 的 SDK 本地延时消息轮询消费者（支持胖消息/瘦消息）
@@ -22,7 +23,7 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
  * <p>瘦消息：member = taskId，降级走原有路径（向后兼容旧数据和 DatabaseFallbackScheduler）。
  */
 @Slf4j
-public class RedisRetryMessageConsumer {
+public class RedisRetryMessageConsumer implements InitializingBean, DisposableBean {
 
     private static final DefaultRedisScript<List> LUA_SCRIPT;
     static {
@@ -72,12 +73,21 @@ public class RedisRetryMessageConsumer {
         );
     }
 
-    @PostConstruct
+    @Override
+    public void afterPropertiesSet() {
+        start();
+    }
+
     public void start() {
         Thread workerThread = new Thread(this::pollLoop, "redis-retry-message-consumer-thread");
         workerThread.setDaemon(true);
         workerThread.start();
         log.info("[Redis MQ] Local delay queue consumer thread started. Queue: {}", delayQueueKey);
+    }
+
+    @Override
+    public void destroy() {
+        stop();
     }
 
     private void pollLoop() {
@@ -177,7 +187,6 @@ public class RedisRetryMessageConsumer {
         localRetryExecutor.execute(member);
     }
 
-    @PreDestroy
     public void stop() {
         running = false;
         executorService.shutdown();

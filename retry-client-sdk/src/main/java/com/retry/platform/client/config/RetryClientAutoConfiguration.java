@@ -31,7 +31,6 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.client.RestTemplate;
 
-import javax.annotation.PostConstruct;
 import javax.sql.DataSource;
 
 /**
@@ -48,7 +47,7 @@ import javax.sql.DataSource;
 @EnableScheduling
 @EnableConfigurationProperties(RetryClientProperties.class)
 @ConditionalOnProperty(prefix = "retry.client", name = "enabled", havingValue = "true", matchIfMissing = true)
-public class RetryClientAutoConfiguration {
+public class RetryClientAutoConfiguration implements org.springframework.beans.factory.InitializingBean {
     
     private final RetryClientProperties properties;
     private final org.springframework.core.env.Environment environment;
@@ -61,7 +60,11 @@ public class RetryClientAutoConfiguration {
     /**
      * 启动时配置校验 - 快速失败原则
      */
-    @PostConstruct
+    @Override
+    public void afterPropertiesSet() {
+        validateConfiguration();
+    }
+
     public void validateConfiguration() {
         log.info("========================================");
         log.info("ElecCloud Retry Client Configuration Validation");

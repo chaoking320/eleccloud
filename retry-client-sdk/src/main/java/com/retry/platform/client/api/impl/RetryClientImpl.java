@@ -18,7 +18,7 @@ import org.springframework.web.util.UriComponentsBuilder;
  * 重试客户端实现类
  */
 @Slf4j
-public class RetryClientImpl implements RetryClient {
+public class RetryClientImpl implements RetryClient, org.springframework.beans.factory.InitializingBean {
     
     @Autowired
     private RetryClientProperties properties;
@@ -29,8 +29,8 @@ public class RetryClientImpl implements RetryClient {
     @Autowired(required = false)
     private com.retry.platform.client.resilience.RemoteSyncCompensationManager compensationManager;
 
-    @javax.annotation.PostConstruct
-    public void initCompensation() {
+    @Override
+    public void afterPropertiesSet() {
         if (compensationManager != null) {
             compensationManager.setRetryClient(this);
         }

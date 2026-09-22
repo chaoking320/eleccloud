@@ -36,6 +36,19 @@ In distributed systems, transient failures are inevitable:
 
 ---
 
+## ⚙️ Compatibility & Runtime Requirements
+
+ElecCloud is intentionally built with an **enterprise-first compatibility strategy**:
+
+| Component | Target Version | Design Rationale |
+|:---|:---|:---|
+| **Java Runtime** | **JDK 17 / 21 (LTS)** | Built for modern JVMs, leveraging contemporary memory models and execution performance. |
+| **Spring Framework** | **Spring Boot 2.7.x** | Prioritizes seamless integration with the vast ecosystem of existing production enterprise services without forcing an invasive migration to the `jakarta.*` namespace. |
+| **Database** | **MySQL 8.0+** | Utilizes atomic status CAS transitions and indexed idempotent constraints. |
+| **Message Queues** | **Redis 6+ (ZSET) / RabbitMQ 3.8+** | Dual-engine support for lightweight local setups or robust enterprise messaging. |
+
+---
+
 ## 🎯 Design Focus & Where It Fits
 
 ElecCloud does not try to be an all-in-one scheduler. Instead, it focuses on solving a few specific architectural pain points often encountered with retry solutions:
