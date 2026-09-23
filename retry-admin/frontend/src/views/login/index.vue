@@ -101,6 +101,17 @@ const fillDemoAccount = () => {
   ElMessage.success('已自动填入演示账号 (admin / admin123)')
 }
 
+import { onMounted } from 'vue'
+
+onMounted(() => {
+  if (route.query.auto === '1' || route.query.demo === '1') {
+    authStore.login('admin', 'admin123').then(() => {
+      const redirect = route.query.redirect || '/dashboard'
+      router.push(redirect)
+    })
+  }
+})
+
 const handleLogin = () => {
   if (!loginFormRef.value) return
   loginFormRef.value.validate(async (valid) => {

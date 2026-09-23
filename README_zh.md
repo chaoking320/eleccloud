@@ -18,6 +18,10 @@
 
 </div>
 
+<p align="center">
+  <img src="docs/images/showcase.gif" alt="ElecCloud Dashboard 演示动图" width="100%" />
+</p>
+
 ---
 
 ## 🌌 项目名称由来
