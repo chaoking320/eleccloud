@@ -190,22 +190,46 @@ retry:
 
 ElecCloud adopts a **decentralized MQ-SDK-driven** architecture — scheduling authority is fully delegated to the SDK, eliminating the need for the server to actively call back into business services.
 
-```
-┌─────────────────────────────────────────────────────────┐
-│              Business Application (with SDK)            │
-│                                                         │
-│  Method fails                                           │
-│    ↓ AOP intercept (@RetryableTask)                    │
-│  RetryClient.submit() ──► Retry Server (persist only)  │
-│    ↓                                                    │
-│  MQ Producer ──► [Redis ZSET / RabbitMQ Delay Queue]   │
-│    ↓ delay expires                                      │
-│  MQ Consumer ──► LocalRetryExecutor (state machine)     │
-│    ↓                                                    │
-│  Hook.checkStatus() ──► Hook.doQuery() ──► doCallback() │
-│    ↓                                                    │
-│  SUCCESS / reschedule / max-retries → FAILED           │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph ClientApp["🏢 Business Application (Microservices)"]
+        Method["Business Method Execution"]
+        AOP["@RetryableTask AOP Interceptor"]
+        LocalEngine{"Local Fast Retry<br/>(e.g., 200ms in-memory)"}
+        LocalSuccess["✅ Quick Recover<br/>(Zero MQ/DB Overhead)"]
+        LocalExecutor["LocalRetryExecutor<br/>(Reflection & Hook Lifecycle)"]
+    end
+
+    subgraph DelayQueue["⚡ Decentralized MQ Layer"]
+        RedisMQ[("Redis ZSET<br/>Atomic Lua Pop")]
+        RabbitMQ[("RabbitMQ<br/>Delayed Exchange")]
+    end
+
+    subgraph ServerCluster["🛡️ ElecCloud Server Cluster"]
+        ServerAPI["Stateless REST API<br/>(/submit, /status, /heartbeat)"]
+        ShedLock["ShedLock + Redis<br/>Distributed Job Mutex"]
+        MySQL[("MySQL Database<br/>uk_task_id & Row Lock")]
+    end
+
+    subgraph Console["💻 ElecCloud Admin Dashboard"]
+        AdminUI["Vue 3 + Element Plus<br/>Retry Pipeline & Monitoring"]
+    end
+
+    Method -->|Throws Exception| AOP
+    AOP --> LocalEngine
+    LocalEngine -->|Transient Success| LocalSuccess
+    LocalEngine -->|Exhausted| ServerAPI
+    ServerAPI -->|Persist Task| MySQL
+    AOP -->|Publish Delayed Msg| RedisMQ
+    AOP -.->|Optional| RabbitMQ
+    
+    RedisMQ -->|Pull When Expired| LocalExecutor
+    RabbitMQ -.->|Consume| LocalExecutor
+    LocalExecutor -->|Re-invoke Method| Method
+    LocalExecutor -->|Report Result| ServerAPI
+
+    ShedLock -->|Compensate Stuck Tasks| RedisMQ
+    AdminUI <-->|Manage & Visualize| ServerAPI
 ```
 
 ### Core Components

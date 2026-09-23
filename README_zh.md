@@ -210,22 +210,46 @@ public class RefundService {
 
 ElecCloud 采用**去中心化 MQ-SDK 驱动**架构 — 调度权完全移交给 SDK，Server 只负责数据存储，不再主动回调业务服务。
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                 业务系统（内含 SDK）                      │
-│                                                         │
-│  方法失败                                                │
-│    ↓ AOP 拦截 (@RetryableTask)                          │
-│  RetryClient.submit() ──► Retry Server（仅做持久化）     │
-│    ↓                                                    │
-│  MQ Producer ──► [Redis ZSET / RabbitMQ 延时队列]       │
-│    ↓ 延时到期                                           │
-│  MQ Consumer ──► LocalRetryExecutor（本地状态机）        │
-│    ↓                                                    │
-│  Hook.checkStatus() ──► Hook.doQuery() ──► doCallback() │
-│    ↓                                                    │
-│  SUCCESS / 重新调度 / 超次数 → FAILED                   │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph ClientApp["🏢 业务系统集群（集成 retry-client-sdk）"]
+        Method["业务核心方法执行"]
+        AOP["@RetryableTask AOP 增强切面"]
+        LocalEngine{"双层重试机制<br/>(本地毫秒级就地重试)"}
+        LocalSuccess["✅ 快速恢复<br/>(零 MQ / 零 DB 开销)"]
+        LocalExecutor["LocalRetryExecutor<br/>(本地反射与 Hook 生命周期)"]
+    end
+
+    subgraph DelayQueue["⚡ 去中心化延时消息中间件"]
+        RedisMQ[("Redis ZSET<br/>原子 Lua 脚本防超发")]
+        RabbitMQ[("RabbitMQ<br/>延时插件插件队列")]
+    end
+
+    subgraph ServerCluster["🛡️ ElecCloud 服务端集群"]
+        ServerAPI["无状态 REST API<br/>(/submit, /status, /heartbeat)"]
+        ShedLock["ShedLock + Redis 锁<br/>分布式定时任务互斥扫描"]
+        MySQL[("MySQL 持久化<br/>uk_task_id 唯一索引与行级锁")]
+    end
+
+    subgraph Console["💻 ElecCloud 管理运维平台"]
+        AdminUI["Vue 3 + Element Plus<br/>重试流水线与监控看板"]
+    end
+
+    Method -->|方法抛出异常| AOP
+    AOP --> LocalEngine
+    LocalEngine -->|瞬时抖动自愈| LocalSuccess
+    LocalEngine -->|重试耗尽平滑升级| ServerAPI
+    ServerAPI -->|任务持久化| MySQL
+    AOP -->|投递延时任务| RedisMQ
+    AOP -.->|可选通道| RabbitMQ
+    
+    RedisMQ -->|到期原子拉取| LocalExecutor
+    RabbitMQ -.->|竞争消费| LocalExecutor
+    LocalExecutor -->|反射重试执行| Method
+    LocalExecutor -->|上报最终结果| ServerAPI
+
+    ShedLock -->|兜底补偿停滞任务| RedisMQ
+    AdminUI <-->|可视化运维与查询| ServerAPI
 ```
 
 ### 核心组件
