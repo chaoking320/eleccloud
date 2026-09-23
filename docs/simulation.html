@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>ElecCloud: 从物理量子力学到分布式高可用架构的深度具象对比</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    @keyframes pulse-subtle {
+      0%, 100% { transform: scale(1); opacity: 0.95; }
+      50% { transform: scale(1.05); opacity: 1; }
+    }
+    .hud-mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    /* 故障震动特效 */
+    .shake-danger {
+      animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+    }
+    @keyframes shake {
+      10%, 90% { transform: translate3d(-1px, 0, 0); }
+      20%, 80% { transform: translate3d(2px, 0, 0); }
+      30%, 50%, 70% { transform: translate3d(-3px, 0, 0); }
+      40%, 60% { transform: translate3d(3px, 0, 0); }
+    }
+  </style>
+</head>
+<body class="bg-[#050811] text-slate-100 font-sans select-none antialiased min-h-screen flex flex-col justify-between overflow-x-hidden">
+
+  <!-- 顶栏说明与业务作用控制器 -->
+  <header class="border-b border-slate-800/80 bg-slate-900/90 backdrop-blur-md px-6 py-3.5 flex flex-wrap items-center justify-between gap-4 z-20">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 via-blue-600 to-indigo-500 flex items-center justify-center text-xl shadow-lg shadow-cyan-500/25">
+        ⚡
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="font-bold text-base text-white tracking-wide">ElecCloud · 电子云架构哲学 ⟷ 分布式自愈系统深度对比</h1>
+          <span class="text-[10px] px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-mono">LIVE VALUE SIMULATOR</span>
+        </div>
+        <p class="text-xs text-slate-400">微观异常不可避免（测不准） ⟷ 宏观概率云坚不可摧（零丢失、秒级自愈）</p>
+      </div>
+    </div>
+
+    <!-- 模式切换与操作核心控制器 -->
+    <div class="flex items-center gap-3 text-xs">
+      <!-- 对比模式切换按钮 -->
+      <div class="flex items-center bg-slate-800/90 p-1 rounded-xl border border-slate-700">
+        <button id="btnWithShield" onclick="setDefenseMode(true)" class="px-3 py-1.5 rounded-lg font-medium transition-all bg-emerald-500 text-white shadow-md shadow-emerald-500/30 flex items-center gap-1.5">
+          <span>🛡️</span> ElecCloud 电子云防御 (正常)
+        </button>
+        <button id="btnWithoutShield" onclick="setDefenseMode(false)" class="px-3 py-1.5 rounded-lg font-medium transition-all text-slate-400 hover:text-rose-400 flex items-center gap-1.5">
+          <span>❌</span> 传统裸奔模式 (无重试防线)
+        </button>
+      </div>
+
+      <!-- 注入故障按钮 -->
+      <div class="h-5 w-px bg-slate-700"></div>
+      <button onclick="injectAnomaly('504')" class="px-3 py-1.5 bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 rounded-lg transition-all flex items-center gap-1">
+        <span>💥</span> 模拟 504 网关超时
+      </button>
+      <button onclick="injectAnomaly('429')" class="px-3 py-1.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded-lg transition-all flex items-center gap-1">
+        <span>🌊</span> 模拟 429 API限流
+      </button>
+    </div>
+  </header>
+
+  <!-- 核心展示区域 -->
+  <main class="relative flex-1 flex flex-col justify-center items-center p-4">
+    
+    <!-- 左右两边顶部的直观名牌与业务指标实时看板 -->
+    <div class="w-full max-w-6xl grid grid-cols-2 gap-6 mb-3 px-1 z-10">
+      
+      <!-- 左：微观量子物理世界 -->
+      <div class="bg-slate-900/80 border border-cyan-500/30 rounded-2xl p-3.5 backdrop-blur-md shadow-xl flex items-center justify-between">
+        <div>
+          <div class="text-[11px] font-mono text-cyan-400 font-bold flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+            【物理学】微观量子力学模型 (Microscopic Quantum)
+          </div>
+          <div class="text-xs text-slate-200 font-medium mt-1">
+            中心：<span class="text-amber-300 font-bold">原子核 (强核力稳固凝聚)</span>
+          </div>
+          <div class="text-[11px] text-slate-400">
+            外层：1s球形云 + 2p哑铃双波瓣云 · 电子能级跃迁吸收宇宙辐射
+          </div>
+        </div>
+        <div class="text-right">
+          <div class="text-[10px] text-slate-500">原子核受扰率</div>
+          <div class="text-sm font-mono font-bold text-cyan-400">0.0000 %</div>
+        </div>
+      </div>
+
+      <!-- 右：分布式计算机学直观作用看板 -->
+      <div id="rightStatusCard" class="bg-slate-900/80 border border-emerald-500/40 rounded-2xl p-3.5 backdrop-blur-md shadow-xl flex items-center justify-between transition-all">
+        <div>
+          <div id="rightStatusTag" class="text-[11px] font-mono text-emerald-400 font-bold flex items-center gap-1.5">
+            <span id="rightStatusDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            【计算机学】ElecCloud 生产自愈防护 (Production Resilient)
+          </div>
+          <div class="text-xs text-slate-200 font-medium mt-1">
+            保护核心：<span id="coreDbLabel" class="text-emerald-400 font-bold">交易订单库 & 主业务进程 (ACID 强一致)</span>
+          </div>
+          <div id="defenseLayersDesc" class="text-[11px] text-slate-400">
+            防线：① 本地内存200ms脱敏 ➔ ② Redis延时削峰 ➔ ③ ShedLock互斥自愈
+          </div>
+        </div>
+        
+        <!-- 实时跳动业务数据对比 -->
+        <div class="flex items-center gap-4 text-right">
+          <div>
+            <div class="text-[10px] text-slate-500">已拦截外部异常</div>
+            <div id="statIntercepted" class="text-sm font-mono font-bold text-amber-400">128 次</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-500">业务订单挽救率</div>
+            <div id="statRescueRate" class="text-base font-mono font-bold text-emerald-400">100.0 %</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 双世界分屏对比核心画布 (Canvas 容器) -->
+    <div id="canvasContainer" class="relative w-full max-w-6xl aspect-[16/8.2] max-h-[560px] rounded-3xl overflow-hidden border border-slate-800 shadow-2xl bg-[#030611]">
+      <canvas id="dualCanvas" class="w-full h-full block"></canvas>
+
+      <!-- 实时业务事件动态流水字幕 (浮动在右半屏下方) -->
+      <div class="absolute bottom-4 right-4 max-w-md bg-slate-950/85 border border-slate-800 backdrop-blur-md rounded-xl p-2.5 shadow-2xl hud-mono text-[11px] pointer-events-none">
+        <div class="flex items-center justify-between border-b border-slate-800/80 pb-1 mb-1.5 text-slate-400 text-[10px]">
+          <span class="flex items-center gap-1 text-slate-300 font-bold">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            实时业务自愈事件流水 (Live Audit Trace)
+          </span>
+          <span id="hudBlockTime" class="text-emerald-400 font-bold">主线程阻塞: 0ms</span>
+        </div>
+        <div id="logStream" class="flex flex-col gap-1 text-slate-300 overflow-hidden h-[54px] justify-end">
+          <div class="text-slate-400">[15:42:01] ⚡ 系统就绪: 正在监听三方支付与下游 RPC 调用...</div>
+          <div class="text-emerald-300 font-medium">[15:42:03] 🛡️ 防御阵列巡航: Pod 本地环 ➔ Redis 时间轮 ➔ ShedLock 活跃中</div>
+        </div>
+      </div>
+
+      <!-- 当处于“裸奔模式”下的全屏告警浮层 -->
+      <div id="dangerBanner" class="hidden absolute top-4 right-4 bg-rose-950/90 border border-rose-500/60 rounded-xl p-3 shadow-2xl text-rose-200 text-xs backdrop-blur-md max-w-xs shake-danger pointer-events-none">
+        <div class="flex items-center gap-2 font-bold text-rose-300 text-sm">
+          <span>🚨</span> 警告：已关闭 ElecCloud 重试保护！
+        </div>
+        <p class="text-[11px] text-rose-300/80 mt-1">
+          下游 504/429 异常将直接打穿至核心数据库与线程池，订单瞬间流失，用户将直接看到 500 报错白屏！
+        </p>
+      </div>
+
+    </div>
+
+    <!-- 极具冲击力的一行代码接入提示 -->
+    <div class="w-full max-w-6xl mt-3 flex items-center justify-between px-3 py-2 bg-slate-900/60 border border-slate-800 rounded-xl text-xs text-slate-400">
+      <div class="flex items-center gap-2">
+        <span class="px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 font-mono text-[11px] font-bold">代码零侵入</span>
+        <span>只需在方法打上注解，整套多层电子云防御与异步延时削峰机制全自动就位：</span>
+      </div>
+      <div class="font-mono text-[11px] text-amber-300 bg-slate-950 px-3 py-1 rounded border border-slate-800">
+        @RetryableTask(scene = "pay_callback", retryStrategy = EXPONENTIAL)
+      </div>
+    </div>
+
+  </main>
+
+  <!-- 底部哲学与系统映射表 -->
+  <footer class="border-t border-slate-800/80 bg-slate-900/90 backdrop-blur-md px-6 py-2.5 flex flex-wrap items-center justify-between text-xs text-slate-400">
+    <div class="flex items-center gap-4">
+      <span class="text-white font-medium">哲学映射对照:</span>
+      <span>• 宇宙射线 $\gamma$ ➔ 支付网关 504 超时</span>
+      <span>• 高通量离子流 ➔ 三方接口 429 频繁限流</span>
+      <span>• 能级跃迁吸收能量 ➔ 异步延时重试削峰自愈</span>
+    </div>
+    <div class="font-mono text-[11px] text-slate-500">
+      ElecCloud Resilient Cosmology v1.2
+    </div>
+  </footer>
+
+  <script>
+    const canvas = document.getElementById('dualCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let width, height, dpr;
+    function resize() {
+      const rect = canvas.getBoundingClientRect();
+      dpr = window.devicePixelRatio || 1;
+      width = rect.width;
+      height = rect.height;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      ctx.scale(dpr, dpr);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // ==========================================
+    // 全局状态与指标
+    // ==========================================
+    let isShieldEnabled = true;
+    let interceptedCount = 128;
+    let rescuedCount = 128;
+    let lostCount = 0;
+
+    function setDefenseMode(enabled) {
+      isShieldEnabled = enabled;
+      const btnWith = document.getElementById('btnWithShield');
+      const btnWithout = document.getElementById('btnWithoutShield');
+      const rightCard = document.getElementById('rightStatusCard');
+      const rightTag = document.getElementById('rightStatusTag');
+      const rightDot = document.getElementById('rightStatusDot');
+      const coreLabel = document.getElementById('coreDbLabel');
+      const layersDesc = document.getElementById('defenseLayersDesc');
+      const dangerBanner = document.getElementById('dangerBanner');
+      const hudBlock = document.getElementById('hudBlockTime');
+
+      if (enabled) {
+        btnWith.className = "px-3 py-1.5 rounded-lg font-medium transition-all bg-emerald-500 text-white shadow-md shadow-emerald-500/30 flex items-center gap-1.5";
+        btnWithout.className = "px-3 py-1.5 rounded-lg font-medium transition-all text-slate-400 hover:text-rose-400 flex items-center gap-1.5";
+        
+        rightCard.className = "bg-slate-900/80 border border-emerald-500/40 rounded-2xl p-3.5 backdrop-blur-md shadow-xl flex items-center justify-between transition-all";
+        rightTag.className = "text-[11px] font-mono text-emerald-400 font-bold flex items-center gap-1.5";
+        rightDot.className = "w-2 h-2 rounded-full bg-emerald-400 animate-pulse";
+        rightTag.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>【计算机学】ElecCloud 生产自愈防护 (Production Resilient)`;
+        coreLabel.className = "text-emerald-400 font-bold";
+        coreLabel.innerText = "交易订单库 & 主业务进程 (ACID 强一致)";
+        layersDesc.innerText = "防线：① 本地内存200ms脱敏 ➔ ② Redis延时削峰 ➔ ③ ShedLock互斥自愈";
+        dangerBanner.classList.add('hidden');
+        hudBlock.className = "text-emerald-400 font-bold";
+        hudBlock.innerText = "主线程阻塞: 0ms";
+        pushLog("🛡️ 防护重置: ElecCloud 电子云多层防御矩阵已重新就位！", "text-emerald-400");
+      } else {
+        btnWith.className = "px-3 py-1.5 rounded-lg font-medium transition-all text-slate-400 hover:text-emerald-400 flex items-center gap-1.5";
+        btnWithout.className = "px-3 py-1.5 rounded-lg font-medium transition-all bg-rose-600 text-white shadow-md shadow-rose-600/30 flex items-center gap-1.5";
+        
+        rightCard.className = "bg-rose-950/40 border border-rose-500/50 rounded-2xl p-3.5 backdrop-blur-md shadow-xl flex items-center justify-between transition-all";
+        rightTag.className = "text-[11px] font-mono text-rose-400 font-bold flex items-center gap-1.5";
+        rightTag.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-400 animate-ping"></span>【计算机学】传统裸奔系统 (高危雪崩风险)`;
+        coreLabel.className = "text-rose-400 font-bold";
+        coreLabel.innerText = "核心数据库直接承受外部攻击 (连接池濒临崩溃)";
+        layersDesc.innerText = "防线：无任何防护环！异常直击数据库，导致线程耗尽与全站雪崩";
+        dangerBanner.classList.remove('hidden');
+        hudBlock.className = "text-rose-400 font-bold animate-pulse";
+        hudBlock.innerText = "主线程阻塞: 30,000ms (卡死超时)";
+        pushLog("🚨 警告: 已关闭防护！外部冲击将直接打穿核心数据库！", "text-rose-400 font-bold");
+      }
+      updateStats();
+    }
+
+    function updateStats() {
+      document.getElementById('statIntercepted').innerText = `${interceptedCount} 次`;
+      const rate = isShieldEnabled 
+        ? 100.0 
+        : Math.max(0, ((rescuedCount / (rescuedCount + lostCount || 1)) * 100)).toFixed(1);
+      const statElem = document.getElementById('statRescueRate');
+      statElem.innerText = `${rate} %`;
+      statElem.className = isShieldEnabled 
+        ? "text-base font-mono font-bold text-emerald-400" 
+        : "text-base font-mono font-bold text-rose-400";
+    }
+
+    const logStream = document.getElementById('logStream');
+    function pushLog(text, colorClass = "text-slate-300") {
+      const time = new Date().toTimeString().split(' ')[0];
+      const div = document.createElement('div');
+      div.className = `truncate ${colorClass}`;
+      div.innerText = `[${time}] ${text}`;
+      logStream.appendChild(div);
+      if (logStream.children.length > 3) {
+        logStream.removeChild(logStream.children[0]);
+      }
+    }
+
+    // ==========================================
+    // 1. 左侧物理学世界：原子核 + s球形 + 2p哑铃双波瓣云
+    // ==========================================
+    const PHYS_PARTICLE_COUNT = 240;
+    const physParticles = [];
+
+    class QuantumElectron {
+      constructor() {
+        this.reset();
+      }
+
+      reset() {
+        this.orbitalType = Math.random() < 0.45 ? 's' : 'p';
+        this.orbitalAngle = Math.random() < 0.5 ? 0 : Math.PI / 2;
+        this.energy = 1.0;
+        this.alpha = 0.2 + Math.random() * 0.7;
+        this.size = 1.0 + Math.random() * 2.2;
+        this.speed = (0.015 + Math.random() * 0.035) * (Math.random() < 0.5 ? 1 : -1);
+        this.theta = Math.random() * Math.PI * 2;
+        this.radialDist = 20 + Math.pow(Math.random(), 1.5) * 130;
+      }
+
+      update() {
+        this.theta += this.speed * this.energy;
+        if (this.energy > 1.0) {
+          this.energy -= 0.02;
+          if (this.energy < 1.0) this.energy = 1.0;
+        }
+      }
+
+      getPosition(cx, cy) {
+        if (this.orbitalType === 's') {
+          const r = this.radialDist;
+          return {
+            x: cx + Math.cos(this.theta) * r + (Math.random() - 0.5) * 4,
+            y: cy + Math.sin(this.theta) * r + (Math.random() - 0.5) * 4
+          };
+        } else {
+          const factor = Math.abs(Math.cos(this.theta));
+          const r = 25 + factor * this.radialDist;
+          const rot = this.theta + this.orbitalAngle;
+          return {
+            x: cx + Math.cos(rot) * r + (Math.random() - 0.5) * 4,
+            y: cy + Math.sin(rot) * r * 0.45 + (Math.random() - 0.5) * 4
+          };
+        }
+      }
+    }
+
+    for (let i = 0; i < PHYS_PARTICLE_COUNT; i++) {
+      physParticles.push(new QuantumElectron());
+    }
+
+    // ==========================================
+    // 2. 右侧分布式系统：任务胶囊与调度
+    // ==========================================
+    const redisTasks = [];
+    for (let i = 0; i < 8; i++) {
+      redisTasks.push({
+        angle: (i / 8) * Math.PI * 2,
+        id: `Order#${8800 + i}`,
+        delaySec: (i + 1) * 2,
+        status: 'WAIT'
+      });
+    }
+
+    // ==========================================
+    // 3. 入侵威胁与拦截波纹
+    // ==========================================
+    const threats = [];
+    const ripples = [];
+    const floatingBadges = []; // 飘字动画
+
+    class ThreatPacket {
+      constructor(type) {
+        this.type = type; // '504' | '429'
+        this.side = Math.random() < 0.4 ? 'left' : 'right';
+        this.y = 70 + Math.random() * (height - 140);
+        this.x = this.side === 'left' ? -20 : width + 20;
+
+        const targetX = this.side === 'left' ? width * 0.25 : width * 0.75;
+        const targetY = height / 2;
+        const dx = targetX - this.x;
+        const dy = targetY - this.y;
+        const dist = Math.hypot(dx, dy);
+        this.speed = 3.8 + Math.random() * 2.0;
+        this.vx = (dx / dist) * this.speed;
+        this.vy = (dy / dist) * this.speed;
+        this.alive = true;
+        this.trail = [];
+      }
+
+      update() {
+        this.trail.push({ x: this.x, y: this.y });
+        if (this.trail.length > 6) this.trail.shift();
+        this.x += this.vx;
+        this.y += this.vy;
+
+        const targetX = this.side === 'left' ? width * 0.25 : width * 0.75;
+        const targetY = height / 2;
+        const dist = Math.hypot(this.x - targetX, this.y - targetY);
+
+        if (this.side === 'left') {
+          // 左侧物理世界：进入电子云被吸收 (量子跃迁)
+          if (dist < 110) {
+            this.alive = false;
+            physParticles.forEach(p => {
+              if (Math.random() < 0.3) p.energy = 2.4;
+            });
+            ripples.push({ x: this.x, y: this.y, r: 8, maxR: 70, color: 'rgba(56, 189, 248, ALPHA)' });
+          }
+        } else {
+          // 右侧计算机世界：
+          if (isShieldEnabled) {
+            // 有 ElecCloud 防御：在最外层 ShedLock 互斥环 (140px) 处被防御护盾折射拦截！
+            if (dist < 140) {
+              this.alive = false;
+              interceptedCount++;
+              rescuedCount++;
+              updateStats();
+              ripples.push({ x: this.x, y: this.y, r: 10, maxR: 75, color: 'rgba(168, 85, 247, ALPHA)' });
+              
+              // 飘字浮层
+              floatingBadges.push({
+                x: this.x,
+                y: this.y,
+                text: `${this.type} 拦截 ➔ 封装延时胶囊`,
+                alpha: 1.0,
+                color: '#34d399'
+              });
+
+              // 插入业务自愈日志
+              const orderId = Math.floor(1000 + Math.random() * 9000);
+              pushLog(`💥 拦截到下游 ${this.type} 超时 ➔ 封装入 Redis 延时队列 (5s削峰退避)`, "text-amber-300");
+              setTimeout(() => {
+                pushLog(`✅ 自动重试成功: 订单 #${orderId} 支付已确认完成！数据 0 丢失`, "text-emerald-300 font-bold");
+              }, 1200);
+            }
+          } else {
+            // 无防御模式：一路直插核心数据库！
+            if (dist < 35) {
+              this.alive = false;
+              lostCount++;
+              updateStats();
+              ripples.push({ x: this.x, y: this.y, r: 15, maxR: 90, color: 'rgba(239, 68, 68, ALPHA)' });
+              
+              floatingBadges.push({
+                x: this.x,
+                y: this.y,
+                text: `💥 核心库被打满! 订单流失!`,
+                alpha: 1.0,
+                color: '#ef4444'
+              });
+
+              pushLog(`🚨 致命故障: 504 打满数据库连接池! 订单丢失，用户看到 500 白屏!`, "text-rose-400 font-bold");
+            }
+          }
+        }
+      }
+
+      draw() {
+        ctx.beginPath();
+        for (let i = 0; i < this.trail.length; i++) {
+          const pt = this.trail[i];
+          const a = (i / this.trail.length) * 0.45;
+          ctx.strokeStyle = this.type === '504' ? `rgba(244, 63, 94, ${a})` : `rgba(245, 158, 11, ${a})`;
+          ctx.lineWidth = 3;
+          if (i === 0) ctx.moveTo(pt.x, pt.y);
+          else ctx.lineTo(pt.x, pt.y);
+        }
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = this.type === '504' ? '#f43f5e' : '#f59e0b';
+        ctx.fill();
+
+        ctx.font = 'bold 9px monospace';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(this.type, this.x + 8, this.y + 3);
+      }
+    }
+
+    // ==========================================
+    // 渲染循环主逻辑
+    // ==========================================
+    function animate() {
+      ctx.fillStyle = 'rgba(3, 6, 17, 0.28)';
+      ctx.fillRect(0, 0, width, height);
+
+      const physCX = width * 0.25;
+      const physCY = height / 2;
+      const csCX = width * 0.75;
+      const csCY = height / 2;
+
+      // 1. 中间分割分界线
+      ctx.beginPath();
+      ctx.moveTo(width / 2, 20);
+      ctx.lineTo(width / 2, height - 20);
+      ctx.strokeStyle = 'rgba(51, 65, 85, 0.4)';
+      ctx.setLineDash([8, 8]);
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // ----------------------------------------------------------------------
+      // 左侧绘制：【物理量子世界】
+      // ----------------------------------------------------------------------
+      // 轨道能级引导虚线 (n=1, n=2, n=3 玻尔轨道)
+      [45, 95, 145].forEach((r, idx) => {
+        ctx.beginPath();
+        ctx.arc(physCX, physCY, r, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.12)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 6]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = '9px monospace';
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.35)';
+        ctx.fillText(`n=${idx+1}`, physCX + r - 16, physCY - 4);
+      });
+
+      // 绘制电子云粒子 (s 球形与 p 哑铃波瓣)
+      physParticles.forEach(p => {
+        p.update();
+        const pos = p.getPosition(physCX, physCY);
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, p.size * (p.energy > 1 ? 1.6 : 1), 0, Math.PI * 2);
+        ctx.fillStyle = p.energy > 1.2 
+          ? `rgba(253, 224, 71, ${p.alpha * 0.95})` 
+          : `rgba(56, 189, 248, ${p.alpha})`;
+        ctx.fill();
+      });
+
+      // 物理中心：原子核
+      const t = Date.now() * 0.003;
+      const physGrad = ctx.createRadialGradient(physCX, physCY, 2, physCX, physCY, 32);
+      physGrad.addColorStop(0, 'rgba(239, 68, 68, 0.95)');
+      physGrad.addColorStop(0.5, 'rgba(249, 115, 22, 0.35)');
+      physGrad.addColorStop(1, 'rgba(239, 68, 68, 0)');
+      ctx.fillStyle = physGrad;
+      ctx.beginPath();
+      ctx.arc(physCX, physCY, 32, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 质子与中子微团
+      const nucleons = [
+        { dx: -5, dy: -4, c: '#ef4444' },
+        { dx: 6, dy: -3, c: '#38bdf8' },
+        { dx: -2, dy: 5, c: '#ef4444' },
+        { dx: 5, dy: 5, c: '#38bdf8' },
+        { dx: 0, dy: 0, c: '#fbbf24' }
+      ];
+      nucleons.forEach(n => {
+        ctx.beginPath();
+        ctx.arc(physCX + n.dx + Math.sin(t + n.dx) * 1.5, physCY + n.dy + Math.cos(t + n.dy) * 1.5, 6, 0, Math.PI * 2);
+        ctx.fillStyle = n.c;
+        ctx.shadowColor = n.c;
+        ctx.shadowBlur = 8;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      });
+
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillStyle = '#f8fafc';
+      ctx.textAlign = 'center';
+      ctx.fillText('原子核 (Nucleus)', physCX, physCY + 28);
+      ctx.font = '10px monospace';
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText('强相互作用力 · 零畸变', physCX, physCY + 42);
+
+      // ----------------------------------------------------------------------
+      // 右侧绘制：【计算机分布式系统】
+      // ----------------------------------------------------------------------
+      if (isShieldEnabled) {
+        // 【防御模式开启】
+        // 外环 3：ShedLock 互斥集群环
+        ctx.beginPath();
+        ctx.arc(csCX, csCY, 140, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(99, 102, 241, 0.3)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        const lockAngle = t * 0.8;
+        const lx = csCX + Math.cos(lockAngle) * 140;
+        const ly = csCY + Math.sin(lockAngle) * 140;
+        ctx.beginPath();
+        ctx.arc(lx, ly, 10, 0, Math.PI * 2);
+        ctx.fillStyle = '#6366f1';
+        ctx.fill();
+        ctx.font = '10px sans-serif';
+        ctx.fillText('🔒 ShedLock', lx + 16, ly + 3);
+
+        // 中环 2：Redis ZSET 延时队列环 (带时间轮任务胶囊)
+        ctx.beginPath();
+        ctx.arc(csCX, csCY, 95, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(168, 85, 247, 0.4)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        redisTasks.forEach((task) => {
+          task.angle += 0.008;
+          const tx = csCX + Math.cos(task.angle) * 95;
+          const ty = csCY + Math.sin(task.angle) * 95;
+
+          // 任务小胶囊
+          ctx.beginPath();
+          ctx.arc(tx, ty, 6, 0, Math.PI * 2);
+          ctx.fillStyle = '#a855f7';
+          ctx.fill();
+
+          ctx.font = '8px monospace';
+          ctx.fillStyle = '#e2e8f0';
+          ctx.fillText(task.id, tx, ty - 9);
+        });
+
+        // 内环 1：本地内存快速消化环 (Pod 200ms)
+        ctx.beginPath();
+        ctx.arc(csCX, csCY, 55, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(16, 185, 129, 0.5)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // 3 个微服务 Pod 节点
+        [0, (2 * Math.PI) / 3, (4 * Math.PI) / 3].forEach((baseAngle, idx) => {
+          const ang = baseAngle - t * 0.5;
+          const px = csCX + Math.cos(ang) * 55;
+          const py = csCY + Math.sin(ang) * 55;
+          ctx.beginPath();
+          ctx.arc(px, py, 7, 0, Math.PI * 2);
+          ctx.fillStyle = '#10b981';
+          ctx.fill();
+          ctx.font = '9px monospace';
+          ctx.fillStyle = '#6ee7b7';
+          ctx.fillText(`Pod#${idx+1}`, px, py + 16);
+        });
+
+        // 计算机中心：核心交易数据库 (ACID 绿色光盾)
+        const csGrad = ctx.createRadialGradient(csCX, csCY, 4, csCX, csCY, 36);
+        csGrad.addColorStop(0, 'rgba(16, 185, 129, 0.9)');
+        csGrad.addColorStop(0.5, 'rgba(5, 150, 105, 0.35)');
+        csGrad.addColorStop(1, 'rgba(16, 185, 129, 0)');
+        ctx.fillStyle = csGrad;
+        ctx.beginPath();
+        ctx.arc(csCX, csCY, 36, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(csCX, csCY, 14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.font = '14px sans-serif';
+        ctx.fillText('🏛️', csCX, csCY + 5);
+
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillText('核心交易数据库', csCX, csCY + 28);
+        ctx.font = '10px monospace';
+        ctx.fillStyle = '#34d399';
+        ctx.fillText('ACID 强一致 · 零数据丢失', csCX, csCY + 42);
+
+      } else {
+        // 【传统裸奔模式：防线全部消失，数据库直接遭受红光剧烈冲击】
+        const csGrad = ctx.createRadialGradient(csCX, csCY, 4, csCX, csCY, 36);
+        csGrad.addColorStop(0, 'rgba(239, 68, 68, 0.95)');
+        csGrad.addColorStop(0.6, 'rgba(220, 38, 38, 0.45)');
+        csGrad.addColorStop(1, 'rgba(239, 68, 68, 0)');
+        ctx.fillStyle = csGrad;
+        ctx.beginPath();
+        ctx.arc(csCX, csCY, 36 + Math.sin(t * 4) * 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#fecaca';
+        ctx.beginPath();
+        ctx.arc(csCX, csCY, 14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.font = '14px sans-serif';
+        ctx.fillText('💥', csCX, csCY + 5);
+
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillStyle = '#f87171';
+        ctx.fillText('核心库连接池告警 (CRASH)', csCX, csCY + 28);
+        ctx.font = '10px monospace';
+        ctx.fillStyle = '#fca5a5';
+        ctx.fillText('线程打满 · 订单直接流失', csCX, csCY + 42);
+      }
+
+      // ----------------------------------------------------------------------
+      // 威胁入侵更新与绘制
+      // ----------------------------------------------------------------------
+      for (let i = threats.length - 1; i >= 0; i--) {
+        const th = threats[i];
+        th.update();
+        th.draw();
+        if (!th.alive) threats.splice(i, 1);
+      }
+
+      // 扩散波纹绘制
+      for (let i = ripples.length - 1; i >= 0; i--) {
+        const r = ripples[i];
+        r.r += 2.4;
+        const alpha = Math.max(0, 1 - r.r / r.maxR);
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2);
+        ctx.strokeStyle = r.color.replace('ALPHA', alpha.toFixed(2));
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        if (alpha <= 0) ripples.splice(i, 1);
+      }
+
+      // 飘字浮层绘制
+      for (let i = floatingBadges.length - 1; i >= 0; i--) {
+        const badge = floatingBadges[i];
+        badge.y -= 0.6;
+        badge.alpha -= 0.018;
+        ctx.font = 'bold 11px sans-serif';
+        ctx.fillStyle = badge.color;
+        ctx.globalAlpha = Math.max(0, badge.alpha);
+        ctx.fillText(badge.text, badge.x, badge.y);
+        ctx.globalAlpha = 1.0;
+        if (badge.alpha <= 0) floatingBadges.splice(i, 1);
+      }
+
+      // 自动随机生成小冲击
+      if (Math.random() < 0.045) {
+        threats.push(new ThreatPacket(Math.random() < 0.5 ? '504' : '429'));
+      }
+
+      requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(animate);
+
+    function injectAnomaly(type) {
+      for (let i = 0; i < 3; i++) {
+        setTimeout(() => {
+          threats.push(new ThreatPacket(type));
+        }, i * 180);
+      }
+    }
+  </script>
+</body>
+</html>

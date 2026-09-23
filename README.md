@@ -24,13 +24,32 @@
 
 ---
 
-## 🌌 The Origin Story
+## 🌌 The Origin Story: From Quantum Mechanics to Distributed Resilience
 
-> **ElecCloud — The Electron Cloud**
+<p align="center">
+  <img src="docs/images/origin_story.gif" alt="ElecCloud Quantum to Distributed Systems Resilience" width="100%" />
+</p>
+
+<p align="center">
+  <a href="docs/simulation.html">
+    <img src="https://img.shields.io/badge/🎮_Live_Interactive_Demo-Quantum%E2%9F%B7Resilience_Simulator-blueviolet?style=for-the-badge" alt="Live Demo" />
+  </a>
+</p>
+
+> **Why the name ElecCloud (Electron Cloud)?**
 >
-> In quantum physics, electrons don't orbit the nucleus in fixed paths. Instead, they form a **probability cloud** — constantly in motion, quietly guarding the nucleus from external interference.
+> In quantum mechanics, an individual electron's trajectory cannot be precisely predicted (Heisenberg's Uncertainty Principle — just like unpredictable network glitches and third-party timeouts in distributed environments). Yet macroscopically, the electron **probability cloud** forms an impenetrable shield guarding the atomic nucleus against external cosmic rays.
 >
-> That inspired ElecCloud's design: **When downstream calls fail due to temporary network jitters or transient timeouts, you shouldn't have to manually fight fires. ElecCloud aims to silently guard critical tasks within the client process, retrying with backoff until eventual success.**
+> **ElecCloud is the "Electron Cloud Defense Layer" for your critical systems**: Microscopic failures are inevitable; macroscopic business resilience is guaranteed!
+
+### 🛡️ Why ElecCloud? At a Glance
+
+| Critical Production Pain Points | ❌ Without Defense (No Retry / Naive Loop) | 🛡️ With ElecCloud Resilience |
+| :--- | :--- | :--- |
+| **Transient 504 Gateway Timeout** | Exhausts thread pools, cascades into system-wide outage, lost revenue | **Non-blocking Offload**: 200ms fast pod retry, auto-promotes to Redis delay queue, 0ms main thread blocking |
+| **Third-party 429 Rate Limits** | Immediate tight loops aggravate downstream throttling storms | **Exponential Backoff & Jitter**: Smooth traffic dispersion and eventual self-healing |
+| **Multi-node Cluster Conflicts** | Multiple pods simultaneously retry same transaction, risk double-spend | **ShedLock Mutex Ring**: Global distributed lock ensures strictly idempotent execution |
+| **Integration Complexity** | Hundreds of lines of boilerplate try-catch, MQ topics, and cron jobs | **Zero-Intrusion**: Simply add `@RetryableTask(sceneType = 1001)` |
 
 In distributed systems, transient failures are inevitable:
 
