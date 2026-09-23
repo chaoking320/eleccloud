@@ -141,17 +141,17 @@ public void syncOrder(String orderId) {
 git clone https://github.com/chaoking320/eleccloud.git
 cd eleccloud
 
-# 一键启动所有服务
-docker compose -f docker-compose.simple.yml up -d
+# 一键编译并启动所有全套服务 (MySQL 8.0 + Redis 6 + Server + Admin + Demo App)
+docker compose up -d --build
 ```
 
 启动成功后访问：
 
-| 服务 | 地址 |
-|------|------|
-| 重试服务端 | http://localhost:8080 |
-| 管理后台 | http://localhost:8081 |
-| Demo 应用 | http://localhost:8082 |
+| 服务 | 地址 | 说明 / 默认凭证 |
+|------|------|-----------------|
+| 重试服务端 | http://localhost:8080 | 核心调度与任务存取中心 |
+| 管理后台 | http://localhost:8081 | 账号: `admin` 密码: `admin123` |
+| Demo 应用 | http://localhost:8082 | 电商完整重试模拟演示中心 |
 
 ### 方式二：本地开发调试
 

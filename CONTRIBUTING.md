@@ -280,7 +280,7 @@ mvn clean install -DskipTests
 mvn clean test
 
 # 启动本地环境
-docker compose -f docker-compose.simple.yml up -d
+docker compose up -d
 ```
 
 ### IDE 配置

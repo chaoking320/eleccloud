@@ -1,8 +1,6 @@
-version: '3.8'
-
 # ==============================================================================
 # ElecCloud Distributed Retry Platform — All-in-One Compose
-# Quick start: docker compose up -d
+# Quick start: docker compose up -d --build
 #
 # Services exposed:
 #   - retry-server:  http://localhost:8080 (Distributed scheduling & dispatching engine)
@@ -53,20 +51,33 @@ services:
       - eleccloud-network
 
   retry-server:
-    build: ./retry-server
+    build:
+      context: ./retry-server
+      dockerfile: Dockerfile
     container_name: eleccloud-server
     restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/retry_platform?useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&rewriteBatchedStatements=true&useSSL=false&serverTimezone=GMT%2B8
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=password
-      - SPRING_REDIS_HOST=redis
-      - SPRING_REDIS_PORT=6379
-      - SPRING_REDIS_PASSWORD=123456
-      - 'SPRING_REDIS_REDISSON_CONFIG=singleServerConfig:\n  address: "redis://redis:6379"\n  password: "123456"\n  database: 2'
-      - RETRY_SECURITY_ENABLED=false
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/retry_platform?useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&rewriteBatchedStatements=true&useSSL=false&serverTimezone=GMT%2B8
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_PASSWORD: "123456"
+      SPRING_REDIS_DATABASE: 0
+      SPRING_REDIS_REDISSON_CONFIG: |
+        singleServerConfig:
+          address: "redis://redis:6379"
+          password: "123456"
+          database: 2
+      RETRY_SECURITY_ENABLED: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 25s
     depends_on:
       mysql:
         condition: service_healthy
@@ -76,48 +87,70 @@ services:
       - eleccloud-network
 
   retry-admin:
-    build: ./retry-admin
+    build:
+      context: ./retry-admin
+      dockerfile: Dockerfile
     container_name: eleccloud-admin
     restart: unless-stopped
     ports:
       - "8081:8081"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/retry_platform?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=password
-      - SPRING_REDIS_HOST=redis
-      - SPRING_REDIS_PORT=6379
-      - SPRING_REDIS_PASSWORD=123456
-      - 'SPRING_REDIS_REDISSON_CONFIG=singleServerConfig:\n  address: "redis://redis:6379"\n  password: "123456"\n  database: 2'
-      - RETRY_ADMIN_AUTH_ENABLED=true
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/retry_platform?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_PASSWORD: "123456"
+      SPRING_REDIS_REDISSON_CONFIG: |
+        singleServerConfig:
+          address: "redis://redis:6379"
+          password: "123456"
+          database: 2
+      RETRY_ADMIN_AUTH_ENABLED: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8081 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 25s
     depends_on:
       mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
+      retry-server:
+        condition: service_healthy
     networks:
       - eleccloud-network
 
   retry-example:
-    build: ./retry-example
+    build:
+      context: ./retry-example
+      dockerfile: Dockerfile
     container_name: eleccloud-example
     restart: unless-stopped
     ports:
       - "8082:8082"
     environment:
-      - RETRY_CLIENT_MODE=remote
-      - RETRY_CLIENT_SERVER_URL=http://retry-server:8080
-      - RETRY_CLIENT_API_KEY=demo-key-12345678
-      - SPRING_REDIS_HOST=redis
-      - SPRING_REDIS_PORT=6379
-      - SPRING_REDIS_PASSWORD=123456
-      - SPRING_REDIS_DATABASE=1
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/retry_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=password
+      RETRY_CLIENT_MODE: remote
+      RETRY_CLIENT_SERVER_URL: http://retry-server:8080
+      RETRY_CLIENT_API_KEY: demo-key-12345678
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_PASSWORD: "123456"
+      SPRING_REDIS_DATABASE: 1
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/retry_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: password
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8082 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 25s
     depends_on:
       retry-server:
-        condition: service_started
+        condition: service_healthy
     networks:
       - eleccloud-network
 

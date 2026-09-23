@@ -1,8 +1,6 @@
-# ElecCloud 简化部署配置
-# 适用场景：Server + Admin 部署到 Docker，本地业务系统通过 SDK 接入
+# ElecCloud 部署配置
+# 适用场景：一键部署基础中间件、服务端、管理后台及 Demo 应用
 # 使用方式：docker compose -f docker-compose.simple.yml up -d --build
-
-version: '3.8'
 
 services:
   # MySQL 数据库
@@ -52,24 +50,18 @@ services:
     ports:
       - "8080:8080"
     environment:
-      # 数据库配置
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/retry_platform?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD:-ChangeMeInProduction}
-      
-      # Redis 配置
-      - SPRING_REDIS_HOST=redis
-      - SPRING_REDIS_PORT=6379
-      - SPRING_REDIS_DATABASE=2
-      
-      # Redisson 配置（用于分布式锁）
-      - 'SPRING_REDIS_REDISSON_CONFIG=singleServerConfig:\n  address: "redis://redis:6379"\n  database: 2'
-      
-      # 时区
-      - TZ=Asia/Shanghai
-      
-      # JVM 参数（可根据实际情况调整）
-      - JAVA_OPTS=-Xms512m -Xmx1g -XX:+UseG1GC
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/retry_platform?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-ChangeMeInProduction}
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_DATABASE: 2
+      SPRING_REDIS_REDISSON_CONFIG: |
+        singleServerConfig:
+          address: "redis://redis:6379"
+          database: 2
+      TZ: Asia/Shanghai
+      JAVA_OPTS: -Xms512m -Xmx1g -XX:+UseG1GC
     depends_on:
       mysql:
         condition: service_healthy
@@ -94,26 +86,59 @@ services:
     ports:
       - "8081:8081"
     environment:
-      # 数据库配置
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/retry_platform?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD:-ChangeMeInProduction}
-      
-      # 时区
-      - TZ=Asia/Shanghai
-      
-      # JVM 参数
-      - JAVA_OPTS=-Xms256m -Xmx512m
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/retry_platform?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-ChangeMeInProduction}
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_DATABASE: 2
+      SPRING_REDIS_REDISSON_CONFIG: |
+        singleServerConfig:
+          address: "redis://redis:6379"
+          database: 2
+      TZ: Asia/Shanghai
+      JAVA_OPTS: -Xms256m -Xmx512m
     depends_on:
       mysql:
         condition: service_healthy
       retry-server:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - retry-network
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8081 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Demo 示例应用
+  retry-example:
+    build:
+      context: ./retry-example
+      dockerfile: Dockerfile
+    container_name: retry-example
+    ports:
+      - "8082:8082"
+    environment:
+      RETRY_CLIENT_MODE: remote
+      RETRY_CLIENT_SERVER_URL: http://retry-server:8080
+      RETRY_CLIENT_API_KEY: demo-key-12345678
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_DATABASE: 1
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/retry_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-ChangeMeInProduction}
+    depends_on:
+      retry-server:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - retry-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8082 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

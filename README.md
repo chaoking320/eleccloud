@@ -143,14 +143,14 @@ If a process crashes while executing a task, traditional post-fail interceptors 
 ```bash
 git clone https://github.com/chaoking320/eleccloud.git
 cd eleccloud
-docker compose -f docker-compose.simple.yml up -d
+docker compose up -d --build
 ```
 
-| Service | URL |
-|---------|-----|
-| Retry Server | http://localhost:8080 |
-| Admin Dashboard | http://localhost:8081 |
-| Demo App | http://localhost:8082 |
+| Service | URL | Notes / Credentials |
+|---------|-----|---------------------|
+| Retry Server | http://localhost:8080 | Core scheduling & storage engine |
+| Admin Dashboard | http://localhost:8081 | Default: `admin / admin123` |
+| Demo App | http://localhost:8082 | E-commerce live retry demo |
 
 ### Option 2: SDK Dependency (Remote Mode)
 
@@ -303,7 +303,7 @@ mvn clean install -DskipTests
 mvn test
 
 # Start local environment
-docker compose -f docker-compose.simple.yml up -d
+docker compose up -d
 ```
 
 Look for issues tagged [`good first issue`](../../issues?q=label%3A%22good+first+issue%22) — perfect for newcomers!

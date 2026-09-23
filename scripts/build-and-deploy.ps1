@@ -57,14 +57,14 @@ Write-Host ""
 
 # Step 4: Stop existing containers
 Write-Host "[4/5] Stopping existing Docker containers..." -ForegroundColor Yellow
-docker compose -f docker-compose.simple.yml down 2>$null
+docker compose down 2>$null
 Write-Host "Old containers stopped ✓" -ForegroundColor Green
 Write-Host ""
 
 # Step 5: Start Docker services
 Write-Host "[5/5] Launching Docker services..." -ForegroundColor Yellow
 Write-Host "Note: First launch may take 3-5 minutes to pull base images." -ForegroundColor Gray
-docker compose -f docker-compose.simple.yml up -d --build --no-cache
+docker compose up -d --build --no-cache
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Docker startup failed!" -ForegroundColor Red
     Write-Host "Please ensure Docker daemon / Docker Desktop is running." -ForegroundColor Yellow
@@ -79,7 +79,7 @@ Start-Sleep -Seconds 10
 
 # Display container status
 Write-Host "Checking container status..." -ForegroundColor Yellow
-docker compose -f docker-compose.simple.yml ps
+docker compose ps
 
 Write-Host ""
 Write-Host "================================" -ForegroundColor Cyan
@@ -89,9 +89,10 @@ Write-Host ""
 Write-Host "Access URLs:" -ForegroundColor Yellow
 Write-Host "  - Admin Dashboard:     http://localhost:8081" -ForegroundColor White
 Write-Host "  - Server Health Check: http://localhost:8080/actuator/health" -ForegroundColor White
+Write-Host "  - Demo Center:         http://localhost:8082" -ForegroundColor White
 Write-Host ""
 Write-Host "Helpful Commands:" -ForegroundColor Yellow
-Write-Host "  - View server logs:    docker logs -f retry-server" -ForegroundColor White
-Write-Host "  - Stop services:       docker compose -f docker-compose.simple.yml down" -ForegroundColor White
-Write-Host "  - Restart services:    docker compose -f docker-compose.simple.yml restart" -ForegroundColor White
+Write-Host "  - View server logs:    docker compose logs -f retry-server" -ForegroundColor White
+Write-Host "  - Stop services:       docker compose down" -ForegroundColor White
+Write-Host "  - Restart services:    docker compose restart" -ForegroundColor White
 Write-Host ""

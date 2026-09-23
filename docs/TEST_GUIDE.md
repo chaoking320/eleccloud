@@ -9,13 +9,14 @@
 确保服务已启动（参考截图，所有服务都是绿色）：
 
 ```bash
-docker compose -f docker-compose.simple.yml ps
+docker compose ps
 
-# 应该看到：
-# - retry-mysql    (Up)
-# - retry-redis    (Up)
-# - retry-server   (Up, 8080)
-# - retry-admin    (Up, 8081)
+# 应该看到 5 个服务全部正常运行：
+# - eleccloud-mysql    (Up, 3306)
+# - eleccloud-redis    (Up, 6379)
+# - eleccloud-server   (Up, 8080)
+# - eleccloud-admin    (Up, 8081)
+# - eleccloud-example  (Up, 8082)
 ```
 
 ---

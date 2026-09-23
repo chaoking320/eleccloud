@@ -26,14 +26,14 @@ mvn clean package -DskipTests
 ## Step 2: Start Docker Services (3 min)
 
 ```bash
-docker compose -f docker-compose.simple.yml up -d --build
+docker compose up -d --build
 ```
 
 **Verify all services are running:**
 
 ```bash
-docker compose -f docker-compose.simple.yml ps
-# All 4 services should show "Up"
+docker compose ps
+# All 5 services should show "Up"
 ```
 
 | Service | URL |
@@ -153,7 +153,7 @@ docker logs retry-server
 
 # Common cause: MySQL is still initializing
 # Fix: wait 30 seconds then restart
-docker compose -f docker-compose.simple.yml restart retry-server
+docker compose restart retry-server
 ```
 
 ### SDK cannot connect to server
@@ -179,17 +179,17 @@ redis-cli -h localhost -p 6379 PING
 
 ```bash
 # Stop all services
-docker compose -f docker-compose.simple.yml down
+docker compose down
 
 # Restart services
-docker compose -f docker-compose.simple.yml restart
+docker compose restart
 
 # Follow logs
-docker logs -f retry-server
-docker logs -f retry-admin
+docker compose logs -f retry-server
+docker compose logs -f retry-admin
 
 # Access the database
-docker exec -it retry-mysql mysql -uroot -ppassword retry_platform
+docker exec -it eleccloud-mysql mysql -uroot -ppassword retry_platform
 ```
 
 ---

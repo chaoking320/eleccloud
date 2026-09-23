@@ -92,17 +92,20 @@ ls retry-admin/target/*.jar
 
 ### 步骤 3：启动 Docker 服务
 
-使用简化版 docker-compose 配置（仅包含 Server + Admin）：
+推荐使用全功能 docker-compose（包含基础组件、Server、Admin 以及完整的 Demo 演示环境）：
 
 ```bash
-# 启动所有服务（MySQL、Redis、Server、Admin）
-docker compose -f docker-compose.simple.yml up -d --build
+# 启动所有全套服务（MySQL、Redis、Server、Admin、Example Demo）
+docker compose up -d --build
+
+# 提示：若仅需最小化部署 Server + Admin（不含 Demo），可使用：
+# docker compose -f docker-compose.simple.yml up -d --build
 ```
 
 **首次启动会**：
 1. 拉取 MySQL 8.0 和 Redis 6 镜像（约 2-3 分钟）
 2. 自动执行数据库初始化脚本（创建表结构）
-3. 构建并启动 retry-server 和 retry-admin
+3. 构建并启动 retry-server、retry-admin 以及 retry-example
 
 ---
 
@@ -111,17 +114,18 @@ docker compose -f docker-compose.simple.yml up -d --build
 #### 4.1 检查容器状态
 
 ```bash
-docker compose -f docker-compose.simple.yml ps
+docker compose ps
 ```
 
 **预期输出**：所有服务状态为 `Up` (running)
 
 ```
-NAME                     STATUS    PORTS
-retry-mysql              Up        0.0.0.0:3306->3306/tcp
-retry-redis              Up        0.0.0.0:6379->6379/tcp
-retry-server             Up        0.0.0.0:8080->8080/tcp
-retry-admin              Up        0.0.0.0:8081->8081/tcp
+NAME                STATUS          PORTS
+eleccloud-mysql     Up (healthy)    0.0.0.0:3306->3306/tcp
+eleccloud-redis     Up (healthy)    0.0.0.0:6379->6379/tcp
+eleccloud-server    Up (healthy)    0.0.0.0:8080->8080/tcp
+eleccloud-admin     Up (healthy)    0.0.0.0:8081->8081/tcp
+eleccloud-example   Up (healthy)    0.0.0.0:8082->8082/tcp
 ```
 
 #### 4.2 检查服务健康状态
@@ -442,30 +446,30 @@ docker logs -f retry-admin
 docker logs -f retry-mysql
 
 # 查看所有服务日志
-docker compose -f docker-compose.simple.yml logs -f
+docker compose logs -f
 ```
 
 ### 重启服务
 
 ```bash
 # 重启所有服务
-docker compose -f docker-compose.simple.yml restart
+docker compose restart
 
 # 仅重启 Server
-docker compose -f docker-compose.simple.yml restart retry-server
+docker compose restart retry-server
 
 # 仅重启 Admin
-docker compose -f docker-compose.simple.yml restart retry-admin
+docker compose restart retry-admin
 ```
 
 ### 停止服务
 
 ```bash
 # 停止所有服务（保留数据）
-docker compose -f docker-compose.simple.yml down
+docker compose down
 
 # 停止并删除数据（⚠️ 会清空数据库）
-docker compose -f docker-compose.simple.yml down -v
+docker compose down -v
 ```
 
 ### 数据库管理
@@ -753,7 +757,12 @@ services:
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=password
       - SPRING_REDIS_HOST=redis
-      - SPRING_REDIS_REDISSON_CONFIG=singleServerConfig:\n  address: "redis://redis:6379"\n  database: 2
+      - SPRING_REDIS_PORT=6379
+      - SPRING_REDIS_DATABASE=2
+      - |
+        SPRING_REDIS_REDISSON_CONFIG=singleServerConfig:
+          address: "redis://redis:6379"
+          database: 2
     depends_on:
       mysql:
         condition: service_healthy
