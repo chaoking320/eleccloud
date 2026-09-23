@@ -4,17 +4,17 @@
     <div class="header">
       <div class="header-left">
         <div class="title-row">
-          <h2 class="page-title">场景重试策略配置</h2>
-          <span class="page-subtitle">定义各业务场景的退避算法、重试流水线与 Hook 状态机契约</span>
+          <h2 class="page-title">{{ $t('scene.title') }}</h2>
+          <span class="page-subtitle">{{ $t('scene.subtitle') }}</span>
         </div>
         <div class="stats-pills" v-if="sceneList.length > 0">
-          <span class="pill-item total">总计 <strong>{{ sceneList.length }}</strong> 个场景</span>
-          <span class="pill-item enabled">已启用 <strong>{{ enabledCount }}</strong></span>
-          <span class="pill-item disabled" v-if="disabledCount > 0">已禁用 <strong>{{ disabledCount }}</strong></span>
+          <span class="pill-item total">{{ $t('scene.totalScenes', { total: sceneList.length }) }}</span>
+          <span class="pill-item enabled">{{ $t('scene.enabledCount', { count: enabledCount }) }}</span>
+          <span class="pill-item disabled" v-if="disabledCount > 0">{{ $t('scene.disabledCount', { count: disabledCount }) }}</span>
         </div>
       </div>
       <el-button type="primary" :icon="Plus" class="btn-create" @click="handleAdd">
-        新增重试场景
+        {{ $t('scene.addScene') }}
       </el-button>
     </div>
 
@@ -22,21 +22,21 @@
     <el-card shadow="never" class="table-card">
       <el-table :data="sceneList" v-loading="loading" stripe style="width: 100%" class="custom-scene-table">
         <!-- 场景类型 -->
-        <el-table-column prop="sceneType" label="场景编码" width="110">
+        <el-table-column prop="sceneType" :label="$t('scene.colSceneType')" width="120">
           <template #default="{ row }">
             <span class="scene-code-badge">ID: {{ row.sceneType }}</span>
           </template>
         </el-table-column>
 
         <!-- 场景名称 -->
-        <el-table-column prop="sceneName" label="场景名称" min-width="160">
+        <el-table-column prop="sceneName" :label="$t('scene.colSceneName')" min-width="160">
           <template #default="{ row }">
             <span class="scene-name-text">{{ row.sceneName }}</span>
           </template>
         </el-table-column>
 
-        <!-- 重试策略与间隔流水线 (彻底消除干涩，升级为可视化流水线) -->
-        <el-table-column label="退避策略与重试流水线 (Retry Pipeline)" min-width="340">
+        <!-- 重试策略与间隔流水线 -->
+        <el-table-column :label="$t('scene.colRetryPipeline')" min-width="340">
           <template #default="{ row }">
             <div class="strategy-pipeline-cell">
               <!-- 策略类型标签 -->
@@ -58,44 +58,44 @@
               <!-- 非自定义退避公式提示 -->
               <div v-else class="strategy-formula">
                 <span v-if="row.backoffStrategy === 'LINEAR'" class="formula-text">
-                  间隔 = 次数 × {{ row.backoffBase || 1 }} 分钟
+                  Interval = n × {{ row.backoffBase || 1 }}m
                 </span>
                 <span v-else-if="row.backoffStrategy === 'EXPONENTIAL'" class="formula-text">
-                  间隔 = 2^(n-1) × {{ row.backoffBase || 1 }} 分钟
+                  Interval = 2^(n-1) × {{ row.backoffBase || 1 }}m
                 </span>
                 <span v-else-if="row.backoffStrategy === 'FIXED'" class="formula-text">
-                  固定间隔 {{ row.backoffBase || 1 }} 分钟
+                  Fixed {{ row.backoffBase || 1 }}m
                 </span>
-                <span v-else class="formula-text text-muted">遵循默认退避策略</span>
+                <span v-else class="formula-text text-muted">Default strategy</span>
               </div>
             </div>
           </template>
         </el-table-column>
 
         <!-- 最大重试限制 -->
-        <el-table-column label="重试限制" width="130">
+        <el-table-column :label="$t('scene.colRetryLimit')" width="140">
           <template #default="{ row }">
             <div class="limit-cell">
-              <span class="count-badge">上限 {{ row.maxRetryCount || 3 }} 次</span>
+              <span class="count-badge">{{ $t('scene.maxRetries', { count: row.maxRetryCount || 3 }) }}</span>
               <span v-if="row.maxRetryDuration" class="duration-text">
-                限时 {{ row.maxRetryDuration }}s
+                {{ $t('scene.timeoutSec', { sec: row.maxRetryDuration }) }}
               </span>
             </div>
           </template>
         </el-table-column>
 
         <!-- 钩子类 -->
-        <el-table-column prop="hookClass" label="Hook 钩子全限定名" min-width="220" show-overflow-tooltip>
+        <el-table-column prop="hookClass" :label="$t('scene.colHookClass')" min-width="220" show-overflow-tooltip>
           <template #default="{ row }">
             <span v-if="row.hookClass" class="hook-class-pill" :title="row.hookClass">
               {{ getSimpleHookName(row.hookClass) }}
             </span>
-            <span v-else class="hook-default-pill">系统默认反射 (无Hook)</span>
+            <span v-else class="hook-default-pill">{{ locale === 'en' ? 'Default Reflection (No Hook)' : '系统默认反射 (无Hook)' }}</span>
           </template>
         </el-table-column>
 
         <!-- 状态切换 -->
-        <el-table-column prop="enabled" label="运行状态" width="100">
+        <el-table-column prop="enabled" :label="$t('scene.colStatus')" width="100">
           <template #default="{ row }">
             <el-switch 
               v-model="row.enabled" 
@@ -110,13 +110,13 @@
         </el-table-column>
 
         <!-- 操作 -->
-        <el-table-column label="操作" width="140" fixed="right">
+        <el-table-column :label="$t('scene.colAction')" width="140" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" :icon="Edit" @click="handleEdit(row)">
-              编辑
+              {{ $t('common.edit') }}
             </el-button>
             <el-button link type="danger" size="small" :icon="Delete" @click="handleDelete(row)">
-              删除
+              {{ $t('common.delete') }}
             </el-button>
           </template>
         </el-table-column>
@@ -218,11 +218,13 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Edit, Delete } from '@element-plus/icons-vue'
 import { sceneApi } from '@/api'
 import RetryIntervalConfig from './components/RetryIntervalConfig.vue'
 
+const { t, locale } = useI18n()
 const loading = ref(false)
 const sceneList = ref([])
 const dialogVisible = ref(false)
@@ -264,7 +266,7 @@ const rules = {
 }
 
 const isEdit = computed(() => !!form.id)
-const dialogTitle = computed(() => isEdit.value ? '编辑场景配置' : '新增场景配置')
+const dialogTitle = computed(() => isEdit.value ? (locale.value === 'en' ? 'Edit Scene' : '编辑场景配置') : (locale.value === 'en' ? 'Add Scene' : '新增场景配置'))
 const enabledCount = computed(() => sceneList.value.filter(scene => scene.enabled === 1 || scene.enabled === true).length)
 const disabledCount = computed(() => sceneList.value.filter(scene => scene.enabled === 0 || scene.enabled === false).length)
 
@@ -280,10 +282,10 @@ const formatIntervalText = (val) => {
 
 const getStrategyLabel = (strategy) => {
   switch (strategy) {
-    case 'FIXED': return '固定间隔'
-    case 'LINEAR': return '线性递增'
-    case 'EXPONENTIAL': return '指数退避'
-    case 'CUSTOM': default: return '自定义流水'
+    case 'FIXED': return t('scene.strategyFixed')
+    case 'LINEAR': return t('scene.strategyLinear')
+    case 'EXPONENTIAL': return t('scene.strategyExponential')
+    case 'CUSTOM': default: return t('scene.strategyCustom')
   }
 }
 

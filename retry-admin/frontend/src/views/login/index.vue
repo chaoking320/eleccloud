@@ -1,13 +1,18 @@
 <template>
   <div class="login-container">
     <div class="login-bg-glow"></div>
+    <div class="login-lang-switch">
+      <el-button size="small" round @click="toggleLang">
+        🌐 {{ locale === 'en' ? '简体中文' : 'English' }}
+      </el-button>
+    </div>
     <div class="login-box">
       <div class="login-header">
         <div class="logo-wrapper">
           <div class="logo-badge">⚡</div>
-          <div class="logo-title">ElecCloud</div>
+          <div class="logo-title">{{ $t('login.title') }}</div>
         </div>
-        <p class="login-subtitle">分布式重试中台 · 控制台管理系统</p>
+        <p class="login-subtitle">{{ $t('login.subtitle') }}</p>
       </div>
 
       <el-form
@@ -20,7 +25,7 @@
         <el-form-item prop="username">
           <el-input
             v-model="loginForm.username"
-            placeholder="用户名 (默认: admin)"
+            :placeholder="$t('login.usernamePlaceholder')"
             size="large"
             :prefix-icon="User"
             clearable
@@ -31,7 +36,7 @@
           <el-input
             v-model="loginForm.password"
             type="password"
-            placeholder="密码 (默认: admin123)"
+            :placeholder="$t('login.passwordPlaceholder')"
             size="large"
             :prefix-icon="Lock"
             show-password
@@ -40,9 +45,9 @@
         </el-form-item>
 
         <div class="login-options">
-          <el-checkbox v-model="rememberMe">记住登录状态</el-checkbox>
+          <el-checkbox v-model="rememberMe">{{ $t('login.rememberMe') }}</el-checkbox>
           <el-button link type="primary" size="small" @click="fillDemoAccount">
-            一键填入演示账号
+            {{ $t('login.fillDemo') }}
           </el-button>
         </div>
 
@@ -53,14 +58,14 @@
           class="login-btn"
           @click="handleLogin"
         >
-          {{ loading ? '正在验证身份...' : '登 录 系 统' }}
+          {{ loading ? $t('login.loggingIn') : $t('login.loginBtn') }}
         </el-button>
       </el-form>
 
       <div class="login-footer">
         <div class="footer-badge">
           <span class="pulse-dot"></span>
-          <span>系统在线 · 服务就绪</span>
+          <span>{{ $t('login.systemOnline') }}</span>
         </div>
         <div class="footer-copyright">
           ElecCloud Distributed Retry Platform v1.0.0
@@ -71,8 +76,9 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { ElMessage } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
@@ -80,6 +86,7 @@ import { User, Lock } from '@element-plus/icons-vue'
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const { locale, t } = useI18n()
 
 const loginFormRef = ref(null)
 const loading = ref(false)
@@ -91,17 +98,21 @@ const loginForm = reactive({
 })
 
 const loginRules = {
-  username: [{ required: true, message: '请输入管理员账号', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
+  username: [{ required: true, message: 'Username is required', trigger: 'blur' }],
+  password: [{ required: true, message: 'Password is required', trigger: 'blur' }]
+}
+
+const toggleLang = () => {
+  const next = locale.value === 'en' ? 'zh' : 'en'
+  locale.value = next
+  localStorage.setItem('eleccloud_lang', next)
 }
 
 const fillDemoAccount = () => {
   loginForm.username = 'admin'
   loginForm.password = 'admin123'
-  ElMessage.success('已自动填入演示账号 (admin / admin123)')
+  ElMessage.success(locale.value === 'en' ? 'Demo credentials filled (admin / admin123)' : '已自动填入演示账号 (admin / admin123)')
 }
-
-import { onMounted } from 'vue'
 
 onMounted(() => {
   if (route.query.auto === '1' || route.query.demo === '1') {
@@ -119,11 +130,11 @@ const handleLogin = () => {
     loading.value = true
     try {
       await authStore.login(loginForm.username, loginForm.password)
-      ElMessage.success('欢迎登录 ElecCloud 管理控制台')
+      ElMessage.success(t('login.loginSuccess'))
       const redirect = route.query.redirect || '/dashboard'
       router.push(redirect)
     } catch (err) {
-      ElMessage.error(err.message || '登录失败，请检查账号密码')
+      ElMessage.error(err.message || t('login.loginFailed'))
     } finally {
       loading.value = false
     }
@@ -141,6 +152,13 @@ const handleLogin = () => {
   position: relative;
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.login-lang-switch {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  z-index: 20;
 }
 
 .login-bg-glow {

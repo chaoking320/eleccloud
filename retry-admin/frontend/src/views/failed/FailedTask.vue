@@ -2,9 +2,9 @@
   <div class="failed-task">
     <!-- 顶栏状态提示 -->
     <el-alert
-      title="失败超限任务说明"
+      :title="$t('failed.alertTitle')"
       type="error"
-      description="当一个重试任务尝试了配置的最大次数（例如 4 次）依然返回失败、或者超时无法恢复时，重试平台会将其移入本失败任务表，停止自动重试。您可以排查底层业务或下游接口后，手动点击【一键恢复】将其重新放回重试队列。"
+      :description="$t('failed.alertDesc')"
       show-icon
       :closable="false"
       class="warning-alert"
@@ -13,32 +13,32 @@
     <!-- 搜索筛选区 Filters -->
     <el-card class="filter-card">
       <el-form :inline="true" :model="filters" class="demo-form-inline">
-        <el-form-item label="场景类型">
-          <el-select v-model="filters.sceneType" placeholder="选择场景" clearable style="width: 180px">
+        <el-form-item :label="$t('task.filterScene')">
+          <el-select v-model="filters.sceneType" :placeholder="$t('task.filterScenePlaceholder')" clearable style="width: 180px">
             <el-option v-for="item in sceneOptions" :key="item.sceneType" :label="`${item.sceneName} (${item.sceneType})`" :value="item.sceneType" />
           </el-select>
         </el-form-item>
-        <el-form-item label="幂等键 (Idempotent Key)">
-          <el-input v-model="filters.idempotentKey" placeholder="请输入幂等键" clearable style="width: 200px" />
+        <el-form-item :label="$t('task.filterKey')">
+          <el-input v-model="filters.idempotentKey" :placeholder="$t('task.filterKeyPlaceholder')" clearable style="width: 200px" />
         </el-form-item>
-        <el-form-item label="失败时间">
+        <el-form-item label="Fail Time">
           <el-date-picker
             v-model="timeRange"
             type="datetimerange"
-            range-separator="至"
-            start-placeholder="开始时间"
-            end-placeholder="结束时间"
+            range-separator="~"
+            start-placeholder="Start"
+            end-placeholder="End"
             value-format="x"
             style="width: 360px"
           />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleSearch">
-            <el-icon><Search /></el-icon>&nbsp;查询
+            <el-icon><Search /></el-icon>&nbsp;{{ $t('common.query') }}
           </el-button>
-          <el-button @click="resetFilters">重置</el-button>
+          <el-button @click="resetFilters">{{ $t('common.reset') }}</el-button>
           <el-button type="success" @click="loadTableData" :loading="loading">
-            <el-icon><RefreshRight /></el-icon>&nbsp;刷新
+            <el-icon><RefreshRight /></el-icon>&nbsp;{{ $t('common.refresh') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -48,17 +48,17 @@
     <el-card class="table-card">
       <template #header>
         <div class="card-header-title">
-          <span class="title-text">超限失败任务管理 (停止自动重试)</span>
+          <span class="title-text">{{ $t('failed.title') }}</span>
         </div>
       </template>
 
       <el-table :data="tableData" v-loading="loading" stripe style="width: 100%" class="custom-table">
-        <el-table-column prop="taskId" label="任务ID" min-width="190">
+        <el-table-column prop="taskId" :label="$t('failed.colTaskId')" min-width="190">
           <template #default="{ row }">
             <span class="task-id-mono" :title="row.taskId">{{ row.taskId }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="sceneType" label="场景" min-width="200">
+        <el-table-column prop="sceneType" :label="$t('failed.colScene')" min-width="200">
           <template #default="{ row }">
             <div class="scene-cell">
               <span class="scene-id-chip">#{{ row.sceneType }}</span>
@@ -66,37 +66,37 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="idempotentKey" label="幂等键" min-width="160">
+        <el-table-column prop="idempotentKey" :label="$t('failed.colIdempotentKey')" min-width="160">
           <template #default="{ row }">
             <span class="idempotent-code" :title="row.idempotentKey">{{ row.idempotentKey }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="failReason" label="核心失败原因" min-width="240" show-overflow-tooltip>
+        <el-table-column prop="failReason" :label="$t('failed.colReason')" min-width="240" show-overflow-tooltip>
           <template #default="{ row }">
             <span class="fail-reason-text">{{ row.failReason }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="retryCount" label="重试次数" width="110" align="center">
+        <el-table-column prop="retryCount" :label="$t('failed.colRetryCount')" width="110" align="center">
           <template #default="{ row }">
             <span class="retry-badge danger">
               <span class="retry-badge-dot"></span>
-              {{ row.retryCount }} 次
+              {{ row.retryCount }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="归档时间" width="170">
+        <el-table-column :label="$t('failed.colFailTime')" width="170">
           <template #default="{ row }">
             <span class="time-cell">{{ formatTime(row.failTime) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column :label="$t('common.operation')" width="220" fixed="right">
           <template #default="{ row }">
             <div class="action-buttons">
-              <button class="action-btn detail" @click="viewDetail(row)" title="查看详情">
-                <el-icon><View /></el-icon> 详情
+              <button class="action-btn detail" @click="viewDetail(row)" :title="$t('failed.actionDetail')">
+                <el-icon><View /></el-icon> {{ $t('failed.actionDetail') }}
               </button>
-              <button class="action-btn recover" @click="recoverTask(row)" title="重新放回队列重试">
-                <el-icon><Refresh /></el-icon> 恢复
+              <button class="action-btn recover" @click="recoverTask(row)" :title="$t('failed.actionRecover')">
+                <el-icon><Refresh /></el-icon> {{ $t('failed.actionRecover') }}
               </button>
               <button class="action-btn delete" @click="deleteTask(row)" title="删除归档记录">
                 <el-icon><Delete /></el-icon>

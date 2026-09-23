@@ -19,7 +19,7 @@
 </div>
 
 <p align="center">
-  <img src="docs/images/showcase.gif" alt="ElecCloud Dashboard Showcase" width="100%" />
+  <img src="docs/images/showcase_en.gif" alt="ElecCloud Dashboard Showcase" width="100%" />
 </p>
 
 ---

@@ -62,3 +62,8 @@ deploy/init-tables-*.sql
 package-for-test.*
 *-test.yml
 docker-compose.test-server.yml
+
+# Python tools & standalone utilities
+__pycache__/
+*.pyc
+tools/

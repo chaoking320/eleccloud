@@ -5,9 +5,9 @@
       <el-col :xs="24" :sm="12" :md="6">
         <div class="stat-box total-box">
           <div class="stat-left">
-            <span class="stat-title">总任务数</span>
+            <span class="stat-title">{{ $t('task.metricTotal') }}</span>
             <div class="stat-num">{{ stats.total }}</div>
-            <div class="stat-sub">全量任务登记流水</div>
+            <div class="stat-sub">{{ $t('task.metricTotalSub') }}</div>
           </div>
           <div class="stat-badge-icon total-icon">
             <el-icon><Tickets /></el-icon>
@@ -18,9 +18,9 @@
       <el-col :xs="24" :sm="12" :md="6">
         <div class="stat-box init-box">
           <div class="stat-left">
-            <span class="stat-title">就绪排队 (INIT)</span>
+            <span class="stat-title">{{ $t('task.metricInit') }}</span>
             <div class="stat-num text-primary">{{ stats.init }}</div>
-            <div class="stat-sub">等待首次延时触发</div>
+            <div class="stat-sub">{{ $t('task.metricInitSub') }}</div>
           </div>
           <div class="stat-badge-icon init-icon">
             <el-icon><Timer /></el-icon>
@@ -31,9 +31,9 @@
       <el-col :xs="24" :sm="12" :md="6">
         <div class="stat-box wait-box">
           <div class="stat-left">
-            <span class="stat-title">反查等待 (WAIT)</span>
+            <span class="stat-title">{{ $t('task.metricWait') }}</span>
             <div class="stat-num text-warning">{{ stats.wait }}</div>
-            <div class="stat-sub">Hook 异步三步流转中</div>
+            <div class="stat-sub">{{ $t('task.metricWaitSub') }}</div>
           </div>
           <div class="stat-badge-icon wait-icon">
             <el-icon><Refresh /></el-icon>
@@ -44,9 +44,9 @@
       <el-col :xs="24" :sm="12" :md="6">
         <div class="stat-box failed-box">
           <div class="stat-left">
-            <span class="stat-title">死信归档 (FAILED)</span>
+            <span class="stat-title">{{ $t('task.metricFailed') }}</span>
             <div class="stat-num text-danger">{{ stats.failed }}</div>
-            <div class="stat-sub">耗尽次数移入失败表</div>
+            <div class="stat-sub">{{ $t('task.metricFailedSub') }}</div>
           </div>
           <div class="stat-badge-icon failed-icon">
             <el-icon><Warning /></el-icon>
@@ -58,29 +58,29 @@
     <!-- 搜索筛选区 Filters -->
     <el-card shadow="never" class="filter-card">
       <el-form :inline="true" :model="filters" class="demo-form-inline">
-        <el-form-item label="场景类型">
-          <el-select v-model="filters.sceneType" placeholder="选择场景" clearable style="width: 180px">
+        <el-form-item :label="$t('task.filterScene')">
+          <el-select v-model="filters.sceneType" :placeholder="$t('task.filterScenePlaceholder')" clearable style="width: 180px">
             <el-option v-for="item in sceneOptions" :key="item.sceneType" :label="`${item.sceneName} (#${item.sceneType})`" :value="item.sceneType" />
           </el-select>
         </el-form-item>
-        <el-form-item label="任务状态">
-          <el-select v-model="filters.taskStatus" placeholder="选择状态" clearable style="width: 140px">
-            <el-option label="INIT (就绪)" value="INIT" />
-            <el-option label="WAIT (等待)" value="WAIT" />
-            <el-option label="SUCCESS (成功)" value="SUCCESS" />
-            <el-option label="FAILED (超限失败)" value="FAILED" />
+        <el-form-item :label="$t('task.filterStatus')">
+          <el-select v-model="filters.taskStatus" :placeholder="$t('task.filterStatusPlaceholder')" clearable style="width: 140px">
+            <el-option label="INIT" value="INIT" />
+            <el-option label="WAIT" value="WAIT" />
+            <el-option label="SUCCESS" value="SUCCESS" />
+            <el-option label="FAILED" value="FAILED" />
           </el-select>
         </el-form-item>
-        <el-form-item label="幂等键">
-          <el-input v-model="filters.idempotentKey" placeholder="请输入幂等流水号" clearable style="width: 220px" />
+        <el-form-item :label="$t('task.filterKey')">
+          <el-input v-model="filters.idempotentKey" :placeholder="$t('task.filterKeyPlaceholder')" clearable style="width: 220px" />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :icon="Search" @click="handleSearch">
-            查询
+            {{ $t('common.query') }}
           </el-button>
-          <el-button @click="resetFilters">重置</el-button>
+          <el-button @click="resetFilters">{{ $t('common.reset') }}</el-button>
           <el-button :icon="RefreshRight" @click="loadAllData" :loading="loading">
-            刷新
+            {{ $t('common.refresh') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -91,22 +91,22 @@
       <template #header>
         <div class="card-header-title">
           <div class="header-left-title">
-            <span class="title-text">重试任务执行流</span>
-            <span class="title-sub">实时监控重试任务生命周期流转状态与调度计划</span>
+            <span class="title-text">{{ $t('task.title') }}</span>
+            <span class="title-sub">{{ $t('task.subtitle') }}</span>
           </div>
         </div>
       </template>
 
       <!-- 核心修复：扩大列宽，消解叠字与换行问题，去除透明穿透 -->
       <el-table :data="tableData" v-loading="loading" stripe style="width: 100%" class="custom-monitor-table">
-        <el-table-column prop="taskId" label="任务ID (Task ID)" width="190" show-overflow-tooltip>
+        <el-table-column prop="taskId" :label="$t('task.colTaskId')" width="190" show-overflow-tooltip>
           <template #default="{ row }">
             <span class="task-id-text">{{ row.taskId }}</span>
           </template>
         </el-table-column>
 
-        <!-- 场景类型与名称 (修复叠字叠层问题，独立胶囊与文本) -->
-        <el-table-column label="所属场景" min-width="210">
+        <!-- 场景类型与名称 -->
+        <el-table-column :label="$t('task.colScene')" min-width="210">
           <template #default="{ row }">
             <div class="scene-item-cell">
               <span class="scene-chip">#{{ row.sceneType }}</span>
@@ -115,19 +115,19 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="idempotentKey" label="业务幂等键" width="160" show-overflow-tooltip>
+        <el-table-column prop="idempotentKey" :label="$t('task.colIdempotentKey')" width="160" show-overflow-tooltip>
           <template #default="{ row }">
             <span class="idempotent-text">{{ row.idempotentKey }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column prop="methodName" label="触发方法" width="150" show-overflow-tooltip>
+        <el-table-column prop="methodName" :label="$t('task.colMethod')" width="150" show-overflow-tooltip>
           <template #default="{ row }">
             <span class="method-badge">{{ row.methodName }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column prop="taskStatus" label="当前状态" width="120">
+        <el-table-column prop="taskStatus" :label="$t('task.colStatus')" width="120">
           <template #default="{ row }">
             <span class="status-pill" :class="getStatusClass(row.taskStatus)">
               <span class="status-bullet"></span>
@@ -136,22 +136,22 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="重试频次" width="110">
+        <el-table-column :label="$t('task.colRetryCount')" width="110">
           <template #default="{ row }">
             <span class="retry-counter-pill">{{ row.retryCount }} / {{ row.maxRetryCount }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="计划执行时间" width="170">
+        <el-table-column :label="$t('task.colNextTime')" width="170">
           <template #default="{ row }">
             <span class="time-text">{{ formatTime(row.nextRetryTime) }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column :label="$t('common.operation')" width="150" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" :icon="View" @click="viewDetail(row)">
-              轨迹详情
+              {{ $t('task.actionTrace') }}
             </el-button>
             <el-button 
               link 
@@ -160,7 +160,7 @@
               :icon="Refresh"
               @click="triggerRetry(row)"
               :disabled="row.taskStatus === 'SUCCESS'">
-              触发
+              {{ $t('task.actionTrigger') }}
             </el-button>
           </template>
         </el-table-column>

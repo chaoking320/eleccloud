@@ -19,27 +19,27 @@
     >
       <el-menu-item index="/dashboard">
         <el-icon><DataBoard /></el-icon>
-        <template #title>仪表盘</template>
+        <template #title>{{ $t('menu.dashboard') }}</template>
       </el-menu-item>
       
       <el-menu-item index="/scene">
         <el-icon><Setting /></el-icon>
-        <template #title>场景配置</template>
+        <template #title>{{ $t('menu.sceneConfig') }}</template>
       </el-menu-item>
       
       <el-menu-item index="/task">
         <el-icon><Monitor /></el-icon>
-        <template #title>任务监控</template>
+        <template #title>{{ $t('menu.taskMonitor') }}</template>
       </el-menu-item>
       
       <el-menu-item index="/failed">
         <el-icon><Warning /></el-icon>
-        <template #title>失败任务</template>
+        <template #title>{{ $t('menu.failedTask') }}</template>
       </el-menu-item>
       
       <el-menu-item index="/system">
         <el-icon><Tools /></el-icon>
-        <template #title>系统配置</template>
+        <template #title>{{ $t('menu.systemConfig') }}</template>
       </el-menu-item>
     </el-menu>
 

@@ -7,18 +7,37 @@
       </el-icon>
       <el-breadcrumb class="app-breadcrumb" separator="/">
         <el-breadcrumb-item>
-          <router-link to="/dashboard">控制台</router-link>
+          <router-link to="/dashboard">{{ $t('common.console') }}</router-link>
         </el-breadcrumb-item>
-        <el-breadcrumb-item v-if="$route.meta.title">
-          {{ $route.meta.title }}
+        <el-breadcrumb-item v-if="currentRouteTitle">
+          {{ currentRouteTitle }}
         </el-breadcrumb-item>
       </el-breadcrumb>
     </div>
     
     <div class="right-menu">
+      <!-- Language Selector -->
+      <el-dropdown trigger="click" @command="handleLangChange">
+        <div class="lang-selector">
+          <span class="lang-icon">🌐</span>
+          <span class="lang-text">{{ currentLangLabel }}</span>
+          <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+        </div>
+        <template #dropdown>
+          <el-dropdown-menu class="lang-dropdown-menu">
+            <el-dropdown-item command="zh" :disabled="locale === 'zh'">
+              <span>🇨🇳 简体中文</span>
+            </el-dropdown-item>
+            <el-dropdown-item command="en" :disabled="locale === 'en'">
+              <span>🇺🇸 English</span>
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
+
       <div class="env-tag">
         <span class="status-indicator"></span>
-        <span class="env-text">集群: SHARED</span>
+        <span class="env-text">{{ $t('common.environment') }}</span>
       </div>
 
       <el-dropdown trigger="click" @command="handleCommand">
@@ -28,7 +47,7 @@
             src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png"
             class="user-avatar"
           />
-          <span class="user-name">{{ userName }}</span>
+          <span class="user-name">{{ displayUserName }}</span>
           <el-icon class="el-icon--right"><ArrowDown /></el-icon>
         </div>
         <template #dropdown>
@@ -36,16 +55,16 @@
             <el-dropdown-item disabled>
               <div class="dropdown-header">
                 <strong>{{ userName }}</strong>
-                <span class="role-badge">Super Admin</span>
+                <span class="role-badge">{{ $t('common.superAdmin') }}</span>
               </div>
             </el-dropdown-item>
             <el-dropdown-item divided command="demo">
               <el-icon><Monitor /></el-icon>
-              <span>跳转交互演示页 (8082)</span>
+              <span>{{ $t('common.demoCenter') }}</span>
             </el-dropdown-item>
             <el-dropdown-item divided command="logout">
               <el-icon><SwitchButton /></el-icon>
-              <span style="color: #f56c6c;">退出登录</span>
+              <span style="color: #f56c6c;">{{ $t('common.logout') }}</span>
             </el-dropdown-item>
           </el-dropdown-menu>
         </template>
@@ -56,18 +75,42 @@
 
 <script setup>
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores'
 import { useAuthStore } from '@/stores/auth'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { Expand, Fold, ArrowDown, Monitor, SwitchButton } from '@element-plus/icons-vue'
 
 const router = useRouter()
+const route = useRoute()
 const appStore = useAppStore()
 const authStore = useAuthStore()
+const { locale, t } = useI18n()
 
 const sidebar = computed(() => appStore.sidebar)
 const userName = computed(() => authStore.userName)
+const displayUserName = computed(() => locale.value === 'en' ? (authStore.userName === '系统管理员' ? 'Admin' : (authStore.userName || 'Admin')) : (authStore.userName || '系统管理员'))
+
+const currentLangLabel = computed(() => {
+  return locale.value === 'en' ? 'English' : '简体中文'
+})
+
+const currentRouteTitle = computed(() => {
+  const routeName = route.name
+  if (routeName === 'Dashboard') return t('menu.dashboard')
+  if (routeName === 'SceneConfig') return t('menu.sceneConfig')
+  if (routeName === 'TaskMonitor') return t('menu.taskMonitor')
+  if (routeName === 'FailedTask') return t('menu.failedTask')
+  if (routeName === 'SystemConfig') return t('menu.systemConfig')
+  return route.meta?.title || ''
+})
+
+const handleLangChange = (lang) => {
+  locale.value = lang
+  localStorage.setItem('eleccloud_lang', lang)
+  ElMessage.success(lang === 'en' ? 'Switched to English' : '已切换至简体中文')
+}
 
 const toggleSidebar = () => {
   appStore.toggleSidebar()
@@ -75,13 +118,17 @@ const toggleSidebar = () => {
 
 const handleCommand = (command) => {
   if (command === 'logout') {
-    ElMessageBox.confirm('确定要退出 ElecCloud 控制台吗？', '提示', {
-      confirmButtonText: '确定退出',
-      cancelButtonText: '取消',
-      type: 'warning'
-    }).then(async () => {
+    ElMessageBox.confirm(
+      locale.value === 'en' ? 'Are you sure you want to sign out?' : '确定要退出 ElecCloud 控制台吗？',
+      locale.value === 'en' ? 'Notice' : '提示',
+      {
+        confirmButtonText: locale.value === 'en' ? 'Sign Out' : '确定退出',
+        cancelButtonText: locale.value === 'en' ? 'Cancel' : '取消',
+        type: 'warning'
+      }
+    ).then(async () => {
       await authStore.logout()
-      ElMessage.success('已安全退出')
+      ElMessage.success(locale.value === 'en' ? 'Signed out safely' : '已安全退出')
       router.push('/login')
     }).catch(() => {})
   } else if (command === 'demo') {
@@ -205,5 +252,32 @@ const handleCommand = (command) => {
   font-size: 11px;
   color: #3b82f6;
   margin-top: 2px;
+}
+
+.lang-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background-color: #f8fafc;
+  transition: all 0.2s;
+}
+
+.lang-selector:hover {
+  background-color: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.lang-icon {
+  font-size: 14px;
+}
+
+.lang-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
 }
 </style>

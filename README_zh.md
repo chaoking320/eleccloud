@@ -19,7 +19,7 @@
 </div>
 
 <p align="center">
-  <img src="docs/images/showcase.gif" alt="ElecCloud Dashboard 演示动图" width="100%" />
+  <img src="docs/images/showcase_zh.gif" alt="ElecCloud 控制台与核心功能演示" width="100%" />
 </p>
 
 ---

@@ -83,7 +83,7 @@ const router = createRouter({
 // 全局路由守卫
 router.beforeEach((to, from, next) => {
   if (to.query && (to.query.token || to.query.demo === '1')) {
-    localStorage.setItem('eleccloud_token', to.query.token || 'demo_token')
+    localStorage.setItem('eleccloud_token', to.query.token || 'admin-token-default')
   }
   const token = localStorage.getItem('eleccloud_token')
   if (to.path === '/login') {

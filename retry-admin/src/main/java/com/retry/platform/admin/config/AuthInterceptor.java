@@ -17,9 +17,23 @@ import java.io.IOException;
 public class AuthInterceptor implements HandlerInterceptor {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final boolean authEnabled;
+
+    public AuthInterceptor(boolean authEnabled) {
+        this.authEnabled = authEnabled;
+    }
+
+    public AuthInterceptor() {
+        this(true);
+    }
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+        // 若全局关闭鉴权则直接放行
+        if (!authEnabled) {
+            return true;
+        }
+
         // 放行 OPTIONS 跨域预检请求
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             return true;

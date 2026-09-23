@@ -1,13 +1,19 @@
 <template>
-  <div id="app">
-    <router-view />
-  </div>
+  <el-config-provider :locale="currentElLocale">
+    <div id="app">
+      <router-view />
+    </div>
+  </el-config-provider>
 </template>
 
-<script>
-export default {
-  name: 'App'
-}
+<script setup>
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
+import en from 'element-plus/dist/locale/en.mjs'
+
+const { locale } = useI18n()
+const currentElLocale = computed(() => (locale.value === 'en' ? en : zhCn))
 </script>
 
 <style>

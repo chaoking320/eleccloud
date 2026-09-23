@@ -1,5 +1,6 @@
 package com.retry.platform.admin.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.server.ErrorPage;
 import org.springframework.boot.web.server.WebServerFactoryCustomizer;
 import org.springframework.boot.web.servlet.server.ConfigurableServletWebServerFactory;
@@ -15,6 +16,9 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class SpaWebConfig implements WebMvcConfigurer {
 
+    @Value("${retry.admin.auth.enabled:true}")
+    private boolean authEnabled;
+
     @Bean
     public WebServerFactoryCustomizer<ConfigurableServletWebServerFactory> webServerFactoryCustomizer() {
         return factory -> {
@@ -25,7 +29,7 @@ public class SpaWebConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(new AuthInterceptor())
+        registry.addInterceptor(new AuthInterceptor(authEnabled))
                 .addPathPatterns("/api/**")
                 .excludePathPatterns(
                         "/api/auth/login",

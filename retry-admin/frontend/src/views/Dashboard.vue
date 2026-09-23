@@ -4,23 +4,23 @@
     <div class="welcome-banner">
       <div class="banner-content">
         <div class="banner-badge-row">
-          <span class="banner-badge">ENTERPRISE EDITION</span>
+          <span class="banner-badge">{{ $t('dashboard.enterpriseBadge') }}</span>
           <span class="cluster-status-pill">
             <span class="pulse-indicator"></span>
-            <span>集群分布式调度引擎在线</span>
+            <span>{{ $t('dashboard.engineOnline') }}</span>
           </span>
         </div>
-        <h2 class="banner-title">ElecCloud 分布式重试调度中枢</h2>
+        <h2 class="banner-title">{{ $t('dashboard.title') }}</h2>
         <p class="banner-desc">
-          高可用去中心化架构 · 毫秒级两级混合重试 · 实时拓扑与状态机全息监控
+          {{ $t('dashboard.subtitle') }}
         </p>
       </div>
       <div class="banner-actions">
         <el-button type="primary" :icon="Refresh" :loading="loading" @click="loadStatistics">
-          刷新指标
+          {{ $t('dashboard.refreshMetrics') }}
         </el-button>
         <el-button class="btn-demo-link" :icon="Monitor" @click="goToDemo">
-          交互演示中心 (8082)
+          {{ $t('dashboard.interactiveDemo') }}
         </el-button>
       </div>
     </div>
@@ -30,12 +30,12 @@
       <div class="topology-header">
         <div class="topology-title">
           <el-icon class="topology-icon"><Connection /></el-icon>
-          <span>集群多节点运行拓扑 (Cluster Live Topology)</span>
+          <span>{{ $t('dashboard.topologyTitle') }}</span>
         </div>
         <div class="topology-legend">
-          <span class="legend-item"><span class="legend-dot green"></span> 运行正常</span>
-          <span class="legend-item"><span class="legend-dot blue"></span> 状态同步中</span>
-          <span class="legend-item"><span class="legend-dot purple"></span> 分布式锁保护</span>
+          <span class="legend-item"><span class="legend-dot green"></span> {{ $t('dashboard.statusNormal') }}</span>
+          <span class="legend-item"><span class="legend-dot blue"></span> {{ $t('dashboard.statusSyncing') }}</span>
+          <span class="legend-item"><span class="legend-dot purple"></span> {{ $t('dashboard.statusLocked') }}</span>
         </div>
       </div>
       <div class="nodes-grid">
@@ -43,18 +43,18 @@
           <div class="node-top">
             <div class="node-icon bg-blue">🚀</div>
             <div class="node-title-group">
-              <div class="node-name">Retry Server 集群</div>
-              <div class="node-sub">ShedLock 互斥调度</div>
+              <div class="node-name">{{ $t('dashboard.serverCluster') }}</div>
+              <div class="node-sub">{{ $t('dashboard.serverClusterDesc') }}</div>
             </div>
             <span class="node-status-badge online">ACTIVE</span>
           </div>
           <div class="node-metrics">
             <div class="metric-item">
-              <span class="metric-key">节点状态:</span>
+              <span class="metric-key">{{ $t('dashboard.nodeStatus') }}</span>
               <span class="metric-val text-success">UP (8080)</span>
             </div>
             <div class="metric-item">
-              <span class="metric-key">并发控制:</span>
+              <span class="metric-key">{{ $t('dashboard.concurrencyControl') }}</span>
               <span class="metric-val">ShedLock PT5M</span>
             </div>
           </div>
@@ -64,18 +64,18 @@
           <div class="node-top">
             <div class="node-icon bg-emerald">⚡</div>
             <div class="node-title-group">
-              <div class="node-name">SDK 消费集群</div>
-              <div class="node-sub">Lua 原子弹出消费</div>
+              <div class="node-name">{{ $t('dashboard.consumerCluster') }}</div>
+              <div class="node-sub">{{ $t('dashboard.consumerClusterDesc') }}</div>
             </div>
             <span class="node-status-badge online">RUNNING</span>
           </div>
           <div class="node-metrics">
             <div class="metric-item">
-              <span class="metric-key">消费模式:</span>
+              <span class="metric-key">{{ $t('dashboard.consumerMode') }}</span>
               <span class="metric-val text-primary">Atomic Lua</span>
             </div>
             <div class="metric-item">
-              <span class="metric-key">两级混合:</span>
+              <span class="metric-key">{{ $t('dashboard.twoTierHybrid') }}</span>
               <span class="metric-val text-success">200ms In-Memory</span>
             </div>
           </div>
@@ -85,18 +85,18 @@
           <div class="node-top">
             <div class="node-icon bg-amber">⏱️</div>
             <div class="node-title-group">
-              <div class="node-name">Redis 延时引擎</div>
-              <div class="node-sub">ZSET 延时队列 (db:1)</div>
+              <div class="node-name">{{ $t('dashboard.redisEngine') }}</div>
+              <div class="node-sub">{{ $t('dashboard.redisEngineDesc') }}</div>
             </div>
             <span class="node-status-badge online">READY</span>
           </div>
           <div class="node-metrics">
             <div class="metric-item">
-              <span class="metric-key">队列健康:</span>
+              <span class="metric-key">{{ $t('dashboard.queueHealth') }}</span>
               <span class="metric-val text-success">Healthy (&lt;1ms)</span>
             </div>
             <div class="metric-item">
-              <span class="metric-key">兜底保底:</span>
+              <span class="metric-key">{{ $t('dashboard.fallbackGuarantee') }}</span>
               <span class="metric-val">15s Fallback</span>
             </div>
           </div>
@@ -106,18 +106,18 @@
           <div class="node-top">
             <div class="node-icon bg-purple">🛡️</div>
             <div class="node-title-group">
-              <div class="node-name">MySQL 持久层</div>
-              <div class="node-sub">行级乐观锁 + 唯一幂等</div>
+              <div class="node-name">{{ $t('dashboard.mysqlStore') }}</div>
+              <div class="node-sub">{{ $t('dashboard.mysqlStoreDesc') }}</div>
             </div>
             <span class="node-status-badge online">SYNCED</span>
           </div>
           <div class="node-metrics">
             <div class="metric-item">
-              <span class="metric-key">主键约束:</span>
+              <span class="metric-key">{{ $t('dashboard.primaryConstraint') }}</span>
               <span class="metric-val">uk_task_id</span>
             </div>
             <div class="metric-item">
-              <span class="metric-key">数据归档:</span>
+              <span class="metric-key">{{ $t('dashboard.dataArchive') }}</span>
               <span class="metric-val text-success">Auto-Clean ON</span>
             </div>
           </div>
@@ -130,9 +130,9 @@
       <el-col :xs="24" :sm="12" :md="6">
         <div class="stat-card total-card">
           <div class="stat-info">
-            <span class="stat-label">总任务数</span>
+            <span class="stat-label">{{ $t('dashboard.totalTasks') }}</span>
             <div class="stat-val">{{ statistics.totalTasks }}</div>
-            <div class="stat-meta">累计注册重试任务</div>
+            <div class="stat-meta">{{ $t('dashboard.totalTasksSub') }}</div>
           </div>
           <div class="stat-icon-wrapper total-icon">
             <el-icon><Document /></el-icon>
@@ -143,10 +143,10 @@
       <el-col :xs="24" :sm="12" :md="6">
         <div class="stat-card success-card">
           <div class="stat-info">
-            <span class="stat-label">成功任务</span>
+            <span class="stat-label">{{ $t('dashboard.successTasks') }}</span>
             <div class="stat-val text-success">{{ statistics.successTasks }}</div>
             <div class="stat-meta">
-              综合达成率: <strong class="rate-highlight">{{ successRate }}%</strong>
+              {{ $t('dashboard.overallRate') }} <strong class="rate-highlight">{{ successRate }}%</strong>
             </div>
           </div>
           <div class="stat-icon-wrapper success-icon">
@@ -158,9 +158,9 @@
       <el-col :xs="24" :sm="12" :md="6">
         <div class="stat-card error-card">
           <div class="stat-info">
-            <span class="stat-label">失败任务</span>
+            <span class="stat-label">{{ $t('dashboard.failedTasks') }}</span>
             <div class="stat-val text-danger">{{ statistics.failedTasks }}</div>
-            <div class="stat-meta">已移入死信/需人工介入</div>
+            <div class="stat-meta">{{ $t('dashboard.failedTasksSub') }}</div>
           </div>
           <div class="stat-icon-wrapper error-icon">
             <el-icon><CircleCloseFilled /></el-icon>
@@ -171,9 +171,9 @@
       <el-col :xs="24" :sm="12" :md="6">
         <div class="stat-card warning-card">
           <div class="stat-info">
-            <span class="stat-label">进行中任务</span>
+            <span class="stat-label">{{ $t('dashboard.runningTasks') }}</span>
             <div class="stat-val text-warning">{{ statistics.runningTasks }}</div>
-            <div class="stat-meta">处于 INIT 或 WAIT 队列</div>
+            <div class="stat-meta">{{ $t('dashboard.runningTasksSub') }}</div>
           </div>
           <div class="stat-icon-wrapper warning-icon">
             <el-icon><Loading /></el-icon>
@@ -189,10 +189,10 @@
           <template #header>
             <div class="card-header">
               <div class="card-title-group">
-                <span class="card-title">重试流转实时曲线</span>
-                <span class="card-subtitle">吞吐量与成功恢复趋势分析</span>
+                <span class="card-title">{{ $t('dashboard.chartTitle') }}</span>
+                <span class="card-subtitle">{{ $t('dashboard.chartSub') }}</span>
               </div>
-              <el-tag size="small" type="success" effect="light">实时心跳同步</el-tag>
+              <el-tag size="small" type="success" effect="light">{{ $t('dashboard.chartLiveBadge') }}</el-tag>
             </div>
           </template>
           <div style="height: 360px;">
@@ -205,7 +205,7 @@
         <el-card shadow="never" class="info-card">
           <template #header>
             <div class="card-header">
-              <span class="card-title">集群高可用治理特性</span>
+              <span class="card-title">{{ $t('dashboard.governanceTitle') }}</span>
               <span class="status-dot-active"></span>
             </div>
           </template>
@@ -214,32 +214,32 @@
             <div class="feature-item">
               <div class="feature-icon bg-blue">⚡</div>
               <div class="feature-body">
-                <div class="feature-name">两级混合重试 (Two-Tier)</div>
-                <div class="feature-desc">本地 200ms 快速消化微抖动，超时后平滑升级至服务端分布式持久化</div>
+                <div class="feature-name">{{ $t('dashboard.featTwoTier') }}</div>
+                <div class="feature-desc">{{ $t('dashboard.featTwoTierDesc') }}</div>
               </div>
             </div>
 
             <div class="feature-item">
               <div class="feature-icon bg-emerald">🔄</div>
               <div class="feature-body">
-                <div class="feature-name">分布式竞争消费无冲突</div>
-                <div class="feature-desc">Redis Lua 脚本原子弹出 (ZRANGEBYSCORE + ZREM)，多节点并发绝不重复消费</div>
+                <div class="feature-name">{{ $t('dashboard.featConsumer') }}</div>
+                <div class="feature-desc">{{ $t('dashboard.featConsumerDesc') }}</div>
               </div>
             </div>
 
             <div class="feature-item">
               <div class="feature-icon bg-purple">🛡️</div>
               <div class="feature-body">
-                <div class="feature-name">ShedLock 定时任务互斥</div>
-                <div class="feature-desc">Server 节点多副本部署时自动竞争分布式锁，兜底与归档任务单例执行</div>
+                <div class="feature-name">{{ $t('dashboard.featShedLock') }}</div>
+                <div class="feature-desc">{{ $t('dashboard.featShedLockDesc') }}</div>
               </div>
             </div>
 
             <div class="feature-item">
               <div class="feature-icon bg-amber">💾</div>
               <div class="feature-body">
-                <div class="feature-name">客户端故障补偿同步</div>
-                <div class="feature-desc">服务端不可用时客户端本地队列自动兜底暂存，恢复后自动重新同步</div>
+                <div class="feature-name">{{ $t('dashboard.featFallback') }}</div>
+                <div class="feature-desc">{{ $t('dashboard.featFallbackDesc') }}</div>
               </div>
             </div>
           </div>
