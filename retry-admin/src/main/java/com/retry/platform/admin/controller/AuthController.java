@@ -1,11 +1,13 @@
 package com.retry.platform.admin.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -15,19 +17,62 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    // 简单内存 Token 存储，供单点/管理员鉴权验证
-    private static final Map<String, String> ACTIVE_TOKENS = new ConcurrentHashMap<>();
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
-    static {
-        // 预设一个持久的默认演示 token
-        ACTIVE_TOKENS.put("admin-token-default", "admin");
+    // Token 有效期：8 小时
+    private static final long TOKEN_TTL_MS = 8 * 60 * 60 * 1000L;
+
+    public static class TokenSession {
+        private final String username;
+        private final long expireTime;
+
+        public TokenSession(String username, long expireTime) {
+            this.username = username;
+            this.expireTime = expireTime;
+        }
+
+        public String getUsername() {
+            return username;
+        }
+
+        public boolean isExpired() {
+            return System.currentTimeMillis() > expireTime;
+        }
     }
+
+    // 内存 Token 存储，带 TTL
+    private static final Map<String, TokenSession> ACTIVE_TOKENS = new ConcurrentHashMap<>();
+
+    @Value("${retry.admin.security.username:admin}")
+    private String adminUsername;
+
+    @Value("${retry.admin.security.password:admin123}")
+    private String adminPassword;
 
     public static boolean isValidToken(String token) {
         if (token == null || token.isBlank()) {
             return false;
         }
-        return ACTIVE_TOKENS.containsKey(token) || token.startsWith("admin-token-");
+        TokenSession session = ACTIVE_TOKENS.get(token);
+        if (session == null) {
+            return false;
+        }
+        if (session.isExpired()) {
+            ACTIVE_TOKENS.remove(token);
+            return false;
+        }
+        return true;
+    }
+
+    public static String getUsernameByToken(String token) {
+        if (token == null || token.isBlank()) {
+            return null;
+        }
+        TokenSession session = ACTIVE_TOKENS.get(token);
+        if (session != null && !session.isExpired()) {
+            return session.getUsername();
+        }
+        return null;
     }
 
     /**
@@ -38,10 +83,21 @@ public class AuthController {
         String username = loginRequest.get("username");
         String password = loginRequest.get("password");
 
-        // 默认凭证验证 (可扩展接入 SSO / LDAP / 数据库)
-        if ("admin".equalsIgnoreCase(username) && "admin123".equals(password)) {
-            String token = "admin-token-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
-            ACTIVE_TOKENS.put(token, username);
+        if (username == null || password == null) {
+            return Result.error("用户名或密码不能为空");
+        }
+
+        // 常量时间比较防止时序侧信道攻击
+        boolean usernameMatches = safeEquals(adminUsername, username);
+        boolean passwordMatches = safeEquals(adminPassword, password);
+
+        if (usernameMatches && passwordMatches) {
+            // 清理过期 token 避免内存泄露
+            cleanExpiredTokens();
+
+            String token = "elec-" + UUID.randomUUID().toString().replace("-", "");
+            long expireAt = System.currentTimeMillis() + TOKEN_TTL_MS;
+            ACTIVE_TOKENS.put(token, new TokenSession(username, expireAt));
 
             Map<String, Object> data = new HashMap<>();
             data.put("token", token);
@@ -52,7 +108,7 @@ public class AuthController {
             return Result.success("登录成功", data);
         }
 
-        return Result.error("用户名或密码错误（默认账号: admin / 密码: admin123）");
+        return Result.error("用户名或密码错误");
     }
 
     /**
@@ -61,7 +117,7 @@ public class AuthController {
     @PostMapping("/logout")
     public Result<String> logout(@RequestHeader(value = "Authorization", required = false) String authHeader) {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
+            String token = authHeader.substring(7).trim();
             ACTIVE_TOKENS.remove(token);
         }
         return Result.success("退出登录成功", null);
@@ -72,13 +128,37 @@ public class AuthController {
      */
     @GetMapping("/user-info")
     public Result<Map<String, Object>> getUserInfo(@RequestHeader(value = "Authorization", required = false) String authHeader) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return Result.error("未提供有效凭据，请重新登录");
+        }
+        String token = authHeader.substring(7).trim();
+        String username = getUsernameByToken(token);
+        if (username == null) {
+            return Result.error("登录状态已过期，请重新登录");
+        }
+
         Map<String, Object> userInfo = new HashMap<>();
-        userInfo.put("username", "admin");
+        userInfo.put("username", username);
         userInfo.put("name", "系统管理员");
         userInfo.put("role", "admin");
         userInfo.put("roles", Collections.singletonList("admin"));
         userInfo.put("permissions", Collections.singletonList("*:*:*"));
         userInfo.put("avatar", "https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png");
         return Result.success(userInfo);
+    }
+
+    private static boolean safeEquals(String a, String b) {
+        if (a == null || b == null) {
+            return false;
+        }
+        byte[] aBytes = a.getBytes(StandardCharsets.UTF_8);
+        byte[] bBytes = b.getBytes(StandardCharsets.UTF_8);
+        return MessageDigest.isEqual(aBytes, bBytes);
+    }
+
+    private static void cleanExpiredTokens() {
+        if (ACTIVE_TOKENS.size() > 100) {
+            ACTIVE_TOKENS.entrySet().removeIf(entry -> entry.getValue().isExpired());
+        }
     }
 }

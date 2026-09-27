@@ -47,11 +47,8 @@ public class AuthInterceptor implements HandlerInterceptor {
             }
         }
 
-        // 也可以放行携带 query param token 的请求（如 SSE 或快捷链接）
-        String tokenParam = request.getParameter("token");
-        if (tokenParam != null && AuthController.isValidToken(tokenParam)) {
-            return true;
-        }
+        // 仅允许通过 Authorization: Bearer Header 进行认证
+
 
         // 未登录或 Token 无效，返回 401
         sendUnauthorized(response);

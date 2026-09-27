@@ -35,10 +35,10 @@ export default {
   login: {
     title: 'ElecCloud',
     subtitle: 'Distributed Retry Platform · Admin Console',
-    usernamePlaceholder: 'Username (default: admin)',
-    passwordPlaceholder: 'Password (default: admin123)',
+    usernamePlaceholder: 'Username',
+    passwordPlaceholder: 'Password',
     rememberMe: 'Remember Me',
-    fillDemo: 'Fill Demo Credentials',
+    fillDemo: 'Fill Default Username',
     loginBtn: 'Sign In',
     loggingIn: 'Authenticating...',
     loginSuccess: 'Welcome to ElecCloud Admin Console',

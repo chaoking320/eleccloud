@@ -35,10 +35,10 @@ export default {
   login: {
     title: 'ElecCloud',
     subtitle: '分布式重试中台 · 控制台管理系统',
-    usernamePlaceholder: '用户名 (默认: admin)',
-    passwordPlaceholder: '密码 (默认: admin123)',
+    usernamePlaceholder: '请输入用户名',
+    passwordPlaceholder: '请输入密码',
     rememberMe: '记住登录状态',
-    fillDemo: '一键填入演示账号',
+    fillDemo: '填入默认用户名',
     loginBtn: '登 录 系 统',
     loggingIn: '正在验证身份...',
     loginSuccess: '欢迎登录 ElecCloud 管理控制台',

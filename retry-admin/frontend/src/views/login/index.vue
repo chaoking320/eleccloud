@@ -110,18 +110,9 @@ const toggleLang = () => {
 
 const fillDemoAccount = () => {
   loginForm.username = 'admin'
-  loginForm.password = 'admin123'
-  ElMessage.success(locale.value === 'en' ? 'Demo credentials filled (admin / admin123)' : '已自动填入演示账号 (admin / admin123)')
+  ElMessage.info(locale.value === 'en' ? 'Default username filled: admin' : '已填入默认账号: admin')
 }
 
-onMounted(() => {
-  if (route.query.auto === '1' || route.query.demo === '1') {
-    authStore.login('admin', 'admin123').then(() => {
-      const redirect = route.query.redirect || '/dashboard'
-      router.push(redirect)
-    })
-  }
-})
 
 const handleLogin = () => {
   if (!loginFormRef.value) return
