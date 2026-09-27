@@ -162,12 +162,43 @@ public class StandaloneRetryClientImpl implements RetryClient {
     @Override
     public void updateRetryCountAndStatus(String taskId, int retryCount, String status) {
         try {
-            taskMapper.updateStatusAndRetryInfo(taskId, status, retryCount,
-                    System.currentTimeMillis());
-            log.debug("[Standalone] updateRetryCountAndStatus: taskId={}, retryCount={}, status={}",
-                    taskId, retryCount, status);
+            long delayMs = 60_000L;
+            RetryTaskDTO existing = taskMapper.selectByTaskId(taskId);
+            if (existing != null) {
+                delayMs = calculateBackoffDelayMs(existing, retryCount + 1);
+            }
+            long nextRetryTime = System.currentTimeMillis() + delayMs;
+            taskMapper.updateStatusAndRetryInfo(taskId, status, retryCount, nextRetryTime);
+            log.debug("[Standalone] updateRetryCountAndStatus: taskId={}, retryCount={}, status={}, nextRetryTime={}",
+                    taskId, retryCount, status, nextRetryTime);
         } catch (Exception e) {
             log.error("[Standalone] Failed to updateRetryCountAndStatus: taskId={}", taskId, e);
+        }
+    }
+
+    private long calculateBackoffDelayMs(RetryTaskDTO task, int nextRetryCount) {
+        String strategy = task.getBackoffStrategy() != null ? task.getBackoffStrategy() : "CUSTOM";
+        int baseMins = task.getBackoffBase() != null ? task.getBackoffBase() : 1;
+        if ("FIXED".equalsIgnoreCase(strategy)) {
+            return (long) baseMins * 60_000L;
+        } else if ("LINEAR".equalsIgnoreCase(strategy)) {
+            return (long) nextRetryCount * baseMins * 60_000L;
+        } else if ("EXPONENTIAL".equalsIgnoreCase(strategy)) {
+            int exp = Math.min(Math.max(0, nextRetryCount - 1), 30);
+            return (long) baseMins * (1L << exp) * 60_000L;
+        } else {
+            String intervals = task.getRetryIntervals();
+            if (intervals == null || intervals.trim().isEmpty()) {
+                return 60_000L;
+            }
+            String[] split = intervals.split(",");
+            int idx = Math.min(Math.max(0, nextRetryCount - 1), split.length - 1);
+            try {
+                int minutes = Integer.parseInt(split[idx].trim());
+                return (long) minutes * 60_000L;
+            } catch (Exception e) {
+                return 60_000L;
+            }
         }
     }
 

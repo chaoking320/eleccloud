@@ -19,6 +19,9 @@ public class RetryTaskController {
     @Autowired
     private RetryTaskService retryTaskService;
     
+    @Autowired
+    private com.retry.platform.server.service.FailedTaskService failedTaskService;
+    
     /**
      * 提交重试任务
      * @param request 重试任务请求
@@ -197,18 +200,39 @@ public class RetryTaskController {
     }
 
     /**
-     * 标记最终失败
+     * 标记最终失败并安全归档至死信表 (failed_task)
      */
-    @PostMapping("/failed")
-    public Result<Void> markFailed(@RequestParam String taskId, @RequestParam String reason) {
-        try {
-            retryTaskService.updateTaskStatus(taskId, "FAILED");
-            retryTaskService.recordHistory(taskId, 0, "FAILED", reason, 0);
-            return Result.success(null);
-        } catch (Exception e) {
-            return Result.fail(e.getMessage());
-        }
-    }
+     @PostMapping("/failed")
+     public Result<Void> markFailed(
+             @RequestParam(required = false) String taskId,
+             @RequestParam(required = false) String reason,
+             @RequestBody(required = false) java.util.Map<String, Object> body) {
+         try {
+             String actualTaskId = taskId;
+             String actualReason = reason;
+             if (actualTaskId == null && body != null && body.get("taskId") != null) {
+                 actualTaskId = body.get("taskId").toString();
+             }
+             if (actualReason == null && body != null && body.get("reason") != null) {
+                 actualReason = body.get("reason").toString();
+             }
+             if (actualTaskId == null || actualTaskId.isBlank()) {
+                 return Result.fail("taskId must not be null or blank");
+             }
+             if (actualReason == null) {
+                 actualReason = "Exceeded max retry count limit";
+             }
+
+             // 1. 记录执行失败终态历史
+             retryTaskService.recordHistory(actualTaskId, 0, "FAILED", actualReason, 0);
+             // 2. 闭环归档入 failed_task 死信表并清理 retry_task 表
+             failedTaskService.markTaskAsFailed(actualTaskId, actualReason);
+             return Result.success(null);
+         } catch (Exception e) {
+             log.error("Failed to mark task as failed: taskId={}", taskId, e);
+             return Result.fail(e.getMessage());
+         }
+     }
 
     /**
      * 人工在 Admin 后台手动触发重试任务
