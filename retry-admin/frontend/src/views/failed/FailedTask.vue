@@ -168,14 +168,10 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, RefreshRight, View, Refresh, Delete } from '@element-plus/icons-vue'
-import request from '@/utils/request'
-
-// API URLs
-const getFailedList = (params) => request({ url: '/failed/list', method: 'get', params })
-const getFailedDetail = (taskId) => request({ url: `/failed/${taskId}`, method: 'get' })
-const recoverFailedTask = (taskId) => request({ url: `/failed/${taskId}/recover`, method: 'post' })
-const deleteFailedTask = (taskId) => request({ url: `/failed/${taskId}`, method: 'delete' })
-const getSceneList = () => request({ url: '/scene/list', method: 'get' })
+import { failedApi } from '@/api'
+import { formatTime, formatJson } from '@/utils/format'
+import { usePagination } from '@/composables/usePagination'
+import { useSceneOptions } from '@/composables/useSceneOptions'
 
 // State Variables
 const loading = ref(false)
@@ -183,62 +179,13 @@ const tableData = ref([])
 const selectedTask = ref(null)
 const detailVisible = ref(false)
 const timeRange = ref([])
-const sceneOptions = ref([])
-const sceneMap = ref({})
+
+const { sceneOptions, loadScenes, cleanSceneName, getSceneName } = useSceneOptions()
 
 const filters = reactive({
   sceneType: '',
   idempotentKey: ''
 })
-
-const pagination = reactive({
-  pageNum: 1,
-  pageSize: 10,
-  total: 0
-})
-
-// Formatting and Helper Methods
-const loadScenes = async () => {
-  try {
-    const res = await getSceneList()
-    if (res && res.data) {
-      sceneOptions.value = res.data
-      const map = {}
-      res.data.forEach(scene => {
-        map[scene.sceneType] = scene.sceneName
-      })
-      sceneMap.value = map
-    }
-  } catch (e) {
-    console.error('Failed to load scenes', e)
-  }
-}
-
-const getSceneName = (sceneType) => {
-  return sceneMap.value[sceneType] ? `${sceneMap.value[sceneType]} (${sceneType})` : `场景 (${sceneType})`
-}
-
-const cleanSceneName = (sceneType) => {
-  const full = sceneMap.value[sceneType]
-  if (!full) return `场景 ${sceneType}`
-  return full.replace(/^\[Demo\]\s*/, '')
-}
-
-const formatTime = (timeVal) => {
-  if (!timeVal) return '-'
-  const date = new Date(timeVal)
-  return date.toLocaleString()
-}
-
-const formatJson = (jsonStr) => {
-  if (!jsonStr) return '{}'
-  try {
-    const obj = JSON.parse(jsonStr)
-    return JSON.stringify(obj, null, 2)
-  } catch (e) {
-    return jsonStr
-  }
-}
 
 // Load failed tasks
 const loadTableData = async () => {
@@ -253,7 +200,7 @@ const loadTableData = async () => {
       params.startTime = timeRange.value[0]
       params.endTime = timeRange.value[1]
     }
-    const res = await getFailedList(params)
+    const res = await failedApi.getFailedList(params)
     if (res && res.data) {
       tableData.value = res.data.list || []
       pagination.total = res.data.total || 0
@@ -266,8 +213,10 @@ const loadTableData = async () => {
   }
 }
 
+const { pagination, handleSizeChange, handleCurrentChange, resetPage } = usePagination(loadTableData)
+
 const handleSearch = () => {
-  pagination.pageNum = 1
+  resetPage()
   loadTableData()
 }
 
@@ -278,25 +227,11 @@ const resetFilters = () => {
   handleSearch()
 }
 
-const handleSizeChange = (val) => {
-  pagination.pageSize = val
-  loadTableData()
-}
-
-const handleCurrentChange = (val) => {
-  pagination.pageNum = val
-  loadTableData()
-}
-
 // Actions
 const viewDetail = async (row) => {
   try {
-    const res = await getFailedDetail(row.taskId)
-    if (res && res.data) {
-      selectedTask.value = res.data
-    } else {
-      selectedTask.value = row
-    }
+    const res = await failedApi.getFailedDetail(row.taskId)
+    selectedTask.value = (res && res.data) ? res.data : row
     detailVisible.value = true
   } catch (e) {
     ElMessage.error('获取归档详情失败')
@@ -314,7 +249,7 @@ const recoverTask = (row) => {
     }
   ).then(async () => {
     try {
-      const res = await recoverFailedTask(row.taskId)
+      const res = await failedApi.recoverTask(row.taskId)
       if (res && res.success) {
         ElMessage.success('任务成功恢复！已加入队列并重新就绪。')
         detailVisible.value = false
@@ -339,7 +274,7 @@ const deleteTask = (row) => {
     }
   ).then(async () => {
     try {
-      const res = await deleteFailedTask(row.taskId)
+      const res = await failedApi.deleteTask(row.taskId)
       if (res && res.success) {
         ElMessage.success('失败归档已永久物理删除')
         detailVisible.value = false

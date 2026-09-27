@@ -280,22 +280,18 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Tickets, Timer, Refresh, Warning, Search, RefreshRight, View } from '@element-plus/icons-vue'
-import request from '@/utils/request'
-
-const getTaskList = (params) => request({ url: '/task/list', method: 'get', params })
-const getTaskDetail = (taskId) => request({ url: `/task/${taskId}`, method: 'get' })
-const getTaskHistory = (taskId) => request({ url: `/task/${taskId}/history`, method: 'get' })
-const getDashboardStats = () => request({ url: '/task/stats', method: 'get' })
-const triggerManualRetry = (taskId) => request({ url: `/task/${taskId}/retry`, method: 'post' })
-const getSceneList = () => request({ url: '/scene/list', method: 'get' })
+import { taskApi } from '@/api'
+import { formatTime, formatJson, formatErrorMessage } from '@/utils/format'
+import { usePagination } from '@/composables/usePagination'
+import { useSceneOptions } from '@/composables/useSceneOptions'
 
 const loading = ref(false)
 const tableData = ref([])
 const historyList = ref([])
 const selectedTask = ref(null)
 const detailVisible = ref(false)
-const sceneOptions = ref([])
-const sceneMap = ref({})
+
+const { sceneOptions, loadScenes, cleanSceneName } = useSceneOptions()
 
 const stats = reactive({
   total: 0,
@@ -310,33 +306,28 @@ const filters = reactive({
   idempotentKey: ''
 })
 
-const pagination = reactive({
-  pageNum: 1,
-  pageSize: 10,
-  total: 0
-})
-
-const loadScenes = async () => {
+const loadTableData = async () => {
+  loading.value = true
   try {
-    const res = await getSceneList()
+    const params = {
+      pageNum: pagination.pageNum,
+      pageSize: pagination.pageSize,
+      ...filters
+    }
+    const res = await taskApi.getTaskList(params)
     if (res && res.data) {
-      sceneOptions.value = res.data
-      const map = {}
-      res.data.forEach(scene => {
-        map[scene.sceneType] = scene.sceneName
-      })
-      sceneMap.value = map
+      tableData.value = res.data.list || []
+      pagination.total = res.data.total || 0
     }
   } catch (e) {
-    console.error('Failed to load scenes', e)
+    console.error('Failed to load table data', e)
+    ElMessage.error('加载列表数据失败')
+  } finally {
+    loading.value = false
   }
 }
 
-const cleanSceneName = (sceneType) => {
-  const name = sceneMap.value[sceneType]
-  if (!name) return `场景 #${sceneType}`
-  return name.replace(/\s*\(\d+\)$/, '')
-}
+const { pagination, handleSizeChange, handleCurrentChange, resetPage } = usePagination(loadTableData)
 
 const getStatusClass = (status) => {
   switch (status) {
@@ -366,34 +357,9 @@ const getHistoryColor = (result) => {
   }
 }
 
-const formatTime = (timeVal) => {
-  if (!timeVal) return '-'
-  const date = new Date(timeVal)
-  return date.toLocaleString()
-}
-
-const formatJson = (jsonStr) => {
-  if (!jsonStr) return '{}'
-  try {
-    const obj = JSON.parse(jsonStr)
-    return JSON.stringify(obj, null, 2)
-  } catch (e) {
-    return jsonStr
-  }
-}
-
-const formatErrorMessage = (msg) => {
-  if (!msg) return ''
-  try {
-    return decodeURIComponent(msg.replace(/\+/g, ' '))
-  } catch (e) {
-    return msg
-  }
-}
-
 const loadStats = async () => {
   try {
-    const res = await getDashboardStats()
+    const res = await taskApi.getStatistics()
     if (res && res.data) {
       stats.init = res.data.init || 0
       stats.wait = res.data.wait || 0
@@ -405,34 +371,13 @@ const loadStats = async () => {
   }
 }
 
-const loadTableData = async () => {
-  loading.value = true
-  try {
-    const params = {
-      pageNum: pagination.pageNum,
-      pageSize: pagination.pageSize,
-      ...filters
-    }
-    const res = await getTaskList(params)
-    if (res && res.data) {
-      tableData.value = res.data.list || []
-      pagination.total = res.data.total || 0
-    }
-  } catch (e) {
-    console.error('Failed to load table data', e)
-    ElMessage.error('加载列表数据失败')
-  } finally {
-    loading.value = false
-  }
-}
-
 const loadAllData = () => {
   loadStats()
   loadTableData()
 }
 
 const handleSearch = () => {
-  pagination.pageNum = 1
+  resetPage()
   loadTableData()
 }
 
@@ -443,31 +388,13 @@ const resetFilters = () => {
   handleSearch()
 }
 
-const handleSizeChange = (val) => {
-  pagination.pageSize = val
-  loadTableData()
-}
-
-const handleCurrentChange = (val) => {
-  pagination.pageNum = val
-  loadTableData()
-}
-
 const viewDetail = async (row) => {
   try {
-    const resDetail = await getTaskDetail(row.taskId)
-    if (resDetail && resDetail.data) {
-      selectedTask.value = resDetail.data
-    } else {
-      selectedTask.value = row
-    }
+    const resDetail = await taskApi.getTaskDetail(row.taskId)
+    selectedTask.value = (resDetail && resDetail.data) ? resDetail.data : row
     
-    const resHistory = await getTaskHistory(row.taskId)
-    if (resHistory && resHistory.data) {
-      historyList.value = resHistory.data
-    } else {
-      historyList.value = []
-    }
+    const resHistory = await taskApi.getTaskHistory(row.taskId)
+    historyList.value = (resHistory && resHistory.data) ? resHistory.data : []
     
     detailVisible.value = true
   } catch (e) {
@@ -486,7 +413,7 @@ const triggerRetry = (row) => {
     }
   ).then(async () => {
     try {
-      const res = await triggerManualRetry(row.taskId)
+      const res = await taskApi.retryTask(row.taskId)
       if (res && res.success) {
         ElMessage.success('手动触发重试已提交，正在调度执行...')
         loadAllData()

@@ -1,24 +1,42 @@
 import request from '@/utils/request'
 
-// 场景配置相关API
+// 认证相关 API
+export const authApi = {
+  login(data) {
+    return request({
+      url: '/auth/login',
+      method: 'post',
+      data
+    })
+  },
+  logout() {
+    return request({
+      url: '/auth/logout',
+      method: 'post'
+    })
+  },
+  getUserInfo() {
+    return request({
+      url: '/auth/user-info',
+      method: 'get'
+    })
+  }
+}
+
+// 场景配置相关 API
 export const sceneApi = {
-  // 获取场景列表
   getSceneList() {
     return request({
       url: '/scene/list',
       method: 'get'
     })
   },
-  
-  // 获取场景详情
   getScene(id) {
     return request({
       url: `/scene/${id}`,
       method: 'get'
     })
   },
-  
-  // 创建场景
   createScene(data) {
     return request({
       url: '/scene',
@@ -26,8 +44,6 @@ export const sceneApi = {
       data
     })
   },
-  
-  // 更新场景
   updateScene(id, data) {
     return request({
       url: `/scene/${id}`,
@@ -35,8 +51,6 @@ export const sceneApi = {
       data
     })
   },
-  
-  // 删除场景
   deleteScene(id) {
     return request({
       url: `/scene/${id}`,
@@ -45,9 +59,8 @@ export const sceneApi = {
   }
 }
 
-// 任务监控相关API
+// 任务监控相关 API
 export const taskApi = {
-  // 获取任务统计
   getStatistics(sceneType) {
     return request({
       url: '/task/stats',
@@ -55,8 +68,6 @@ export const taskApi = {
       params: { sceneType }
     })
   },
-  
-  // 获取任务列表
   getTaskList(params) {
     return request({
       url: '/task/list',
@@ -64,44 +75,63 @@ export const taskApi = {
       params
     })
   },
-  
-  // 获取任务详情
   getTaskDetail(taskId) {
     return request({
       url: `/task/${taskId}`,
       method: 'get'
     })
   },
-  
-  // 手动重试任务
+  getTaskHistory(taskId) {
+    return request({
+      url: `/task/${taskId}/history`,
+      method: 'get'
+    })
+  },
   retryTask(taskId) {
     return request({
       url: `/task/${taskId}/retry`,
       method: 'post'
     })
-  },
-  
-  // 获取失败任务列表
-  getFailedTasks(params) {
+  }
+}
+
+// 失败死信任务相关 API
+export const failedApi = {
+  getFailedList(params) {
     return request({
       url: '/failed/list',
       method: 'get',
       params
     })
+  },
+  getFailedDetail(taskId) {
+    return request({
+      url: `/failed/${taskId}`,
+      method: 'get'
+    })
+  },
+  recoverTask(taskId) {
+    return request({
+      url: `/failed/${taskId}/recover`,
+      method: 'post'
+    })
+  },
+  deleteTask(taskId) {
+    return request({
+      url: `/failed/${taskId}`,
+      method: 'delete'
+    })
   }
 }
 
-// 系统配置相关API
+// 系统配置相关 API
 export const systemApi = {
-  // 获取系统配置
   getSystemConfig() {
     return request({
       url: '/system/config',
       method: 'get'
     })
   },
-  
-  // 更新系统配置
   updateSystemConfig(data) {
     return request({
       url: '/system/config',
