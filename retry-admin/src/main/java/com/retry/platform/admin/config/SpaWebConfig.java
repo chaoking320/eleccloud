@@ -19,6 +19,9 @@ public class SpaWebConfig implements WebMvcConfigurer {
     @Value("${retry.admin.auth.enabled:true}")
     private boolean authEnabled;
 
+    @Value("${retry.admin.cors.allowed-origins:http://localhost:5173,http://localhost:8081,http://127.0.0.1:5173,http://127.0.0.1:8081}")
+    private String allowedOrigins;
+
     @Bean
     public WebServerFactoryCustomizer<ConfigurableServletWebServerFactory> webServerFactoryCustomizer() {
         return factory -> {
@@ -28,12 +31,27 @@ public class SpaWebConfig implements WebMvcConfigurer {
     }
 
     @Override
+    public void addCorsMappings(org.springframework.web.servlet.config.annotation.CorsRegistry registry) {
+        String[] origins = java.util.Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toArray(String[]::new);
+        registry.addMapping("/api/**")
+                .allowedOrigins(origins)
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .allowedHeaders("*")
+                .allowCredentials(true)
+                .maxAge(3600);
+    }
+
+    @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(new AuthInterceptor(authEnabled))
                 .addPathPatterns("/api/**")
                 .excludePathPatterns(
                         "/api/auth/login",
-                        "/actuator/**",
+                        "/actuator/health",
+                        "/actuator/info",
                         "/error",
                         "/static/**",
                         "/assets/**",

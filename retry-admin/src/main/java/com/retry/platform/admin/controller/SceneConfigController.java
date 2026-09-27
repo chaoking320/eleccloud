@@ -12,7 +12,6 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/scene")
-@CrossOrigin
 public class SceneConfigController {
 
     @Autowired

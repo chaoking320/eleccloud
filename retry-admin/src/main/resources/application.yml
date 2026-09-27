@@ -44,6 +44,9 @@ retry:
   admin:
     auth:
       enabled: ${RETRY_ADMIN_AUTH_ENABLED:true}
+    security:
+      username: ${RETRY_ADMIN_USERNAME:admin}
+      password: ${RETRY_ADMIN_PASSWORD:admin123}
   client:
     consumer-enabled: false  # 控制台不执行本地重试消费
 

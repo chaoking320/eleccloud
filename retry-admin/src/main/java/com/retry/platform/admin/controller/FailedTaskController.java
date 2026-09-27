@@ -21,7 +21,6 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/api/failed")
-@CrossOrigin
 public class FailedTaskController {
 
     @Autowired

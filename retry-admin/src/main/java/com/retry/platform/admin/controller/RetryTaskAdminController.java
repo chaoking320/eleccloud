@@ -22,7 +22,6 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/api/task")
-@CrossOrigin
 public class RetryTaskAdminController {
 
     @Value("${retry.server.url:http://localhost:8080}")

@@ -71,7 +71,7 @@ services:
           address: "redis://redis:6379"
           password: "123456"
           database: 2
-      RETRY_SECURITY_ENABLED: "false"
+      RETRY_SECURITY_ENABLED: "true"
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
       interval: 10s

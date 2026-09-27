@@ -57,24 +57,13 @@ mybatis:
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
 
-# Redisson配置
-#redisson:
-#  single-server-config:
-#    hhost: 150.158.43.55
-#    port: 6379
-##    address: redis://150.158.43.55:6379
-#    password: ****
-#    database: 2
-#    connection-pool-size: 64
-#    connection-minimum-idle-size: 10
-
 # 重试平台配置
 retry:
   # 安全配置
   security:
-    enabled: true  # 是否启用API鉴权，生产环境必须为true，开发环境可设置为false
-    api-keys: demo-key-12345678,prod-key-87654321  # 支持多个API Key，逗号分隔
-    whitelist: /actuator/**,/error  # 白名单路径，不需要鉴权
+    enabled: ${RETRY_SECURITY_ENABLED:true}  # 是否启用API鉴权，生产环境必须为true，开发环境可设置为false
+    api-keys: ${RETRY_SECURITY_API_KEYS:demo-key-12345678}  # 支持多个API Key，逗号分隔
+    whitelist: /actuator/health,/actuator/info,/error  # 白名单路径，不需要鉴权
 
   # 告警配置
   alert:
