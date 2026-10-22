@@ -184,7 +184,7 @@ cd retry-example && mvn spring-boot:run
 <dependency>
     <groupId>io.github.chaoking320</groupId>
     <artifactId>retry-client-sdk</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
 </dependency>
 ```
 

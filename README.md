@@ -155,7 +155,7 @@ docker compose up -d --build
 
 ### Option 2: SDK Dependency (Remote Mode)
 
-> 💡 **Published on Maven Central**: `io.github.chaoking320:retry-client-sdk:1.0.0` is available directly from Maven Central — no local build required.
+> 💡 **Published on Maven Central**: `io.github.chaoking320:retry-client-sdk:1.0.1` is available directly from Maven Central — no local build required.
 
 **Step 1: Add dependency**
 
@@ -163,7 +163,7 @@ docker compose up -d --build
 <dependency>
     <groupId>io.github.chaoking320</groupId>
     <artifactId>retry-client-sdk</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
 </dependency>
 ```
 

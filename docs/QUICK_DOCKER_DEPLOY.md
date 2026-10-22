@@ -156,11 +156,11 @@ curl http://localhost:8080/actuator/health
 <dependency>
     <groupId>io.github.chaoking320</groupId>
     <artifactId>retry-client-sdk</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
 </dependency>
 ```
 
-> 💡 **提示**：`io.github.chaoking320:retry-client-sdk:1.0.0` 已发布至 Maven Central，可直接从中央仓库拉取；若修改了本地源码调试，可执行 `mvn install -DskipTests` 覆盖本地仓库。
+> 💡 **提示**：`io.github.chaoking320:retry-client-sdk:1.0.1` 已发布至 Maven Central，可直接从中央仓库拉取；若修改了本地源码调试，可执行 `mvn install -DskipTests` 覆盖本地仓库。
 
 ---
 

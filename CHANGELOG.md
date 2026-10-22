@@ -1,6 +1,26 @@
 # Changelog
 
-## [1.0.0] - 2026-10-22
+## [1.0.1] - 2026-10-22
+
+> **Use 1.0.1 instead of 1.0.0.** The 1.0.0 artifact on Maven Central was published before the fixes below and cannot be withdrawn.
+
+### Security
+- Reflection execution whitelist in `LocalRetryExecutor` (registered methods, `@RetryableTask`, business `@Service` beans outside system/framework packages)
+
+### Fixed
+- Idempotent key reactivation for terminal tasks (server and standalone consistent)
+- Task-level backoff persistence, `WAIT` fallback recovery and multi-queue scan in `DatabaseFallbackScheduler`
+- Success is persisted before hook callbacks; callback failures are isolated
+- `/api/retry/status` accepts both request params and JSON body
+
+### Added
+- `sendDelayMessageToQueue` target-queue routing for Redis and RabbitMQ producers
+- Multi-stage root `Dockerfile`: `docker compose up -d --build` works from a fresh clone
+
+### Changed
+- Removed unused `agentscope` dependency from `retry-admin`
+
+## [1.0.0] - 2026-10-22 (deprecated, use 1.0.1)
 
 ### Added
 - **Maven Central Release**: Published `io.github.chaoking320:retry-client-sdk:1.0.0` and parent POM to Maven Central
