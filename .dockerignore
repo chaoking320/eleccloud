@@ -1,0 +1,12 @@
+.git
+.github
+.idea
+.vscode
+**/target
+**/node_modules
+infra
+deploy
+promotion
+docs
+*.md
+*.bak*

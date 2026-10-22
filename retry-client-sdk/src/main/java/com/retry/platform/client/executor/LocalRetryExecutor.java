@@ -204,12 +204,12 @@ public class LocalRetryExecutor {
      */
     private void handleSuccess(String taskId, RetryContext context, RetryHook hook) {
         log.info("[LocalRetryExecutor] Task already SUCCESS. taskId={}", taskId);
+        ((RetryClient) retryClient).markSuccess(taskId);
         try {
             hook.doCallback(context, QueryResult.success("Already confirmed SUCCESS by checkStatus"));
         } catch (Exception cbEx) {
             log.error("[LocalRetryExecutor] Hook doCallback threw exception after checkStatus confirmed SUCCESS: taskId={}", taskId, cbEx);
         }
-        ((RetryClient) retryClient).markSuccess(taskId);
     }
 
     /**
@@ -234,13 +234,13 @@ public class LocalRetryExecutor {
                     currentCount = 1; // 保证至少为1
                 }
                 log.info("[LocalRetryExecutor] Query confirmed SUCCESS. Triggering doCallback. taskId={}, retryCount={}", taskId, currentCount);
+                updateRetryCountAndStatus(taskId, currentCount, "SUCCESS");
+                safeRecordHistory(taskId, currentCount, "SUCCESS", null, costMs);
                 try {
                     hook.doCallback(context, queryResult);
                 } catch (Exception cbEx) {
                     log.error("[LocalRetryExecutor] Hook doCallback threw exception after task confirmed SUCCESS: taskId={}", taskId, cbEx);
                 }
-                updateRetryCountAndStatus(taskId, currentCount, "SUCCESS");
-                safeRecordHistory(taskId, currentCount, "SUCCESS", null, costMs);
             } else {
                 log.info("[LocalRetryExecutor] Query returned failure/pending. Rescheduling. taskId={}", taskId);
                 // ★ M1 修复：记录 WAIT 查询未完成历史
@@ -347,13 +347,13 @@ public class LocalRetryExecutor {
                     currentCount = 1;
                 }
                 log.info("[LocalRetryExecutor] Hook confirmed SUCCESS. Triggering doCallback & markSuccess. taskId={}, retryCount={}", taskId, currentCount);
+                updateRetryCountAndStatus(taskId, currentCount, "SUCCESS");
+                safeRecordHistory(taskId, currentCount, "SUCCESS", "Method executed and hook confirmed SUCCESS", costMs);
                 try {
                     hook.doCallback(context, queryResult);
                 } catch (Exception cbEx) {
                     log.error("[LocalRetryExecutor] Hook doCallback threw exception after task confirmed SUCCESS: taskId={}", taskId, cbEx);
                 }
-                updateRetryCountAndStatus(taskId, currentCount, "SUCCESS");
-                safeRecordHistory(taskId, currentCount, "SUCCESS", "Method executed and hook confirmed SUCCESS", costMs);
             } else {
                 // 下游尚未完成或需异步回调确认，进入 WAIT 状态等待下一轮反查
                 log.info("[LocalRetryExecutor] Hook returned not-success/pending. Entering WAIT state. taskId={}", taskId);
@@ -778,25 +778,49 @@ public class LocalRetryExecutor {
      * 无 Hook 时的默认实现：checkStatus 始终返回 INIT，触发直接反射重试原始方法。
      * doQuery 默认返回 success（业务方法执行无异常即视为成功），doCallback 不做任何事。
      */
+    private static final java.util.Set<String> REGISTERED_METHODS = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     /**
-     * 安全校验：防止通过伪造消息反射调用 JDK / Spring / 数据库驱动等基础设施内部类（Gadget 防护）。
-     * 若方法显式标注了 {@code @RetryableTask} 则直接放行；若为编程式 API 模式，则拦截系统/框架敏感包。
+     * 登记允许被反射调用的业务方法签名（编程式 API 提交时自动登记）。
+     */
+    public static void registerAllowedMethod(String methodClass, String methodName) {
+        if (methodClass != null && methodName != null) {
+            REGISTERED_METHODS.add(methodClass.trim() + "#" + methodName.trim());
+        }
+    }
+
+    /**
+     * 白名单安全校验：防止通过伪造 MQ 消息反射调用任意未授权 Bean 方法。
+     * 仅允许以下三类目标方法执行：
+     * 1. 方法或类显式标注了 {@code @RetryableTask}
+     * 2. 通过 {@code RetryClient.submit()} / {@link #registerAllowedMethod} 显式登记的方法
+     * 3. 标注了 Spring {@code @Service} 的业务服务类（且不在系统/框架受限包前缀内）
      */
     private void validateTargetMethodSecurity(Class<?> clazz, Method targetMethod) {
-        if (targetMethod.isAnnotationPresent(com.retry.platform.client.annotation.RetryableTask.class)) {
-            return;
-        }
         String className = clazz.getName();
         String[] blockedPrefixes = {
                 "java.", "javax.", "jakarta.", "sun.", "com.sun.", "jdk.",
                 "org.springframework.", "org.apache.", "org.mybatis.",
-                "ch.qos.", "com.alibaba.fastjson", "com.mysql.", "io.lettuce.", "org.redisson."
+                "ch.qos.", "com.alibaba.fastjson", "com.mysql.", "io.lettuce.", "org.redisson.", "com.zaxxer."
         };
         for (String prefix : blockedPrefixes) {
             if (className.startsWith(prefix)) {
                 throw new SecurityException("Blocked reflective invocation on internal/framework class: " + className);
             }
         }
+        if (targetMethod.isAnnotationPresent(com.retry.platform.client.annotation.RetryableTask.class)
+                || clazz.isAnnotationPresent(com.retry.platform.client.annotation.RetryableTask.class)) {
+            return;
+        }
+        if (REGISTERED_METHODS.contains(className + "#" + targetMethod.getName())) {
+            return;
+        }
+        if (org.springframework.core.annotation.AnnotatedElementUtils.hasAnnotation(
+                clazz, org.springframework.stereotype.Service.class)) {
+            return;
+        }
+        throw new SecurityException("Rejected reflective invocation on unlisted method (not annotated with @RetryableTask or registered): "
+                + className + "#" + targetMethod.getName());
     }
 
     private static class NoOpRetryHook implements RetryHook {

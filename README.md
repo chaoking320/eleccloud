@@ -144,7 +144,6 @@ If a process crashes while executing a task, traditional post-fail interceptors 
 ```bash
 git clone https://github.com/chaoking320/eleccloud.git
 cd eleccloud
-mvn clean package -DskipTests
 docker compose up -d --build
 ```
 

@@ -62,6 +62,7 @@ public class StandaloneRetryClientImpl implements RetryClient {
     @Override
     public String submit(RetryTaskRequest request) {
         // 1. 幂等检查：同一 (sceneType, idempotentKey) 若已有 INIT/WAIT/EXECUTING 任务，直接复用
+        com.retry.platform.client.executor.LocalRetryExecutor.registerAllowedMethod(request.getMethodClass(), request.getMethodName());
         RetryTaskDTO existing = taskMapper.selectBySceneAndIdempotentKey(
                 request.getSceneType(), request.getIdempotentKey());
         if (existing != null) {

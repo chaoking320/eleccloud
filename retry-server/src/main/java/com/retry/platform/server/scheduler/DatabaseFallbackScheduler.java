@@ -136,26 +136,34 @@ public class DatabaseFallbackScheduler {
     private java.util.Set<String> getQueuedTaskIdsInRedis(int limit) {
         java.util.Set<String> result = new java.util.HashSet<>();
         try {
-            Set<String> members = redisTemplate.opsForZSet().range(DELAY_QUEUE_KEY, 0, Math.max(0, limit - 1));
-            if (members != null && !members.isEmpty()) {
-                for (String member : members) {
-                    if (member == null || member.isEmpty()) {
-                        continue;
-                    }
-                    if (member.startsWith("{")) {
-                        try {
-                            com.retry.platform.client.mq.RetryMessagePayload payload =
-                                    com.retry.platform.client.util.JsonUtil.fromJson(
-                                            member, com.retry.platform.client.mq.RetryMessagePayload.class);
-                            if (payload != null && payload.getTaskId() != null) {
-                                result.add(payload.getTaskId());
-                            }
-                        } catch (Exception ignored) {
-                            // 忽略脏数据格式
+            java.util.Set<String> queueKeys = new java.util.LinkedHashSet<>();
+            queueKeys.add(DELAY_QUEUE_KEY);
+            Set<String> discoveredKeys = redisTemplate.keys("retry:client:delay:queue:*");
+            if (discoveredKeys != null) {
+                queueKeys.addAll(discoveredKeys);
+            }
+            for (String queueKey : queueKeys) {
+                Set<String> members = redisTemplate.opsForZSet().range(queueKey, 0, Math.max(0, limit - 1));
+                if (members != null && !members.isEmpty()) {
+                    for (String member : members) {
+                        if (member == null || member.isEmpty()) {
+                            continue;
                         }
-                    } else {
-                        // 瘦消息：member 即 taskId
-                        result.add(member);
+                        if (member.startsWith("{")) {
+                            try {
+                                com.retry.platform.client.mq.RetryMessagePayload payload =
+                                        com.retry.platform.client.util.JsonUtil.fromJson(
+                                                member, com.retry.platform.client.mq.RetryMessagePayload.class);
+                                if (payload != null && payload.getTaskId() != null) {
+                                    result.add(payload.getTaskId());
+                                }
+                            } catch (Exception ignored) {
+                                // 忽略脏数据格式
+                            }
+                        } else {
+                            // 瘦消息：member 即 taskId
+                            result.add(member);
+                        }
                     }
                 }
             }

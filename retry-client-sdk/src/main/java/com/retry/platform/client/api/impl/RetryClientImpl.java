@@ -186,6 +186,7 @@ public class RetryClientImpl implements RetryClient, org.springframework.beans.f
         
         // 参数校验
         validateRequest(request);
+        com.retry.platform.client.executor.LocalRetryExecutor.registerAllowedMethod(request.getMethodClass(), request.getMethodName());
         
         try {
             String url = properties.getServerUrl() + SUBMIT_PATH;

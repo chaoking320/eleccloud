@@ -58,9 +58,8 @@
         <micrometer.version>1.9.17</micrometer.version>
         <skywalking.version>8.16.0</skywalking.version>
 
-        <!-- Maven Central GPG 签名默认配置（可通过命令行 -Dgpg.executable=... 覆盖） -->
-        <gpg.executable>D:\Program Files\Git\usr\bin\gpg.exe</gpg.executable>
-        <gpg.keyname>5AC4BFCBB1C44954E22C6E7C4E7535D930389156</gpg.keyname>
+        <!-- Maven Central GPG 签名默认命令（本机路径与密钥建议配置在 ~/.m2/settings.xml 的 central profile 中） -->
+        <gpg.executable>gpg</gpg.executable>
     </properties>
 
     <dependencyManagement>
@@ -211,7 +210,6 @@
                                 </goals>
                                 <configuration>
                                     <executable>${gpg.executable}</executable>
-                                    <keyname>${gpg.keyname}</keyname>
                                 </configuration>
                             </execution>
                         </executions>

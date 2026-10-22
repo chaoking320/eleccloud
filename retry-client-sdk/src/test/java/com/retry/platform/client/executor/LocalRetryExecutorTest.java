@@ -111,11 +111,30 @@ class LocalRetryExecutorTest {
         verify(retryClient, never()).rollbackToPending(eq("T1"), anyString());
     }
 
+    static class UnlistedHelper {
+        public void doSomething() {}
+    }
+
+    static class RegisteredService {
+        public void settle() {}
+    }
+
     @Test
     void blocksReflectiveInvocationOnSystemOrFrameworkClasses() throws Exception {
         Method targetMethod = String.class.getMethod("toString");
         assertThrows(SecurityException.class, () ->
                 ReflectionTestUtils.invokeMethod(executor, "validateTargetMethodSecurity", String.class, targetMethod));
+    }
+
+    @Test
+    void whitelistRejectsUnlistedBusinessMethodAndAllowsRegisteredMethod() throws Exception {
+        Method unlistedMethod = UnlistedHelper.class.getMethod("doSomething");
+        assertThrows(SecurityException.class, () ->
+                ReflectionTestUtils.invokeMethod(executor, "validateTargetMethodSecurity", UnlistedHelper.class, unlistedMethod));
+
+        Method registeredMethod = RegisteredService.class.getMethod("settle");
+        LocalRetryExecutor.registerAllowedMethod(RegisteredService.class.getName(), "settle");
+        ReflectionTestUtils.invokeMethod(executor, "validateTargetMethodSecurity", RegisteredService.class, registeredMethod);
     }
 
     @Test

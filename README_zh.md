@@ -143,7 +143,6 @@ git clone https://github.com/chaoking320/eleccloud.git
 cd eleccloud
 
 # 一键编译并启动所有全套服务 (MySQL 8.0 + Redis 6 + Server + Admin + Demo App)
-mvn clean package -DskipTests
 docker compose up -d --build
 ```
 

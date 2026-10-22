@@ -52,8 +52,10 @@ services:
 
   retry-server:
     build:
-      context: ./retry-server
+      context: .
       dockerfile: Dockerfile
+      args:
+        APP_MODULE: retry-server
     container_name: eleccloud-server
     restart: unless-stopped
     ports:
@@ -88,8 +90,10 @@ services:
 
   retry-admin:
     build:
-      context: ./retry-admin
+      context: .
       dockerfile: Dockerfile
+      args:
+        APP_MODULE: retry-admin
     container_name: eleccloud-admin
     restart: unless-stopped
     ports:
@@ -125,8 +129,10 @@ services:
 
   retry-example:
     build:
-      context: ./retry-example
+      context: .
       dockerfile: Dockerfile
+      args:
+        APP_MODULE: retry-example
     container_name: eleccloud-example
     restart: unless-stopped
     ports:
