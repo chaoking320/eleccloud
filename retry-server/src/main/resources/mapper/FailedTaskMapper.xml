@@ -29,7 +29,7 @@
             method_params, retry_count, fail_reason, create_time, fail_time
         ) VALUES (
             #{taskId}, #{sceneType}, #{idempotentKey}, #{methodClass}, #{methodName},
-            #{methodParams}, #{retryCount}, #{failReason}, #{createTime}, #{failTime}
+            #{methodParams}, #{retryCount}, #{failReason}, IFNULL(#{createTime}, NOW()), IFNULL(#{failTime}, NOW())
         )
     </insert>
 

@@ -2,13 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ "main", "master" ]
+    branches: [ main, master ]
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+permissions:
+  contents: read
 
 jobs:
   build-and-test:
@@ -16,7 +15,6 @@ jobs:
     strategy:
       matrix:
         java: [ '17', '21' ]
-      fail-fast: false
 
     steps:
       - name: Checkout
@@ -25,13 +23,36 @@ jobs:
       - name: Set up JDK ${{ matrix.java }}
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
           java-version: ${{ matrix.java }}
+          distribution: 'temurin'
           cache: maven
 
       - name: Build and run unit tests
-        run: mvn -B clean test
+        run: mvn -B clean install
 
       - name: Run Testcontainers integration tests (JDK 17)
         if: matrix.java == '17'
         run: mvn -B test -pl retry-server -Dtest=RetryTaskIntegrationTest
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: retry-admin/frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: retry-admin/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build

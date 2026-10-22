@@ -44,7 +44,7 @@
             #{taskId}, #{sceneType}, #{idempotentKey}, #{methodClass}, #{methodName},
             #{methodParams}, #{hookClass}, #{methodParamTypes}, #{backoffStrategy}, #{backoffBase}, #{retryIntervals},
             #{taskStatus}, #{submitMode}, #{retryCount}, #{maxRetryCount}, #{nextRetryTime},
-            #{createTime}, #{updateTime}
+            IFNULL(#{createTime}, NOW()), IFNULL(#{updateTime}, NOW())
         )
     </insert>
 

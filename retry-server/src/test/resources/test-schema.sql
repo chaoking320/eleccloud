@@ -1,7 +1,4 @@
--- 测试环境数据库初始化脚本
-CREATE DATABASE IF NOT EXISTS retry_platform_test DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-USE retry_platform_test;
+-- 测试环境数据库初始化脚本（MySQLContainer 已自动创建并连接到 retry_platform_test 库）
 
 -- 重试任务表
 CREATE TABLE IF NOT EXISTS retry_task (

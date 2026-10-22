@@ -19,8 +19,8 @@
             task_id, retry_count, execute_time, execute_result, 
             error_message, cost_time, create_time
         ) VALUES (
-            #{taskId}, #{retryCount}, #{executeTime}, #{executeResult},
-            #{errorMessage}, #{costTime}, #{createTime}
+            #{taskId}, #{retryCount}, IFNULL(#{executeTime}, NOW()), #{executeResult},
+            #{errorMessage}, #{costTime}, IFNULL(#{createTime}, NOW())
         )
     </insert>
 

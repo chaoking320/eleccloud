@@ -28,14 +28,22 @@ public abstract class BaseIntegrationTest {
     static final GenericContainer<?> REDIS_CONTAINER = new GenericContainer<>(DockerImageName.parse("redis:6-alpine"))
             .withExposedPorts(6379);
 
+    private static synchronized void ensureContainersStarted() {
+        if (!MYSQL_CONTAINER.isRunning()) {
+            MYSQL_CONTAINER.start();
+        }
+        if (!REDIS_CONTAINER.isRunning()) {
+            REDIS_CONTAINER.start();
+        }
+    }
+
     @BeforeAll
     static void startContainers() {
         org.junit.jupiter.api.Assumptions.assumeTrue(
                 org.testcontainers.DockerClientFactory.instance().isDockerAvailable(),
                 "Docker is not available, skipping integration test"
         );
-        MYSQL_CONTAINER.start();
-        REDIS_CONTAINER.start();
+        ensureContainersStarted();
     }
 
     @DynamicPropertySource
@@ -43,6 +51,8 @@ public abstract class BaseIntegrationTest {
         if (!org.testcontainers.DockerClientFactory.instance().isDockerAvailable()) {
             return;
         }
+        ensureContainersStarted();
+
         // 配置MySQL连接
         registry.add("spring.datasource.url", MYSQL_CONTAINER::getJdbcUrl);
         registry.add("spring.datasource.username", MYSQL_CONTAINER::getUsername);
