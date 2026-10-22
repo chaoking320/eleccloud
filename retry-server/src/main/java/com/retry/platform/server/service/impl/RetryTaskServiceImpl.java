@@ -80,40 +80,7 @@ public class RetryTaskServiceImpl implements RetryTaskService {
             throw new IllegalArgumentException("Scene is disabled: " + request.getSceneType());
         }
         
-        // 3. 幂等性校验：检查是否已存在相同场景类型+幂等键的任务
-        RetryTask existingTask = retryTaskMapper.selectBySceneAndIdempotentKey(
-                request.getSceneType(), request.getIdempotentKey());
-        
-        if (existingTask != null) {
-            log.warn("Task already exists: sceneType={}, idempotentKey={}, taskId={}", 
-                    request.getSceneType(), request.getIdempotentKey(), existingTask.getTaskId());
-            return existingTask.getTaskId();
-        }
-        
-        // 4. 生成任务ID
-        String taskId = generateTaskId();
-        
-        // 5. 构建任务实体
-        RetryTask retryTask = new RetryTask();
-        retryTask.setTaskId(taskId);
-        retryTask.setSceneType(request.getSceneType());
-        retryTask.setIdempotentKey(request.getIdempotentKey());
-        retryTask.setMethodClass(request.getMethodClass());
-        retryTask.setMethodName(request.getMethodName());
-        retryTask.setMethodParams(request.getMethodParams());
-        retryTask.setHookClass(request.getHookClass() != null && !request.getHookClass().trim().isEmpty() 
-                ? request.getHookClass() : sceneConfig.getHookClass());
-        retryTask.setMethodParamTypes(request.getMethodParamTypes());
-        retryTask.setTaskStatus("INIT");
-        retryTask.setSubmitMode(request.getSubmitMode() != null ? request.getSubmitMode() : "POST_FAIL");
-        retryTask.setRetryCount(0);
-        // 防御性编程：sceneConfig.getMaxRetryCount() 可能为null
-        Integer maxRetryCount = sceneConfig.getMaxRetryCount();
-        retryTask.setMaxRetryCount(maxRetryCount != null ? maxRetryCount : 3); // 默认最多重试3次
-        
-        // 6. 计算下次重试时间（首轮重试，retryCount=0）
-        // 注意：LINEAR/EXPONENTIAL/FIXED 策略的 retry_intervals 在库中可能为 NULL，
-        // 不能硬取 retryIntervals.get(0)，必须按退避策略 + 基数计算（与 RetryControlServiceImpl 保持一致）
+        // 计算下次重试时间（首轮重试，retryCount=0）
         long nextRetryTime;
         try {
             nextRetryTime = sceneConfig.getBackoffStrategyEnum().calculateNextRetryTime(
@@ -121,11 +88,53 @@ public class RetryTaskServiceImpl implements RetryTaskService {
                     sceneConfig.getBackoffBaseOrDefault(),
                     sceneConfig.getRetryIntervalList());
         } catch (Exception e) {
-            // 如果计算失败，使用默认值
-            log.warn("Failed to calculate next retry time for taskId={}, using default {}ms. Error: {}", 
-                    taskId, defaultFirstDelayMs, e.getMessage());
+            log.warn("Failed to calculate next retry time for sceneType={}, using default {}ms. Error: {}", 
+                    request.getSceneType(), defaultFirstDelayMs, e.getMessage());
             nextRetryTime = System.currentTimeMillis() + defaultFirstDelayMs;
         }
+
+        // 3. 幂等性校验：检查是否已存在相同场景类型+幂等键的任务
+        RetryTask existingTask = retryTaskMapper.selectBySceneAndIdempotentKey(
+                request.getSceneType(), request.getIdempotentKey());
+        
+        if (existingTask != null) {
+            String status = existingTask.getTaskStatus();
+            if ("INIT".equals(status) || "WAIT".equals(status) || "EXECUTING".equals(status)) {
+                log.warn("Active task already exists: sceneType={}, idempotentKey={}, status={}, taskId={}", 
+                        request.getSceneType(), request.getIdempotentKey(), status, existingTask.getTaskId());
+                return existingTask.getTaskId();
+            }
+            // 若旧任务已处于终态（SUCCESS / FAILED / CANCELLED），重新激活为 INIT 状态并入队，与 Standalone 模式保持一致
+            String reactivatedTaskId = existingTask.getTaskId();
+            retryTaskMapper.updateStatusAndRetryInfo(reactivatedTaskId, "INIT", 0, nextRetryTime);
+            log.info("Reactivated terminated task to INIT: taskId={}, previousStatus={}, sceneType={}, idempotentKey={}",
+                    reactivatedTaskId, status, request.getSceneType(), request.getIdempotentKey());
+            scheduleAfterCommit(reactivatedTaskId, nextRetryTime);
+            return reactivatedTaskId;
+        }
+        
+        // 4. 生成任务ID
+        String taskId = generateTaskId();
+        
+        // 5. 构建任务实体（支持任务级策略覆盖，回退到 SceneConfig）
+        RetryTask retryTask = new RetryTask();
+        retryTask.setTaskId(taskId);
+        retryTask.setSceneType(request.getSceneType());
+        retryTask.setIdempotentKey(request.getIdempotentKey());
+        retryTask.setMethodClass(request.getMethodClass());
+        retryTask.setMethodName(request.getMethodName());
+        retryTask.setMethodParams(request.getMethodParams());
+        retryTask.setHookClass(hasText(request.getHookClass()) ? request.getHookClass() : sceneConfig.getHookClass());
+        retryTask.setMethodParamTypes(request.getMethodParamTypes());
+        retryTask.setBackoffStrategy(hasText(request.getBackoffStrategy()) ? request.getBackoffStrategy() : sceneConfig.getBackoffStrategy());
+        retryTask.setBackoffBase(request.getBackoffBase() != null && request.getBackoffBase() > 0 ? request.getBackoffBase() : sceneConfig.getBackoffBase());
+        retryTask.setRetryIntervals(hasText(request.getRetryIntervals()) ? request.getRetryIntervals() : sceneConfig.getRetryIntervals());
+        retryTask.setTaskStatus("INIT");
+        retryTask.setSubmitMode(request.getSubmitMode() != null ? request.getSubmitMode() : "POST_FAIL");
+        retryTask.setRetryCount(0);
+        Integer maxRetryCount = request.getMaxRetryCount() != null && request.getMaxRetryCount() > 0
+                ? request.getMaxRetryCount() : sceneConfig.getMaxRetryCount();
+        retryTask.setMaxRetryCount(maxRetryCount != null ? maxRetryCount : 3); // 默认最多重试3次
         retryTask.setNextRetryTime(nextRetryTime);
         
         LocalDateTime now = LocalDateTime.now();
@@ -154,18 +163,28 @@ public class RetryTaskServiceImpl implements RetryTaskService {
         }
         
         // 8. 加入Redis延时队列 (在事务提交后执行)
-        final String finalTaskId = taskId;
-        final long finalNextRetryTime = nextRetryTime;
-        org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
-            new org.springframework.transaction.support.TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    delayQueueService.addTask(finalTaskId, finalNextRetryTime);
-                }
-            }
-        );
+        scheduleAfterCommit(taskId, nextRetryTime);
         
         return taskId;
+    }
+
+    private void scheduleAfterCommit(final String taskId, final long nextRetryTime) {
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                new org.springframework.transaction.support.TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        delayQueueService.addTask(taskId, nextRetryTime);
+                    }
+                }
+            );
+        } else {
+            delayQueueService.addTask(taskId, nextRetryTime);
+        }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
     
     @Override
@@ -178,17 +197,18 @@ public class RetryTaskServiceImpl implements RetryTaskService {
         RetryTaskDTO dto = new RetryTaskDTO();
         BeanUtils.copyProperties(retryTask, dto);
         
-        // 补齐场景策略信息，使客户端 SDK 本地重试可以免去单独查配置的开销
+        // 优先使用任务自身持久化的策略字段，缺失时从场景配置补齐
         SceneConfig sceneConfig = sceneConfigService.getSceneConfigByType(retryTask.getSceneType());
         if (sceneConfig != null) {
-            dto.setHookClass(retryTask.getHookClass() != null ? retryTask.getHookClass() : sceneConfig.getHookClass());
-            dto.setBackoffStrategy(sceneConfig.getBackoffStrategy());
-            dto.setBackoffBase(sceneConfig.getBackoffBase());
-            dto.setRetryIntervals(sceneConfig.getRetryIntervals());
+            dto.setHookClass(hasText(retryTask.getHookClass()) ? retryTask.getHookClass() : sceneConfig.getHookClass());
+            dto.setBackoffStrategy(hasText(retryTask.getBackoffStrategy()) ? retryTask.getBackoffStrategy() : sceneConfig.getBackoffStrategy());
+            dto.setBackoffBase(retryTask.getBackoffBase() != null ? retryTask.getBackoffBase() : sceneConfig.getBackoffBase());
+            dto.setRetryIntervals(hasText(retryTask.getRetryIntervals()) ? retryTask.getRetryIntervals() : sceneConfig.getRetryIntervals());
         } else {
             dto.setHookClass(retryTask.getHookClass());
-            dto.setBackoffStrategy("CUSTOM");
-            dto.setRetryIntervals("1,2,3,5,10");
+            dto.setBackoffStrategy(hasText(retryTask.getBackoffStrategy()) ? retryTask.getBackoffStrategy() : "CUSTOM");
+            dto.setBackoffBase(retryTask.getBackoffBase() != null ? retryTask.getBackoffBase() : 1);
+            dto.setRetryIntervals(hasText(retryTask.getRetryIntervals()) ? retryTask.getRetryIntervals() : "1,2,3,5,10");
             log.warn("Scene config not found for taskId={}, sceneType={}. Task will use default/task retry strategy.", 
                     taskId, retryTask.getSceneType());
         }
@@ -213,8 +233,8 @@ public class RetryTaskServiceImpl implements RetryTaskService {
 
     @Override
     public int casMarkExecuting(String taskId) {
-        // 单条原子 SQL：UPDATE retry_task SET task_status='EXECUTING' WHERE task_id=? AND task_status='INIT'
-        // 返回 affected rows：1=抢占成功，0=已被其他节点抢占或状态非 INIT
+        // 单条原子 SQL：UPDATE retry_task SET task_status='EXECUTING' WHERE task_id=? AND task_status IN ('INIT', 'WAIT')
+        // 返回 affected rows：1=抢占成功，0=已被其他节点抢占或状态非 INIT/WAIT
         int affected = retryTaskMapper.casUpdateToExecuting(taskId);
         log.debug("[CAS] markExecuting taskId={}, affectedRows={}", taskId, affected);
         return affected;

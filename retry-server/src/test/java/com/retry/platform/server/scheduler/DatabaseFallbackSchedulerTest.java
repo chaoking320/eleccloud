@@ -116,4 +116,41 @@ class DatabaseFallbackSchedulerTest {
         verify(retryMessageProducer, times(1)).sendDelayMessageWithPayload(
                 argThat(p -> taskId.equals(p.getTaskId())), eq(0L));
     }
+
+    @Test
+    @DisplayName("当处于 WAIT 状态的任务丢失 Redis 消息时，也应能被兜底恢复并保留任务级策略")
+    void testWaitTaskNotInRedis_shouldResyncWithTaskLevelStrategy() {
+        String taskId = "TASK_WAIT_MISSING_002";
+
+        lenient().when(zSetOperations.range(eq(DELAY_QUEUE_KEY), eq(0L), eq(999L)))
+                .thenReturn(Collections.emptySet());
+        lenient().when(zSetOperations.score(eq(DELAY_QUEUE_KEY), eq(taskId))).thenReturn(null);
+
+        when(retryTaskMapper.selectPendingTasks(anyLong(), anyInt()))
+                .thenReturn(Collections.singletonList(taskId));
+
+        RetryTask task = new RetryTask();
+        task.setTaskId(taskId);
+        task.setSceneType(1002);
+        task.setTaskStatus("WAIT");
+        task.setBackoffStrategy("EXPONENTIAL");
+        task.setBackoffBase(2);
+        task.setRetryCount(1);
+        task.setMaxRetryCount(5);
+        when(retryTaskMapper.selectByTaskId(taskId)).thenReturn(task);
+
+        SceneConfig sceneConfig = new SceneConfig();
+        sceneConfig.setSceneType(1002);
+        sceneConfig.setBackoffStrategy("FIXED");
+        sceneConfig.setBackoffBase(1);
+        when(sceneConfigService.getSceneConfigByType(1002)).thenReturn(sceneConfig);
+
+        scheduler.scanAndSyncToRedis();
+
+        verify(retryMessageProducer, times(1)).sendDelayMessageWithPayload(
+                argThat(p -> taskId.equals(p.getTaskId())
+                        && "EXPONENTIAL".equals(p.getBackoffStrategy())
+                        && Integer.valueOf(2).equals(p.getBackoffBase())),
+                eq(0L));
+    }
 }

@@ -154,13 +154,13 @@ curl http://localhost:8080/actuator/health
 
 ```xml
 <dependency>
-    <groupId>com.retry.platform</groupId>
+    <groupId>io.github.chaoking320</groupId>
     <artifactId>retry-client-sdk</artifactId>
     <version>1.0.0</version>
 </dependency>
 ```
 
-> ⚠️ **注意**：由于项目尚未发布到 Maven Central，你需要先在 eleccloud 项目根目录执行 `mvn install`，将 SDK 安装到本地 Maven 仓库。
+> 💡 **提示**：`io.github.chaoking320:retry-client-sdk:1.0.0` 已发布至 Maven Central，可直接从中央仓库拉取；若修改了本地源码调试，可执行 `mvn install -DskipTests` 覆盖本地仓库。
 
 ---
 

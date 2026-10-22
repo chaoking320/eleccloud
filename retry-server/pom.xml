@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.retry.platform</groupId>
+        <groupId>io.github.chaoking320</groupId>
         <artifactId>distributed-retry-platform</artifactId>
         <version>1.0.0</version>
     </parent>
@@ -120,9 +120,9 @@
         </dependency>
 
         <dependency>
-            <groupId>com.retry.platform</groupId>
+            <groupId>io.github.chaoking320</groupId>
             <artifactId>retry-client-sdk</artifactId>
-            <version>1.0.0</version>
+            <version>${project.version}</version>
             <scope>compile</scope>
         </dependency>
 

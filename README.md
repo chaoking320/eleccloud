@@ -9,7 +9,8 @@
 [![Java](https://img.shields.io/badge/Java-17%2B-orange?logo=openjdk)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-2.7.18-brightgreen?logo=springboot)](https://spring.io/projects/spring-boot)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/chaoking320/eleccloud)
+[![CI Status](https://github.com/chaoking320/eleccloud/actions/workflows/ci.yml/badge.svg)](https://github.com/chaoking320/eleccloud/actions/workflows/ci.yml)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.chaoking320/retry-client-sdk.svg?color=blue)](https://central.sonatype.com/artifact/io.github.chaoking320/retry-client-sdk)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 [English](README.md) | [简体中文](README_zh.md)
@@ -31,7 +32,7 @@
 </p>
 
 <p align="center">
-  <a href="docs/simulation.html">
+  <a href="https://htmlpreview.github.io/?https://github.com/chaoking320/eleccloud/blob/main/docs/simulation.html">
     <img src="https://img.shields.io/badge/🎮_Live_Interactive_Demo-Quantum%E2%9F%B7Resilience_Simulator-blueviolet?style=for-the-badge" alt="Live Demo" />
   </a>
 </p>
@@ -143,6 +144,7 @@ If a process crashes while executing a task, traditional post-fail interceptors 
 ```bash
 git clone https://github.com/chaoking320/eleccloud.git
 cd eleccloud
+mvn clean package -DskipTests
 docker compose up -d --build
 ```
 
@@ -154,13 +156,13 @@ docker compose up -d --build
 
 ### Option 2: SDK Dependency (Remote Mode)
 
-> 💡 **Quick evaluation**: Run `mvn clean install -DskipTests` at the project root once to install `retry-client-sdk` into your local `.m2` repository before adding the dependency below.
+> 💡 **Published on Maven Central**: `io.github.chaoking320:retry-client-sdk:1.0.0` is available directly from Maven Central — no local build required.
 
 **Step 1: Add dependency**
 
 ```xml
 <dependency>
-    <groupId>com.retry.platform</groupId>
+    <groupId>io.github.chaoking320</groupId>
     <artifactId>retry-client-sdk</artifactId>
     <version>1.0.0</version>
 </dependency>
@@ -316,7 +318,7 @@ ElecCloud is an active open-source project initiated and maintained by [@chaokin
 Feedback, bug reports, and pull requests are warmly welcomed:
 
 - **GitHub Issues**: [Bug reports and feature requests](../../issues)
-- **GitHub Discussions**: [Q&A and architectural discussions](../../discussions)
+- **Pull Requests**: [Contribute code and improvements](../../pulls)
 
 ---
 

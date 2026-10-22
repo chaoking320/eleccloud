@@ -1,7 +1,6 @@
 package com.retry.platform.server.scheduler;
 
 import com.retry.platform.server.mapper.RetryTaskMapper;
-import com.retry.platform.server.service.DelayQueueService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -47,7 +46,7 @@ public class DatabaseFallbackScheduler {
     private int batchSize;
     
     /**
-     * 定期扫描数据库，将 INIT 状态已到期但未在 Redis 消费队列中的任务重新推送到 Redis
+     * 定期扫描数据库，将 INIT / WAIT 状态已到期但未在 Redis 消费队列中的任务重新推送到 Redis
      * 每 15 秒执行一次兜底扫描
      */
     @Scheduled(fixedDelayString = "${retry.scheduler.fallback-scan-interval:15000}")
@@ -60,7 +59,7 @@ public class DatabaseFallbackScheduler {
         try {
             long currentTime = System.currentTimeMillis();
             
-            // 直接从 MySQL 获取处于 INIT 状态且已到期的任务
+            // 直接从 MySQL 获取处于 INIT 或 WAIT 状态且已到期的任务
             List<String> pendingTaskIds = retryTaskMapper.selectPendingTasks(currentTime, batchSize);
             
             if (pendingTaskIds == null || pendingTaskIds.isEmpty()) {
@@ -75,10 +74,19 @@ public class DatabaseFallbackScheduler {
                 // 优先从批量预取的内存集合中极速 O(1) 命中
                 if (!queuedTaskIds.contains(taskId) && !isTaskInRedisSlim(taskId)) {
                     com.retry.platform.server.entity.RetryTask task = retryTaskMapper.selectByTaskId(taskId);
-                    if (task != null && "INIT".equals(task.getTaskStatus())) {
+                    if (task != null && ("INIT".equals(task.getTaskStatus()) || "WAIT".equals(task.getTaskStatus()))) {
                         com.retry.platform.server.entity.SceneConfig sceneConfig = 
                                 sceneConfigService.getSceneConfigByType(task.getSceneType());
                         
+                        String hookClass = hasText(task.getHookClass()) ? task.getHookClass()
+                                : (sceneConfig != null ? sceneConfig.getHookClass() : null);
+                        String backoffStrategy = hasText(task.getBackoffStrategy()) ? task.getBackoffStrategy()
+                                : (sceneConfig != null ? sceneConfig.getBackoffStrategy() : null);
+                        Integer backoffBase = task.getBackoffBase() != null ? task.getBackoffBase()
+                                : (sceneConfig != null ? sceneConfig.getBackoffBase() : null);
+                        String retryIntervals = hasText(task.getRetryIntervals()) ? task.getRetryIntervals()
+                                : (sceneConfig != null ? sceneConfig.getRetryIntervals() : null);
+
                         com.retry.platform.client.mq.RetryMessagePayload payload = 
                                 com.retry.platform.client.mq.RetryMessagePayload.builder()
                                         .taskId(task.getTaskId())
@@ -88,17 +96,17 @@ public class DatabaseFallbackScheduler {
                                         .methodName(task.getMethodName())
                                         .methodParams(task.getMethodParams())
                                         .methodParamTypes(task.getMethodParamTypes())
-                                        .hookClass(sceneConfig != null ? sceneConfig.getHookClass() : null)
-                                        .backoffStrategy(sceneConfig != null ? sceneConfig.getBackoffStrategy() : null)
-                                        .backoffBase(sceneConfig != null ? sceneConfig.getBackoffBase() : null)
-                                        .retryIntervals(sceneConfig != null ? sceneConfig.getRetryIntervals() : null)
+                                        .hookClass(hookClass)
+                                        .backoffStrategy(backoffStrategy)
+                                        .backoffBase(backoffBase)
+                                        .retryIntervals(retryIntervals)
                                         .retryCount(task.getRetryCount())
                                         .maxRetryCount(task.getMaxRetryCount())
                                         .build();
 
                         retryMessageProducer.sendDelayMessageWithPayload(payload, 0L);
                         syncedCount++;
-                        log.info("[FallbackScheduler] Synced stuck INIT task from MySQL to Redis: taskId={}", taskId);
+                        log.info("[FallbackScheduler] Synced stuck {} task from MySQL to Redis: taskId={}", task.getTaskStatus(), taskId);
                     }
                 }
             }
@@ -110,6 +118,10 @@ public class DatabaseFallbackScheduler {
         } catch (Exception e) {
             log.error("[FallbackScheduler] Database fallback scan failed", e);
         }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
     
     /**

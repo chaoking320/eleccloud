@@ -2,18 +2,23 @@ package com.retry.platform.client.executor;
 
 import com.retry.platform.client.api.RetryClient;
 import com.retry.platform.client.dto.RetryTaskDTO;
+import com.retry.platform.client.hook.QueryResult;
+import com.retry.platform.client.hook.RetryContext;
+import com.retry.platform.client.hook.RetryHook;
+import com.retry.platform.client.hook.RetryStatus;
 import com.retry.platform.client.mq.RetryMessageProducer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationContext;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.lang.reflect.Method;
+
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.anyString;
-import static org.mockito.Mockito.contains;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -23,7 +28,7 @@ import static org.mockito.Mockito.when;
 /**
  * {@link LocalRetryExecutor} 单元测试
  * 重点覆盖 execute() 的状态机守卫逻辑（任务不存在 / 终态提前返回 /
- * 抢锁失败 / 无 Hook / Hook 不存在回滚），避免重复执行与任务丢失。
+ * 抢锁失败 / 无 Hook / Hook 不存在回滚 / 回调异常隔离 / 反射安全防护），避免重复执行与任务丢失。
  * 通过反射注入 mock 依赖，不依赖外部中间件。
  */
 class LocalRetryExecutorTest {
@@ -104,5 +109,37 @@ class LocalRetryExecutorTest {
         executor.execute("T1");
         // Hook 实例缺失时降级为直接反射重试，不会中断或 rollbackToPending
         verify(retryClient, never()).rollbackToPending(eq("T1"), anyString());
+    }
+
+    @Test
+    void blocksReflectiveInvocationOnSystemOrFrameworkClasses() throws Exception {
+        Method targetMethod = String.class.getMethod("toString");
+        assertThrows(SecurityException.class, () ->
+                ReflectionTestUtils.invokeMethod(executor, "validateTargetMethodSecurity", String.class, targetMethod));
+    }
+
+    @Test
+    void callbackExceptionDoesNotPreventMarkSuccess() {
+        RetryHook throwingCallbackHook = new RetryHook() {
+            @Override
+            public RetryStatus checkStatus(RetryContext context) {
+                return RetryStatus.SUCCESS;
+            }
+
+            @Override
+            public QueryResult doQuery(RetryContext context) {
+                return QueryResult.success("ok");
+            }
+
+            @Override
+            public void doCallback(RetryContext context, QueryResult result) {
+                throw new RuntimeException("Simulated callback notification failure");
+            }
+        };
+
+        RetryContext ctx = RetryContext.builder().taskId("T-CB").retryCount(1).build();
+        ReflectionTestUtils.invokeMethod(executor, "handleSuccess", "T-CB", ctx, throwingCallbackHook);
+
+        verify(retryClient).markSuccess("T-CB");
     }
 }

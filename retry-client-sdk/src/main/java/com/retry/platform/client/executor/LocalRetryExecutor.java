@@ -204,7 +204,11 @@ public class LocalRetryExecutor {
      */
     private void handleSuccess(String taskId, RetryContext context, RetryHook hook) {
         log.info("[LocalRetryExecutor] Task already SUCCESS. taskId={}", taskId);
-        hook.doCallback(context, QueryResult.success("Already confirmed SUCCESS by checkStatus"));
+        try {
+            hook.doCallback(context, QueryResult.success("Already confirmed SUCCESS by checkStatus"));
+        } catch (Exception cbEx) {
+            log.error("[LocalRetryExecutor] Hook doCallback threw exception after checkStatus confirmed SUCCESS: taskId={}", taskId, cbEx);
+        }
         ((RetryClient) retryClient).markSuccess(taskId);
     }
 
@@ -230,7 +234,11 @@ public class LocalRetryExecutor {
                     currentCount = 1; // 保证至少为1
                 }
                 log.info("[LocalRetryExecutor] Query confirmed SUCCESS. Triggering doCallback. taskId={}, retryCount={}", taskId, currentCount);
-                hook.doCallback(context, queryResult);
+                try {
+                    hook.doCallback(context, queryResult);
+                } catch (Exception cbEx) {
+                    log.error("[LocalRetryExecutor] Hook doCallback threw exception after task confirmed SUCCESS: taskId={}", taskId, cbEx);
+                }
                 updateRetryCountAndStatus(taskId, currentCount, "SUCCESS");
                 safeRecordHistory(taskId, currentCount, "SUCCESS", null, costMs);
             } else {
@@ -306,6 +314,7 @@ public class LocalRetryExecutor {
                 throw new NoSuchMethodException("Method not found: " + context.getMethodName());
             }
 
+            validateTargetMethodSecurity(clazz, targetMethod);
             // 4. 准备入参并按目标类型进行安全转换（支持原始类型、包装类型与 JSON 复合对象）
             Object[] args = prepareMethodArgs(targetMethod, paramsMap);
             targetMethod.setAccessible(true);
@@ -338,7 +347,11 @@ public class LocalRetryExecutor {
                     currentCount = 1;
                 }
                 log.info("[LocalRetryExecutor] Hook confirmed SUCCESS. Triggering doCallback & markSuccess. taskId={}, retryCount={}", taskId, currentCount);
-                hook.doCallback(context, queryResult);
+                try {
+                    hook.doCallback(context, queryResult);
+                } catch (Exception cbEx) {
+                    log.error("[LocalRetryExecutor] Hook doCallback threw exception after task confirmed SUCCESS: taskId={}", taskId, cbEx);
+                }
                 updateRetryCountAndStatus(taskId, currentCount, "SUCCESS");
                 safeRecordHistory(taskId, currentCount, "SUCCESS", "Method executed and hook confirmed SUCCESS", costMs);
             } else {
@@ -765,6 +778,27 @@ public class LocalRetryExecutor {
      * 无 Hook 时的默认实现：checkStatus 始终返回 INIT，触发直接反射重试原始方法。
      * doQuery 默认返回 success（业务方法执行无异常即视为成功），doCallback 不做任何事。
      */
+    /**
+     * 安全校验：防止通过伪造消息反射调用 JDK / Spring / 数据库驱动等基础设施内部类（Gadget 防护）。
+     * 若方法显式标注了 {@code @RetryableTask} 则直接放行；若为编程式 API 模式，则拦截系统/框架敏感包。
+     */
+    private void validateTargetMethodSecurity(Class<?> clazz, Method targetMethod) {
+        if (targetMethod.isAnnotationPresent(com.retry.platform.client.annotation.RetryableTask.class)) {
+            return;
+        }
+        String className = clazz.getName();
+        String[] blockedPrefixes = {
+                "java.", "javax.", "jakarta.", "sun.", "com.sun.", "jdk.",
+                "org.springframework.", "org.apache.", "org.mybatis.",
+                "ch.qos.", "com.alibaba.fastjson", "com.mysql.", "io.lettuce.", "org.redisson."
+        };
+        for (String prefix : blockedPrefixes) {
+            if (className.startsWith(prefix)) {
+                throw new SecurityException("Blocked reflective invocation on internal/framework class: " + className);
+            }
+        }
+    }
+
     private static class NoOpRetryHook implements RetryHook {
         @Override
         public com.retry.platform.client.hook.RetryStatus checkStatus(RetryContext context) {

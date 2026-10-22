@@ -18,13 +18,18 @@
         <result column="next_retry_time" property="nextRetryTime" jdbcType="BIGINT"/>
         <result column="hook_class" property="hookClass" jdbcType="VARCHAR"/>
         <result column="method_param_types" property="methodParamTypes" jdbcType="VARCHAR"/>
+        <result column="backoff_strategy" property="backoffStrategy" jdbcType="VARCHAR"/>
+        <result column="backoff_base" property="backoffBase" jdbcType="INTEGER"/>
+        <result column="retry_intervals" property="retryIntervals" jdbcType="VARCHAR"/>
+        <result column="error_msg" property="errorMsg" jdbcType="VARCHAR"/>
         <result column="create_time" property="createTime" jdbcType="TIMESTAMP"/>
         <result column="update_time" property="updateTime" jdbcType="TIMESTAMP"/>
     </resultMap>
 
     <sql id="Base_Column_List">
         id, task_id, scene_type, idempotent_key, method_class, method_name,
-        method_params, hook_class, method_param_types, task_status, submit_mode, retry_count, max_retry_count, next_retry_time,
+        method_params, hook_class, method_param_types, backoff_strategy, backoff_base, retry_intervals,
+        task_status, submit_mode, retry_count, max_retry_count, next_retry_time, error_msg,
         create_time, update_time
     </sql>
 
@@ -32,11 +37,13 @@
             useGeneratedKeys="true" keyProperty="id">
         INSERT INTO retry_task (
             task_id, scene_type, idempotent_key, method_class, method_name,
-            method_params, hook_class, method_param_types, task_status, submit_mode, retry_count, max_retry_count, next_retry_time,
+            method_params, hook_class, method_param_types, backoff_strategy, backoff_base, retry_intervals,
+            task_status, submit_mode, retry_count, max_retry_count, next_retry_time,
             create_time, update_time
         ) VALUES (
             #{taskId}, #{sceneType}, #{idempotentKey}, #{methodClass}, #{methodName},
-            #{methodParams}, #{hookClass}, #{methodParamTypes}, #{taskStatus}, #{submitMode}, #{retryCount}, #{maxRetryCount}, #{nextRetryTime},
+            #{methodParams}, #{hookClass}, #{methodParamTypes}, #{backoffStrategy}, #{backoffBase}, #{retryIntervals},
+            #{taskStatus}, #{submitMode}, #{retryCount}, #{maxRetryCount}, #{nextRetryTime},
             #{createTime}, #{updateTime}
         )
     </insert>
@@ -78,7 +85,7 @@
 
     <!--
         修复 Bug6: EXECUTING 状态无超时保护。
-        进程被 kill -9 强杀后， update_time 不会更新，通过对比 update_time 与当前时间接受 timeoutMillis 鈰值判断是否卡死。
+        进程被 kill -9 强杀后， update_time 不会更新，通过对比 update_time 与当前时间接受 timeoutMillis 阈值判断是否卡死。
         回滚为 INIT 使其可再次被 CAS 抢占执行。
     -->
     <update id="recoverStuckExecutingTasks">

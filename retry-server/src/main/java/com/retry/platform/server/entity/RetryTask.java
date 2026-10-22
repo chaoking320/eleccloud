@@ -81,6 +81,26 @@ public class RetryTask {
     private String methodParamTypes;
 
     /**
+     * 退避策略：CUSTOM/FIXED/LINEAR/EXPONENTIAL
+     */
+    private String backoffStrategy;
+
+    /**
+     * 退避基数（分钟）
+     */
+    private Integer backoffBase;
+
+    /**
+     * 自定义重试间隔（分钟，逗号分隔）
+     */
+    private String retryIntervals;
+
+    /**
+     * 最近一次执行失败的错误信息
+     */
+    private String errorMsg;
+
+    /**
      * 创建时间
      */
     private LocalDateTime createTime;

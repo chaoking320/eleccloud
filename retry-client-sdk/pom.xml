@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.retry.platform</groupId>
+        <groupId>io.github.chaoking320</groupId>
         <artifactId>distributed-retry-platform</artifactId>
         <version>1.0.0</version>
     </parent>
@@ -14,8 +14,9 @@
     <artifactId>retry-client-sdk</artifactId>
     <packaging>jar</packaging>
 
-    <name>Retry Client SDK</name>
-    <description>客户端SDK，提供注解和API接入方式</description>
+    <name>ElecCloud Retry Client SDK</name>
+    <description>ElecCloud Client SDK providing annotation-driven (@RetryableTask), programmatic API, and standalone distributed retry support for Spring Boot</description>
+    <url>https://github.com/chaoking320/eleccloud</url>
 
     <dependencies>
         <!-- Spring Boot Starter -->
@@ -81,7 +82,7 @@
         <dependency>
             <groupId>org.mybatis.spring.boot</groupId>
             <artifactId>mybatis-spring-boot-starter</artifactId>
-            <version>2.3.1</version>
+            <version>${mybatis-spring-boot.version}</version>
             <optional>true</optional>
         </dependency>
 

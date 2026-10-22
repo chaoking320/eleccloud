@@ -5,13 +5,36 @@
          http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.retry.platform</groupId>
+    <groupId>io.github.chaoking320</groupId>
     <artifactId>distributed-retry-platform</artifactId>
     <version>1.0.0</version>
     <packaging>pom</packaging>
 
-    <name>Distributed Retry Platform</name>
-    <description>分布式重试平台</description>
+    <name>ElecCloud Distributed Retry Platform</name>
+    <description>A lightweight, decentralized distributed retry framework for Java with two-tier hybrid retry and crash-resilient semantics</description>
+    <url>https://github.com/chaoking320/eleccloud</url>
+
+    <licenses>
+        <license>
+            <name>The Apache Software License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>chaoking320</id>
+            <name>chaoking320</name>
+            <email>chaoking320@github.com</email>
+            <url>https://github.com/chaoking320</url>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git://github.com/chaoking320/eleccloud.git</connection>
+        <developerConnection>scm:git:ssh://github.com:chaoking320/eleccloud.git</developerConnection>
+        <url>https://github.com/chaoking320/eleccloud</url>
+    </scm>
 
     <modules>
         <module>retry-server</module>
@@ -34,6 +57,10 @@
         <lombok.version>1.18.34</lombok.version>
         <micrometer.version>1.9.17</micrometer.version>
         <skywalking.version>8.16.0</skywalking.version>
+
+        <!-- Maven Central GPG 签名默认配置（可通过命令行 -Dgpg.executable=... 覆盖） -->
+        <gpg.executable>D:\Program Files\Git\usr\bin\gpg.exe</gpg.executable>
+        <gpg.keyname>5AC4BFCBB1C44954E22C6E7C4E7535D930389156</gpg.keyname>
     </properties>
 
     <dependencyManagement>
@@ -128,4 +155,85 @@
             </plugins>
         </pluginManagement>
     </build>
+
+    <profiles>
+        <!-- Maven Central 发布专用 Profile：通过 -Pcentral 激活，不影响日常本地编译 -->
+        <profile>
+            <id>central</id>
+            <build>
+                <plugins>
+                    <!-- 1. 源码包生成插件 (Maven Central 规范必选) -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <version>3.3.0</version>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals>
+                                    <goal>jar-no-fork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <!-- 2. Javadoc 文档生成插件 (Maven Central 规范必选) -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <version>3.6.3</version>
+                        <configuration>
+                            <doclint>none</doclint>
+                            <charset>UTF-8</charset>
+                            <encoding>UTF-8</encoding>
+                            <docencoding>UTF-8</docencoding>
+                            <failOnError>false</failOnError>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <!-- 3. GPG 签名插件 (Maven Central 规范必选) -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>3.2.4</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>${gpg.executable}</executable>
+                                    <keyname>${gpg.keyname}</keyname>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <!-- 4. Sonatype Central Portal 官方一键发布插件 -->
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>0.7.0</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <publishingServerId>central</publishingServerId>
+                            <autoPublish>true</autoPublish>
+                            <excludeArtifacts>
+                                <excludeArtifact>retry-server</excludeArtifact>
+                                <excludeArtifact>retry-admin</excludeArtifact>
+                                <excludeArtifact>retry-example</excludeArtifact>
+                            </excludeArtifacts>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

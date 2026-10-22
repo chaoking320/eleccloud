@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
         <artifactId>distributed-retry-platform</artifactId>
-        <groupId>com.retry.platform</groupId>
+        <groupId>io.github.chaoking320</groupId>
         <version>1.0.0</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -22,7 +22,7 @@
 
         <!-- Retry Client SDK -->
         <dependency>
-            <groupId>com.retry.platform</groupId>
+            <groupId>io.github.chaoking320</groupId>
             <artifactId>retry-client-sdk</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -51,7 +51,7 @@
         <dependency>
             <groupId>org.mybatis.spring.boot</groupId>
             <artifactId>mybatis-spring-boot-starter</artifactId>
-            <version>2.3.1</version>
+            <version>${mybatis-spring-boot.version}</version>
         </dependency>
 
         <dependency>

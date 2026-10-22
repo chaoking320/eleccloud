@@ -9,7 +9,8 @@
 [![Java](https://img.shields.io/badge/Java-17%2B-orange?logo=openjdk)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-2.7.18-brightgreen?logo=springboot)](https://spring.io/projects/spring-boot)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/chaoking320/eleccloud)
+[![CI Status](https://github.com/chaoking320/eleccloud/actions/workflows/ci.yml/badge.svg)](https://github.com/chaoking320/eleccloud/actions/workflows/ci.yml)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.chaoking320/retry-client-sdk.svg?color=blue)](https://central.sonatype.com/artifact/io.github.chaoking320/retry-client-sdk)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 [English](README.md) | [简体中文](README_zh.md)
@@ -31,7 +32,7 @@
 </p>
 
 <p align="center">
-  <a href="docs/simulation.html">
+  <a href="https://htmlpreview.github.io/?https://github.com/chaoking320/eleccloud/blob/main/docs/simulation.html">
     <img src="https://img.shields.io/badge/🎮_在线交互演示-量子%E2%9F%B7分布式自愈模拟器-blueviolet?style=for-the-badge" alt="在线演示" />
   </a>
 </p>
@@ -142,6 +143,7 @@ git clone https://github.com/chaoking320/eleccloud.git
 cd eleccloud
 
 # 一键编译并启动所有全套服务 (MySQL 8.0 + Redis 6 + Server + Admin + Demo App)
+mvn clean package -DskipTests
 docker compose up -d --build
 ```
 
@@ -175,13 +177,13 @@ cd retry-example && mvn spring-boot:run
 
 ## 🔌 业务接入（3 步）
 
-> 💡 **本地体验**：在正式发布至 Maven Central（计划于 v1.1 里程碑）前，请在项目根目录执行一次 `mvn clean install -DskipTests` 将 `retry-client-sdk` 安装至本地 `.m2` 仓库，随后即可在你的项目中直接添加依赖。
+> 💡 **已正式发布至 Maven Central**：无需本地编译安装，直接在你的 Spring Boot 项目中引入以下 Maven Central 坐标即可开箱即用。
 
 ### Step 1：添加 SDK 依赖
 
 ```xml
 <dependency>
-    <groupId>com.retry.platform</groupId>
+    <groupId>io.github.chaoking320</groupId>
     <artifactId>retry-client-sdk</artifactId>
     <version>1.0.0</version>
 </dependency>

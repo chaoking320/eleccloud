@@ -15,7 +15,7 @@
 
 ```xml
 <dependency>
-    <groupId>com.retry.platform</groupId>
+    <groupId>io.github.chaoking320</groupId>
     <artifactId>retry-client-sdk</artifactId>
     <version>1.0.0</version>
 </dependency>
