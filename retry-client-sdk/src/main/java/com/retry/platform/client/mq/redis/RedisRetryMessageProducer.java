@@ -41,17 +41,25 @@ public class RedisRetryMessageProducer implements RetryMessageProducer {
      */
     @Override
     public void sendDelayMessageWithPayload(RetryMessagePayload payload, long delayMs) {
+        sendDelayMessageToQueue(null, payload, delayMs);
+    }
+
+    @Override
+    public void sendDelayMessageToQueue(String targetQueueName, RetryMessagePayload payload, long delayMs) {
+        String targetKey = (targetQueueName != null && !targetQueueName.isBlank())
+                ? "retry:client:delay:queue:" + targetQueueName
+                : delayQueueKey;
         long executeTime = System.currentTimeMillis() + delayMs;
         try {
             String member = com.retry.platform.client.util.JsonUtil.toJson(payload);
-            redisTemplate.opsForZSet().add(delayQueueKey, member, executeTime);
+            redisTemplate.opsForZSet().add(targetKey, member, executeTime);
             log.info("[Redis MQ] Sent fat message: key={}, taskId={}, delayMs={}, retryCount={}",
-                    delayQueueKey, payload.getTaskId(), delayMs, payload.getRetryCount());
+                    targetKey, payload.getTaskId(), delayMs, payload.getRetryCount());
         } catch (Exception e) {
             log.error("[Redis MQ] Failed to send fat message: taskId={}", payload.getTaskId(), e);
             // 降级为瘦消息
             log.warn("[Redis MQ] Falling back to slim message for taskId={}", payload.getTaskId());
-            sendDelayMessage(payload.getTaskId(), delayMs, payload.getSceneType() != null ? payload.getSceneType() : 0);
+            redisTemplate.opsForZSet().add(targetKey, payload.getTaskId(), executeTime);
         }
     }
 }

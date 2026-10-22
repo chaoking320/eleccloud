@@ -22,4 +22,11 @@ public interface RetryMessageProducer {
      * @param delayMs 延迟毫秒数
      */
     void sendDelayMessageWithPayload(RetryMessagePayload payload, long delayMs);
+
+    /**
+     * 向指定队列发送延时重试消息（胖消息，用于多服务队列隔离路由）
+     */
+    default void sendDelayMessageToQueue(String targetQueueName, RetryMessagePayload payload, long delayMs) {
+        sendDelayMessageWithPayload(payload, delayMs);
+    }
 }

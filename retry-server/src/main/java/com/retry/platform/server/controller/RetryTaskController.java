@@ -160,9 +160,17 @@ public class RetryTaskController {
      * 更新状态接口
      */
     @PostMapping("/status")
-    public Result<Void> updateStatus(@RequestParam String taskId, @RequestParam String status) {
+    public Result<Void> updateStatus(
+            @RequestParam(required = false) String taskId,
+            @RequestParam(required = false) String status,
+            @RequestBody(required = false) java.util.Map<String, Object> body) {
         try {
-            retryTaskService.updateTaskStatus(taskId, status);
+            String actualTaskId = taskId != null ? taskId : (body != null && body.get("taskId") != null ? body.get("taskId").toString() : null);
+            String actualStatus = status != null ? status : (body != null && body.get("status") != null ? body.get("status").toString() : null);
+            if (actualTaskId == null || actualStatus == null) {
+                return Result.fail("taskId and status must not be null");
+            }
+            retryTaskService.updateTaskStatus(actualTaskId, actualStatus);
             return Result.success(null);
         } catch (Exception e) {
             return Result.fail(e.getMessage());

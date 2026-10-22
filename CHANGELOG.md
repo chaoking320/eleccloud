@@ -1,29 +1,20 @@
 # Changelog
 
-## [1.0.0] - 2026-09-13
+## [1.0.0] - 2026-10-22
 
 ### Added
-- Core retry engine with @RetryableTask annotation
-- 4 backoff strategies: CUSTOM, FIXED, LINEAR, EXPONENTIAL
-- Dual MQ channels: Redis ZSET with Lua atomic claim / RabbitMQ
-- Visual admin dashboard (Vue 3 + Element Plus)
-- Prometheus metrics integration
-- Multi-channel alerting (Email, DingTalk, WeChat)
-- ShedLock distributed scheduler lock
-- Standalone mode (zero server dependency)
-- API key authentication
+- **Maven Central Release**: Published `io.github.chaoking320:retry-client-sdk:1.0.0` and parent POM to Maven Central
+- **Two-Tier Hybrid Retry**: Fast in-memory pod retry (`localRetryTimes` / `localIntervalMs`) escalating seamlessly to persistent distributed delay queue retry
+- **Core Retry Engine**: Declarative `@RetryableTask` AOP interceptor, programmatic `RetryClient` API, and crash-resilient `PRE_SUBMIT` mode
+- **4 Backoff Strategies**: `CUSTOM`, `FIXED`, `LINEAR`, `EXPONENTIAL` with task-level and scene-level persistence
+- **Dual MQ Engines**: Redis ZSET (with atomic Lua claim script) and RabbitMQ (`x-delayed-message`)
+- **Standalone Mode**: Zero-server-dependency SDK mode using local MySQL/H2 database
+- **Visual Admin Console**: Vue 3 + Element Plus dashboard with bilingual i18n, real-time metrics, scene configuration, and DLQ (`failed_task`) management
+- **Out-of-the-Box Docker Compose**: Multi-stage root `Dockerfile` for one-command startup (`docker compose up -d --build`)
 
-### Fixed
-- Redis ZSET range(0,-1) OOM vulnerability
-- JSON serialization framework inconsistency
-- Transaction + Redis long transaction issue
-- Timeout scanner race condition
-- Admin API unauthenticated access
-- Frontend/backend Result structure mismatch
-
-### Improved
-- RetryStatus enum replacing string literals
-- RetryClient interface segregation
-- Caffeine cache for scene config
-- Adaptive poll interval for Redis consumer
-- Nested SpEL support in idempotentKey
+### Security & Reliability Hardening
+- Enforced strict reflection whitelist (`@RetryableTask`, registered `submit()` methods, and business `@Service` beans) in `LocalRetryExecutor`
+- Guaranteed "persist `SUCCESS` first, invoke `doCallback` second" ordering with isolated callback exception handling
+- Reactivated terminated (`SUCCESS` / `FAILED`) tasks on subsequent failures sharing the same `(sceneType, idempotentKey)`
+- Enhanced `DatabaseFallbackScheduler` to recover both `INIT` and `WAIT` tasks and scan across multi-application delay queues (`retry:client:delay:queue:*`)
+- Hardened Admin token authentication with constant-time comparison and TTL session management

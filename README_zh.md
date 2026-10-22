@@ -7,7 +7,7 @@
 *专注于解决企业内网隔离环境下的重试调度痛点：零反向回调依赖、防进程异常退出丢任务。*
 
 [![Java](https://img.shields.io/badge/Java-17%2B-orange?logo=openjdk)](https://openjdk.org/)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-2.7.18-brightgreen?logo=springboot)](https://spring.io/projects/spring-boot)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-2.7.x%20%7C%203.x-brightgreen?logo=springboot)](https://spring.io/projects/spring-boot)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![CI Status](https://github.com/chaoking320/eleccloud/actions/workflows/ci.yml/badge.svg)](https://github.com/chaoking320/eleccloud/actions/workflows/ci.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.chaoking320/retry-client-sdk.svg?color=blue)](https://central.sonatype.com/artifact/io.github.chaoking320/retry-client-sdk)
@@ -61,7 +61,7 @@ ElecCloud 采用**企业生产优先（Enterprise-First）的兼顾型兼容策�
 | 组件 | 推荐/支持版本 | 选型与兼容性考量 |
 |:---|:---|:---|
 | **Java 运行时** | **JDK 17 / 21 (LTS)** | 基于现代 JVM 开发与测试，全面享受新一代垃圾收集器（如 ZGC）及低延迟优势。 |
-| **基础框架** | **Spring Boot 2.7.x** | 优先兼顾绝大多数企业生产线上广泛运行的微服务存量集群，**避免强制迁移至 `jakarta.*` 命名空间对宿主工程造成破坏性升级成本**。 |
+| **基础框架** | **Spring Boot 2.7.x & 3.x** | 客户端 `retry-client-sdk` 同时内置 `spring.factories` 与 `AutoConfiguration.imports` 且零 `javax.servlet` 耦合，**同时支持 Spring Boot 2.7.x 与 3.x 业务系统无缝接入**。 |
 | **持久化存储** | **MySQL 8.0+** | 依赖行级 CAS 抢占与 `(scene_type, idempotent_key)` 唯一索引防并发倾轧。 |
 | **延迟队列引擎** | **Redis 6+ (ZSET) / RabbitMQ 3.8+** | 双引擎灵活切换：轻量演示与简单微服务首选 Redis；高可靠企业级重试首选 RabbitMQ。 |
 

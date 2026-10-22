@@ -1,5 +1,6 @@
 package com.retry.platform.client.mq.rabbit;
 
+import com.retry.platform.client.mq.RetryMessagePayload;
 import com.retry.platform.client.mq.RetryMessageProducer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -36,15 +37,23 @@ public class RabbitRetryMessageProducer implements RetryMessageProducer {
     }
 
     @Override
-    public void sendDelayMessageWithPayload(com.retry.platform.client.mq.RetryMessagePayload payload, long delayMs) {
+    public void sendDelayMessageWithPayload(RetryMessagePayload payload, long delayMs) {
+        sendDelayMessageToQueue(null, payload, delayMs);
+    }
+
+    @Override
+    public void sendDelayMessageToQueue(String targetQueueName, RetryMessagePayload payload, long delayMs) {
+        String targetRoutingKey = (targetQueueName != null && !targetQueueName.isBlank())
+                ? targetQueueName
+                : routingKey;
         try {
             String payloadJson = com.retry.platform.client.util.JsonUtil.toJson(payload);
-            rabbitTemplate.convertAndSend(DELAYED_EXCHANGE, routingKey, payloadJson, message -> {
+            rabbitTemplate.convertAndSend(DELAYED_EXCHANGE, targetRoutingKey, payloadJson, message -> {
                 message.getMessageProperties().setDelay((int) delayMs);
                 return message;
             });
             log.info("[Rabbit MQ] Sent fat delay message: exchange={}, routingKey={}, taskId={}, delayMs={}, retryCount={}",
-                    DELAYED_EXCHANGE, routingKey, payload.getTaskId(), delayMs, payload.getRetryCount());
+                    DELAYED_EXCHANGE, targetRoutingKey, payload.getTaskId(), delayMs, payload.getRetryCount());
         } catch (Exception e) {
             log.error("[Rabbit MQ] Failed to send fat delay message: taskId={}", payload.getTaskId(), e);
             log.warn("[Rabbit MQ] Falling back to slim message for taskId={}", payload.getTaskId());

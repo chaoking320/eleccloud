@@ -7,7 +7,7 @@
 *Designed specifically for environments with one-directional network constraints, zero-callback coupling, and crash-resilient retry semantics.*
 
 [![Java](https://img.shields.io/badge/Java-17%2B-orange?logo=openjdk)](https://openjdk.org/)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-2.7.18-brightgreen?logo=springboot)](https://spring.io/projects/spring-boot)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-2.7.x%20%7C%203.x-brightgreen?logo=springboot)](https://spring.io/projects/spring-boot)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![CI Status](https://github.com/chaoking320/eleccloud/actions/workflows/ci.yml/badge.svg)](https://github.com/chaoking320/eleccloud/actions/workflows/ci.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.chaoking320/retry-client-sdk.svg?color=blue)](https://central.sonatype.com/artifact/io.github.chaoking320/retry-client-sdk)
@@ -67,7 +67,7 @@ ElecCloud is intentionally built with an **enterprise-first compatibility strate
 | Component | Target Version | Design Rationale |
 |:---|:---|:---|
 | **Java Runtime** | **JDK 17 / 21 (LTS)** | Built for modern JVMs, leveraging contemporary memory models and execution performance. |
-| **Spring Framework** | **Spring Boot 2.7.x** | Prioritizes seamless integration with the vast ecosystem of existing production enterprise services without forcing an invasive migration to the `jakarta.*` namespace. |
+| **Spring Framework** | **Spring Boot 2.7.x & 3.x** | `retry-client-sdk` ships with both `spring.factories` and `AutoConfiguration.imports` and zero `javax.servlet` coupling, supporting both Spring Boot 2.7.x and 3.x microservices out of the box. |
 | **Database** | **MySQL 8.0+** | Utilizes atomic status CAS transitions and indexed idempotent constraints. |
 | **Message Queues** | **Redis 6+ (ZSET) / RabbitMQ 3.8+** | Dual-engine support for lightweight local setups or robust enterprise messaging. |
 
